@@ -70,7 +70,7 @@ rows:
 
 
 - **Two authoring formats.** YAML for declarative dashboards. [TSX](/dashboards/tsx) when you need loops, variables, conditionals, or queries that resolve at load time to drive layout.
-- **17 chart types.** Line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, XMR, dumbbell — plus metrics, tables, text, images, and dividers.
+- **21 chart types.** Line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, XMR, dumbbell, gauge, treemap, radar, candlestick — plus metrics, tables, text, images, and dividers.
 - **[Semantic layer](/dashboards/semantic-layer).** Define metrics and dimensions once in `semantic/`, reference them from any widget. DAC generates the SQL.
 - **Live reload.** Edit the file, save, see the change. No restart, no rebuild.
 - **Static export.** `dac build` produces self-contained HTML with query results baked in. Deploy to S3, GitHub Pages, anywhere — no runtime server needed.

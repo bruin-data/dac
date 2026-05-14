@@ -3,8 +3,11 @@ import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   ScatterChart, Scatter, ZAxis,
   ComposedChart, FunnelChart, Funnel, LabelList, Sankey,
+  Treemap,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import type { TreemapNode } from "recharts";
 import type { Widget, WidgetData } from "../../types/dashboard";
 import { useTokens } from "../../themes/TemplateProvider";
 
@@ -494,6 +497,256 @@ function DumbbellChart({
   );
 }
 
+// --- Treemap rendering ---
+
+function getHexLuminance(hex: string): number | null {
+  const match = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+  if (!match) return null;
+
+  const [, r, g, b] = match;
+  const channels = [r, g, b].map((part) => {
+    const value = parseInt(part, 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function getTreemapTextColor(fill: string): string {
+  const luminance = getHexLuminance(fill);
+  if (luminance === null) return "var(--dac-text-primary)";
+  return luminance > 0.32 ? "#0A0D14" : "#FFFFFF";
+}
+
+function truncateTreemapLabel(label: string, width: number, fontSize: number): string {
+  const maxChars = Math.floor((width - 16) / (fontSize * 0.58));
+  if (maxChars <= 1) return "";
+  if (label.length <= maxChars) return label;
+  return `${label.slice(0, Math.max(1, maxChars - 3))}...`;
+}
+
+function TreemapCell(node: TreemapNode) {
+  const fill = typeof node.fill === "string" ? node.fill : "var(--dac-accent)";
+  const textColor = getTreemapTextColor(fill);
+  const canShowLabel = node.width >= 42 && node.height >= 24;
+  const fontSize = node.width >= 150 && node.height >= 56 ? 12 : 11;
+  const label = canShowLabel ? truncateTreemapLabel(node.name, node.width, fontSize) : "";
+
+  return (
+    <g>
+      <rect
+        x={node.x}
+        y={node.y}
+        width={node.width}
+        height={node.height}
+        fill={fill}
+        stroke="var(--dac-surface)"
+        strokeWidth={1}
+      />
+      {label && (
+        <text
+          x={node.x + 8}
+          y={node.y + 16}
+          fill={textColor}
+          stroke="none"
+          fontFamily='"Geist", system-ui'
+          fontSize={fontSize}
+          fontWeight={500}
+          dominantBaseline="middle"
+          opacity={0.92}
+          style={{ pointerEvents: "none" }}
+        >
+          {label}
+        </text>
+      )}
+    </g>
+  );
+}
+
+// --- Gauge rendering ---
+
+function GaugeChart({
+  current,
+  target,
+  colors,
+  axisColor,
+  gridColor,
+}: {
+  current: number;
+  target: number;
+  colors: string[];
+  axisColor: string;
+  gridColor: string;
+}) {
+  const safeTarget = target > 0 ? target : 1;
+  const ratio = Math.max(0, Math.min(1, current / safeTarget));
+
+  const width = 240;
+  const height = 150;
+  const cx = width / 2;
+  const cy = height - 16;
+  const r = 90;
+  const stroke = 14;
+
+  // Semi-circle from 180° (left) to 0° (right)
+  const polarToCart = (deg: number) => {
+    const rad = (deg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+  };
+
+  const bgPath = (() => {
+    const a = polarToCart(180);
+    const b = polarToCart(0);
+    return `M ${a.x} ${a.y} A ${r} ${r} 0 0 1 ${b.x} ${b.y}`;
+  })();
+
+  const fgPath = (() => {
+    const endDeg = 180 - ratio * 180;
+    const a = polarToCart(180);
+    const b = polarToCart(endDeg);
+    return `M ${a.x} ${a.y} A ${r} ${r} 0 0 1 ${b.x} ${b.y}`;
+  })();
+
+  const pct = Math.round(ratio * 100);
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 240 }}>
+      <path d={bgPath} stroke={gridColor} strokeWidth={stroke} strokeLinecap="round" fill="none" opacity={0.4} />
+      {ratio > 0 && (
+        <path d={fgPath} stroke={colors[0]} strokeWidth={stroke} strokeLinecap="round" fill="none" />
+      )}
+      <text x={cx} y={cy - 18} textAnchor="middle"
+        fill="var(--dac-text-primary)" fontSize={26} fontWeight={600} fontFamily='"Geist", system-ui'>
+        {formatTooltipValue(current)}
+      </text>
+      <text x={cx} y={cy + 2} textAnchor="middle"
+        fill={axisColor} fontSize={11} fontFamily='"Geist", system-ui'>
+        {pct}% of {formatTooltipValue(safeTarget)}
+      </text>
+    </svg>
+  );
+}
+
+// --- Candlestick rendering ---
+
+function CandlestickChart({
+  data,
+  xKey,
+  openKey,
+  highKey,
+  lowKey,
+  closeKey,
+  colors,
+  axisColor,
+  gridColor,
+}: {
+  data: Record<string, unknown>[];
+  xKey: string;
+  openKey: string;
+  highKey: string;
+  lowKey: string;
+  closeKey: string;
+  colors: string[];
+  axisColor: string;
+  gridColor: string;
+}) {
+  const [hover, setHover] = useState<{
+    x: number; y: number; label: string;
+    open: number; high: number; low: number; close: number;
+  } | null>(null);
+
+  const items = useMemo(() => data.map((d) => ({
+    label: String(d[xKey]),
+    open: Number(d[openKey]) || 0,
+    high: Number(d[highKey]) || 0,
+    low: Number(d[lowKey]) || 0,
+    close: Number(d[closeKey]) || 0,
+  })), [data, xKey, openKey, highKey, lowKey, closeKey]);
+
+  if (items.length === 0) return null;
+
+  const allVals = items.flatMap((i) => [i.high, i.low, i.open, i.close]);
+  const dataMin = Math.min(...allVals);
+  const dataMax = Math.max(...allVals);
+  const pad = (dataMax - dataMin) * 0.05 || 1;
+  const yMin = dataMin - pad;
+  const yMax = dataMax + pad;
+
+  const width = 600;
+  const height = 240;
+  const padL = 44;
+  const padR = 8;
+  const padT = 8;
+  const padB = 28;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  const yToPx = (v: number) => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+  const step = plotW / items.length;
+  const bodyW = Math.max(2, Math.min(16, step * 0.6));
+
+  const upColor = colors[0];
+  const downColor = colors[3] ?? "#DC2626";
+
+  const tickCount = 4;
+  const yTicks = Array.from({ length: tickCount + 1 }, (_, i) => yMin + (i / tickCount) * (yMax - yMin));
+
+  const labelStride = Math.max(1, Math.ceil(items.length / 8));
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 240 }}
+      onMouseLeave={() => setHover(null)}>
+      {yTicks.map((v, i) => {
+        const y = yToPx(v);
+        return (
+          <g key={i}>
+            <line x1={padL} x2={width - padR} y1={y} y2={y}
+              stroke={gridColor} strokeOpacity={0.5} strokeDasharray="3 3" />
+            <text x={padL - 6} y={y + 3} textAnchor="end"
+              fill={axisColor} fontSize={11} fontFamily='"Geist", system-ui'>
+              {formatYTick(v)}
+            </text>
+          </g>
+        );
+      })}
+      {items.map((item, i) => {
+        const cx = padL + i * step + step / 2;
+        const yH = yToPx(item.high);
+        const yL = yToPx(item.low);
+        const yO = yToPx(item.open);
+        const yC = yToPx(item.close);
+        const up = item.close >= item.open;
+        const color = up ? upColor : downColor;
+        const top = Math.min(yO, yC);
+        const h = Math.max(1, Math.abs(yC - yO));
+        return (
+          <g key={i}
+            onMouseEnter={() => setHover({ x: cx, y: (yH + yL) / 2, ...item })}
+            onMouseLeave={() => setHover(null)}>
+            <line x1={cx} x2={cx} y1={yH} y2={yL} stroke={color} strokeWidth={1} />
+            <rect x={cx - bodyW / 2} y={top} width={bodyW} height={h}
+              fill={color} stroke={color} />
+            {i % labelStride === 0 && (
+              <text x={cx} y={height - padB + 14} textAnchor="middle"
+                fill={axisColor} fontSize={10} fontFamily='"Geist", system-ui'>
+                {formatAxisTick(item.label)}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {hover && (
+        <SvgTooltip x={hover.x + bodyW / 2} y={hover.y}
+          lines={[
+            formatAxisTick(hover.label),
+            `O ${formatTooltipValue(hover.open)}  H ${formatTooltipValue(hover.high)}`,
+            `L ${formatTooltipValue(hover.low)}  C ${formatTooltipValue(hover.close)}`,
+          ]} />
+      )}
+    </svg>
+  );
+}
+
 // --- Main chart component ---
 
 export function ChartWidget({ widget, data }: Props) {
@@ -881,6 +1134,89 @@ export function ChartWidget({ widget, data }: Props) {
           data={chartData}
           xKey={widget.x!}
           yFields={widget.y ?? []}
+          colors={colors}
+          axisColor={axisColor}
+          gridColor={gridColor}
+        />
+      );
+
+    case "gauge": {
+      const valueKey = widget.value || "value";
+      const targetKey = widget.target;
+      const first = chartData[0] ?? {};
+      const current = Number(first[valueKey]) || 0;
+      const target = targetKey ? Number(first[targetKey]) || 0 : 100;
+      return (
+        <GaugeChart
+          current={current}
+          target={target}
+          colors={colors}
+          axisColor={axisColor}
+          gridColor={gridColor}
+        />
+      );
+    }
+
+    case "treemap": {
+      const labelKey = widget.label || "label";
+      const valueKey = widget.value || "value";
+      const tmData = chartData.map((d, i) => ({
+        name: String(d[labelKey]),
+        size: Number(d[valueKey]) || 0,
+        fill: colors[i % colors.length],
+      }));
+      return (
+        <ResponsiveContainer width="100%" height={240}>
+          <Treemap
+            data={tmData}
+            dataKey="size"
+            nameKey="name"
+            stroke="var(--dac-surface)"
+            content={TreemapCell}
+            isAnimationActive={false}
+          >
+            <Tooltip content={<CustomTooltip />} />
+          </Treemap>
+        </ResponsiveContainer>
+      );
+    }
+
+    case "radar": {
+      const yFields = widget.y ?? [];
+      return (
+        <ResponsiveContainer width="100%" height={240}>
+          <RadarChart data={chartData} margin={{ top: 8, right: 24, bottom: 8, left: 24 }}>
+            <PolarGrid stroke={gridColor} strokeOpacity={0.5} />
+            <PolarAngleAxis dataKey={widget.x} tick={{ ...AXIS_STYLE, fill: axisColor }} />
+            <PolarRadiusAxis tick={{ ...AXIS_STYLE, fill: axisColor }} axisLine={false} tickFormatter={formatYTick} />
+            <Tooltip content={<CustomTooltip />} />
+            {yFields.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {yFields.map((field, i) => (
+              <Radar
+                key={field}
+                name={field}
+                dataKey={field}
+                stroke={colors[i % colors.length]}
+                fill={colors[i % colors.length]}
+                fillOpacity={0.15}
+                strokeWidth={1.5}
+                isAnimationActive={false}
+              />
+            ))}
+          </RadarChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    case "candlestick":
+      return (
+        <CandlestickChart
+          data={chartData}
+          xKey={widget.x!}
+          openKey={widget.open || "open"}
+          highKey={widget.high || "high"}
+          lowKey={widget.low || "low"}
+          closeKey={widget.close || "close"}
           colors={colors}
           axisColor={axisColor}
           gridColor={gridColor}

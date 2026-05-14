@@ -1,0 +1,89 @@
+schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: New Charts Showcase
+description: Validates the four new chart types (gauge, treemap, radar, candlestick)
+connection: local_duckdb
+
+rows:
+  # Gauge + Treemap
+  - widgets:
+      - name: Revenue vs Target
+        type: chart
+        chart: gauge
+        col: 4
+        sql: |
+          SELECT
+            SUM(amount)::INTEGER AS current,
+            15000000 AS target
+          FROM sales
+        value: current
+        target: target
+
+      - name: Revenue by Region (Treemap)
+        type: chart
+        chart: treemap
+        col: 8
+        sql: |
+          SELECT region, SUM(amount)::INTEGER AS revenue
+          FROM sales
+          GROUP BY region
+          ORDER BY revenue DESC
+        label: region
+        value: revenue
+
+  # Radar
+  - widgets:
+      - name: Order Status — H1 vs H2
+        type: chart
+        chart: radar
+        col: 6
+        sql: |
+          SELECT
+            status,
+            COUNT(*) FILTER (WHERE created_at < '2025-07-01') AS h1,
+            COUNT(*) FILTER (WHERE created_at >= '2025-07-01') AS h2
+          FROM orders
+          WHERE status IS NOT NULL
+          GROUP BY status
+          ORDER BY status
+        x: status
+        y: [h1, h2]
+
+      - name: Channel Mix by Region
+        type: chart
+        chart: radar
+        col: 6
+        sql: |
+          SELECT
+            region,
+            SUM(amount) FILTER (WHERE channel = 'direct')::INTEGER AS direct,
+            SUM(amount) FILTER (WHERE channel = 'retail')::INTEGER AS retail,
+            SUM(amount) FILTER (WHERE channel = 'partner')::INTEGER AS partner
+          FROM sales
+          GROUP BY region
+          ORDER BY region
+        x: region
+        y: [direct, retail, partner]
+
+  # Candlestick
+  - widgets:
+      - name: Daily Order Amount (OHLC)
+        type: chart
+        chart: candlestick
+        col: 12
+        sql: |
+          SELECT
+            STRFTIME(created_at, '%Y-%m-%d') AS date,
+            FIRST(amount ORDER BY id)::DOUBLE AS open,
+            MAX(amount)::DOUBLE AS high,
+            MIN(amount)::DOUBLE AS low,
+            LAST(amount ORDER BY id)::DOUBLE AS close
+          FROM orders
+          WHERE created_at IS NOT NULL
+          GROUP BY 1
+          ORDER BY 1
+          LIMIT 30
+        x: date
+        open: open
+        high: high
+        low: low
+        close: close

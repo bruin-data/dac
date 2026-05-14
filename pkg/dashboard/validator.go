@@ -300,7 +300,8 @@ var validChartTypes = map[string]bool{
 	"scatter": true, "bubble": true, "combo": true, "histogram": true,
 	"boxplot": true, "funnel": true, "sankey": true, "heatmap": true,
 	"calendar": true, "sparkline": true, "waterfall": true, "xmr": true,
-	"dumbbell": true,
+	"dumbbell": true, "gauge": true, "treemap": true, "radar": true,
+	"candlestick": true,
 }
 
 func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
@@ -347,13 +348,37 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	}
 
 	switch w.Chart {
-	case "pie", "funnel":
+	case "pie", "funnel", "treemap":
 		// label + value columns
 		if w.Label == "" {
 			errs = append(errs, fmt.Sprintf("%s: label is required for %s charts", prefix, w.Chart))
 		}
 		if w.Value == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for %s charts", prefix, w.Chart))
+		}
+
+	case "gauge":
+		// value column (current); target is optional
+		if w.Value == "" {
+			errs = append(errs, fmt.Sprintf("%s: value is required for gauge charts", prefix))
+		}
+
+	case "candlestick":
+		// x + open/high/low/close
+		if w.X == "" {
+			errs = append(errs, fmt.Sprintf("%s: x is required for candlestick charts", prefix))
+		}
+		if w.Open == "" {
+			errs = append(errs, fmt.Sprintf("%s: open is required for candlestick charts", prefix))
+		}
+		if w.High == "" {
+			errs = append(errs, fmt.Sprintf("%s: high is required for candlestick charts", prefix))
+		}
+		if w.Low == "" {
+			errs = append(errs, fmt.Sprintf("%s: low is required for candlestick charts", prefix))
+		}
+		if w.Close == "" {
+			errs = append(errs, fmt.Sprintf("%s: close is required for candlestick charts", prefix))
 		}
 
 	case "sankey":
@@ -408,7 +433,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		}
 
 	default:
-		// line, bar, area, scatter, combo, sparkline, waterfall, xmr, dumbbell, boxplot
+		// line, bar, area, scatter, combo, sparkline, waterfall, xmr, dumbbell, boxplot, radar
 		// all need x + y
 		if w.X == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for %s charts", prefix, w.Chart))
