@@ -57,6 +57,7 @@ func NewApp(build BuildInfo) *cli.Command {
 			withTelemetry(connectionsCmd()),
 			withTelemetry(skillsCmd()),
 			withTelemetry(exportCmd()),
+			withTelemetry(upgradeCmd(build)),
 			versionCmd(build),
 		},
 	}
