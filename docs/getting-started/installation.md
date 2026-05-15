@@ -30,6 +30,18 @@ To install a specific version:
 curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash -s -- v0.1.0
 ```
 
+## Upgrading
+
+Once `dac` is on your `PATH`, upgrade in place with:
+
+```shell
+dac upgrade
+```
+
+This re-runs the official installer to replace the current binary with the latest release on the same channel. See [`dac upgrade`](/commands/upgrade) for flags, channel switching, and pinning a specific version.
+
+DAC also checks GitHub once a day for newer releases on your channel and prints a one-line notice to stderr when one is available. Set `DAC_NO_UPDATE_CHECK=1` or `DO_NOT_TRACK=1` to disable.
+
 ## Build from Source
 
 If you are developing DAC itself:
