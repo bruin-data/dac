@@ -588,6 +588,65 @@ Positive values shown in one color, negative in another. Bars float to show cumu
 
 Horizontal chart showing range between two values per category.
 
+#### Gauge
+
+```yaml
+- name: Revenue vs Target
+  type: chart
+  chart: gauge
+  sql: SELECT current_revenue, revenue_target FROM kpi
+  value: current_revenue        # REQUIRED: current value column (first row)
+  target: revenue_target        # Optional: target/max column (default 100)
+  col: 3
+```
+
+Semi-circular progress gauge for KPI-vs-target. Reads the first row.
+
+#### Treemap
+
+```yaml
+- name: Revenue by Category
+  type: chart
+  chart: treemap
+  sql: SELECT category, revenue FROM sales
+  label: category               # REQUIRED: label column
+  value: revenue                # REQUIRED: size column
+  col: 6
+```
+
+Rectangular hierarchy showing part-to-whole proportions. Use instead of pie when slices exceed ~7.
+
+#### Radar
+
+```yaml
+- name: Product Scorecard
+  type: chart
+  chart: radar
+  sql: SELECT attribute, product_a, product_b FROM scorecard
+  x: attribute                  # REQUIRED: axis category column
+  y: [product_a, product_b]     # REQUIRED: one or more series to compare
+  col: 6
+```
+
+Multi-axis comparison across a small number of entities.
+
+#### Candlestick
+
+```yaml
+- name: Daily Price
+  type: chart
+  chart: candlestick
+  sql: SELECT date, open, high, low, close FROM ohlc ORDER BY date
+  x: date                       # REQUIRED: time column
+  open: open                    # REQUIRED
+  high: high                    # REQUIRED
+  low: low                      # REQUIRED
+  close: close                  # REQUIRED
+  col: 12
+```
+
+OHLC chart for financial/pricing data. Green when close ≥ open, red otherwise.
+
 ### Table Widget
 
 Data table with optional column configuration.
@@ -1289,7 +1348,7 @@ rows:
 | Type | Required Fields | Query Source | Description |
 |------|----------------|--------------|-------------|
 | `metric` | `metric:` ref OR `column` + query | Declarative or SQL | Single KPI number card |
-| `chart` | `dimension` + `metrics` OR `chart` + x/y + query | Declarative or SQL | Visualization (17 chart types) |
+| `chart` | `dimension` + `metrics` OR `chart` + x/y + query | Declarative or SQL | Visualization (21 chart types) |
 | `table` | — | SQL | Data table with optional column config |
 | `text` | `content` | None | Markdown/text content |
 | `divider` | — | None | Horizontal separator line |
@@ -1316,6 +1375,10 @@ rows:
 | `waterfall` | `x`, `y` | | Waterfall chart |
 | `xmr` | `x`, `y` | `yMin`, `yMax` | Control chart with limits |
 | `dumbbell` | `x`, `y` (2 fields) | | Horizontal range comparison |
+| `gauge` | `value` | `target` | Semi-circular KPI-vs-target gauge (uses first row) |
+| `treemap` | `label`, `value` | | Rectangular part-to-whole hierarchy |
+| `radar` | `x`, `y` | | Polar/spider chart for multi-metric comparison |
+| `candlestick` | `x`, `open`, `high`, `low`, `close` | | OHLC chart |
 
 ---
 

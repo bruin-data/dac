@@ -159,19 +159,23 @@ type Widget struct {
 	Limit       int                    `yaml:"limit,omitempty" json:"limit,omitempty"` // LIMIT for dimensional queries
 
 	// Chart fields
-	Chart   string   `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell
+	Chart   string   `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick
 	X       string   `yaml:"x,omitempty" json:"x,omitempty"`
 	Y       []string `yaml:"y,omitempty" json:"y,omitempty"`
-	Label   string   `yaml:"label,omitempty" json:"label,omitempty"`     // for pie/funnel
-	Value   string   `yaml:"value,omitempty" json:"value,omitempty"`     // for pie/funnel/heatmap/calendar
+	Label   string   `yaml:"label,omitempty" json:"label,omitempty"`     // for pie/funnel/treemap
+	Value   string   `yaml:"value,omitempty" json:"value,omitempty"`     // for pie/funnel/heatmap/calendar/treemap/gauge
 	Stacked bool     `yaml:"stacked,omitempty" json:"stacked,omitempty"` // for bar/area charts
 	Size    string   `yaml:"size,omitempty" json:"size,omitempty"`       // bubble: size dimension column
 	Source  string   `yaml:"source,omitempty" json:"source,omitempty"`   // sankey: source column
-	Target  string   `yaml:"target,omitempty" json:"target,omitempty"`   // sankey: target column
+	Target  string   `yaml:"target,omitempty" json:"target,omitempty"`   // sankey: target column, gauge: target (max) column
 	Bins    int      `yaml:"bins,omitempty" json:"bins,omitempty"`       // histogram: number of bins
 	Lines   []string `yaml:"lines,omitempty" json:"lines,omitempty"`     // combo: which y series render as lines
 	YMin    string   `yaml:"yMin,omitempty" json:"yMin,omitempty"`       // xmr: min control limit column
 	YMax    string   `yaml:"yMax,omitempty" json:"yMax,omitempty"`       // xmr: max control limit column
+	Open    string   `yaml:"open,omitempty" json:"open,omitempty"`       // candlestick: open price column
+	High    string   `yaml:"high,omitempty" json:"high,omitempty"`       // candlestick: high price column
+	Low     string   `yaml:"low,omitempty" json:"low,omitempty"`         // candlestick: low price column
+	Close   string   `yaml:"close,omitempty" json:"close,omitempty"`     // candlestick: close price column
 
 	// Table fields
 	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`

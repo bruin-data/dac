@@ -57,7 +57,7 @@ Metric-specific fields:
 
 ## Chart
 
-Charts visualize one or more series. DAC supports line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, XMR, and dumbbell charts.
+Charts visualize one or more series. DAC supports line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, XMR, dumbbell, gauge, treemap, radar, and candlestick charts.
 
 SQL-backed example:
 
@@ -97,8 +97,13 @@ Common chart fields:
 | `chart` | string | Chart type |
 | `x` | string | X-axis column for SQL-backed charts |
 | `y` | string[] | Y-axis columns for SQL-backed charts |
-| `label` | string | Label column for pie and funnel charts |
-| `value` | string | Value column for pie, funnel, heatmap, and calendar charts |
+| `label` | string | Label column for pie, funnel, and treemap charts |
+| `value` | string | Value column for pie, funnel, heatmap, calendar, treemap, and gauge charts |
+| `target` | string | Target/max column for gauge charts (also sankey target node) |
+| `open` | string | Open column for candlestick charts |
+| `high` | string | High column for candlestick charts |
+| `low` | string | Low column for candlestick charts |
+| `close` | string | Close column for candlestick charts |
 | `dimension` | string | Semantic dimension name |
 | `granularity` | string | Semantic time grain for `dimension` |
 | `metrics` | string[] | Semantic metric names |

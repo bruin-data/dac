@@ -83,7 +83,7 @@ export interface Widget {
   format?: string;
 
   // Chart
-  chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell";
+  chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick";
   x?: string;
   y?: string[];
   label?: string;
@@ -91,11 +91,15 @@ export interface Widget {
   stacked?: boolean;
   size?: string;       // bubble: size dimension
   source?: string;     // sankey: source column
-  target?: string;     // sankey: target column
+  target?: string;     // sankey: target column / gauge: target (max) column
   bins?: number;       // histogram: number of bins
   lines?: string[];    // combo: which y series are lines
   yMin?: string;       // xmr: min control limit column
   yMax?: string;       // xmr: max control limit column
+  open?: string;       // candlestick: open column
+  high?: string;       // candlestick: high column
+  low?: string;        // candlestick: low column
+  close?: string;      // candlestick: close column
 
   // Table
   columns?: TableColumn[];

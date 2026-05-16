@@ -294,7 +294,11 @@
             "sparkline",
             "waterfall",
             "xmr",
-            "dumbbell"
+            "dumbbell",
+            "gauge",
+            "treemap",
+            "radar",
+            "candlestick"
           ]
         },
         "x": {
@@ -332,6 +336,18 @@
           "type": "string"
         },
         "yMax": {
+          "type": "string"
+        },
+        "open": {
+          "type": "string"
+        },
+        "high": {
+          "type": "string"
+        },
+        "low": {
+          "type": "string"
+        },
+        "close": {
           "type": "string"
         },
         "columns": {
