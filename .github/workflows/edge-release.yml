@@ -60,6 +60,16 @@ jobs:
           \`\`\`
           EOF
 
+      - name: Verify telemetry key
+        shell: bash
+        env:
+          TELEMETRY_KEY: ${{ secrets.TELEMETRY_KEY }}
+        run: |
+          if [ -z "$TELEMETRY_KEY" ]; then
+            echo "TELEMETRY_KEY repository secret must be configured for edge releases." >&2
+            exit 1
+          fi
+
       - name: Release edge build
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -68,3 +78,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           GORELEASER_CURRENT_TAG: ${{ steps.edge.outputs.tag }}
+          TELEMETRY_KEY: ${{ secrets.TELEMETRY_KEY }}
