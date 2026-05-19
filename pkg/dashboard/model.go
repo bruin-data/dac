@@ -1,11 +1,13 @@
 package dashboard
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	sem "github.com/bruin-data/dac/pkg/semantic"
+	"gopkg.in/yaml.v3"
 )
 
 // Widget type constants.
@@ -159,23 +161,23 @@ type Widget struct {
 	Limit       int                    `yaml:"limit,omitempty" json:"limit,omitempty"` // LIMIT for dimensional queries
 
 	// Chart fields
-	Chart   string   `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick
-	X       string   `yaml:"x,omitempty" json:"x,omitempty"`
-	Y       []string `yaml:"y,omitempty" json:"y,omitempty"`
-	Label   string   `yaml:"label,omitempty" json:"label,omitempty"`     // for pie/funnel/treemap
-	Value   string   `yaml:"value,omitempty" json:"value,omitempty"`     // for pie/funnel/heatmap/calendar/treemap/gauge
-	Stacked bool     `yaml:"stacked,omitempty" json:"stacked,omitempty"` // for bar/area charts
-	Size    string   `yaml:"size,omitempty" json:"size,omitempty"`       // bubble: size dimension column
-	Source  string   `yaml:"source,omitempty" json:"source,omitempty"`   // sankey: source column
-	Target  string   `yaml:"target,omitempty" json:"target,omitempty"`   // sankey: target column, gauge: target (max) column
-	Bins    int      `yaml:"bins,omitempty" json:"bins,omitempty"`       // histogram: number of bins
-	Lines   []string `yaml:"lines,omitempty" json:"lines,omitempty"`     // combo: which y series render as lines
-	YMin    string   `yaml:"yMin,omitempty" json:"yMin,omitempty"`       // xmr: min control limit column
-	YMax    string   `yaml:"yMax,omitempty" json:"yMax,omitempty"`       // xmr: max control limit column
-	Open    string   `yaml:"open,omitempty" json:"open,omitempty"`       // candlestick: open price column
-	High    string   `yaml:"high,omitempty" json:"high,omitempty"`       // candlestick: high price column
-	Low     string   `yaml:"low,omitempty" json:"low,omitempty"`         // candlestick: low price column
-	Close   string   `yaml:"close,omitempty" json:"close,omitempty"`     // candlestick: close price column
+	Chart   string        `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick
+	X       *AxisEncoding `yaml:"x,omitempty" json:"x,omitempty"`
+	Y       *AxisEncoding `yaml:"y,omitempty" json:"y,omitempty"`
+	Label   string        `yaml:"label,omitempty" json:"label,omitempty"`     // for pie/funnel/treemap
+	Value   string        `yaml:"value,omitempty" json:"value,omitempty"`     // for pie/funnel/heatmap/calendar/treemap/gauge
+	Stacked bool          `yaml:"stacked,omitempty" json:"stacked,omitempty"` // for bar/area charts
+	Size    string        `yaml:"size,omitempty" json:"size,omitempty"`       // bubble: size dimension column
+	Source  string        `yaml:"source,omitempty" json:"source,omitempty"`   // sankey: source column
+	Target  string        `yaml:"target,omitempty" json:"target,omitempty"`   // sankey: target column, gauge: target (max) column
+	Bins    int           `yaml:"bins,omitempty" json:"bins,omitempty"`       // histogram: number of bins
+	Lines   []string      `yaml:"lines,omitempty" json:"lines,omitempty"`     // combo: which y series render as lines
+	YMin    string        `yaml:"yMin,omitempty" json:"yMin,omitempty"`       // xmr: min control limit column
+	YMax    string        `yaml:"yMax,omitempty" json:"yMax,omitempty"`       // xmr: max control limit column
+	Open    string        `yaml:"open,omitempty" json:"open,omitempty"`       // candlestick: open price column
+	High    string        `yaml:"high,omitempty" json:"high,omitempty"`       // candlestick: high price column
+	Low     string        `yaml:"low,omitempty" json:"low,omitempty"`         // candlestick: low price column
+	Close   string        `yaml:"close,omitempty" json:"close,omitempty"`     // candlestick: close price column
 
 	// Table fields
 	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
@@ -419,6 +421,205 @@ func (w *Widget) ResolvedQuery(dashboard *Dashboard) (sql, connection string, er
 		}
 		return "", "", &NoQueryError{Widget: w.Name}
 	}
+}
+
+type AxisEncoding struct {
+	Field  any    `yaml:"field" json:"field"`
+	Type   string `yaml:"type,omitempty" json:"type,omitempty"`
+	Title  string `yaml:"title,omitempty" json:"title,omitempty"`
+	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+}
+
+func (a *AxisEncoding) FieldString() string {
+	if a == nil || a.Field == nil {
+		return ""
+	}
+	switch v := a.Field.(type) {
+	case string:
+		return v
+	case []string:
+		if len(v) > 0 {
+			return v[0]
+		}
+	}
+	return ""
+}
+
+func (a *AxisEncoding) FieldList() []string {
+	if a == nil || a.Field == nil {
+		return nil
+	}
+	switch v := a.Field.(type) {
+	case string:
+		if v == "" {
+			return nil
+		}
+		return []string{v}
+	case []string:
+		return v
+	}
+	return nil
+}
+
+func (a *AxisEncoding) hasMetadata() bool {
+	return a != nil && (a.Type != "" || a.Title != "" || a.Format != "")
+}
+
+func (w *Widget) XField() string { return w.X.FieldString() }
+
+func (w *Widget) YFields() []string { return w.Y.FieldList() }
+
+func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		var s string
+		if err := node.Decode(&s); err != nil {
+			return err
+		}
+		a.Field = s
+		return nil
+	case yaml.SequenceNode:
+		var list []string
+		if err := node.Decode(&list); err != nil {
+			return err
+		}
+		a.Field = list
+		return nil
+	case yaml.MappingNode:
+		type axisFields struct {
+			Field  yaml.Node `yaml:"field"`
+			Type   string    `yaml:"type,omitempty"`
+			Title  string    `yaml:"title,omitempty"`
+			Format string    `yaml:"format,omitempty"`
+		}
+		var tmp axisFields
+		if err := node.Decode(&tmp); err != nil {
+			return err
+		}
+		a.Type = tmp.Type
+		a.Title = tmp.Title
+		a.Format = tmp.Format
+		switch tmp.Field.Kind {
+		case yaml.ScalarNode:
+			var s string
+			if err := tmp.Field.Decode(&s); err != nil {
+				return err
+			}
+			a.Field = s
+		case yaml.SequenceNode:
+			var list []string
+			if err := tmp.Field.Decode(&list); err != nil {
+				return err
+			}
+			a.Field = list
+		case 0:
+		default:
+			return fmt.Errorf("axis encoding: field must be a string or list of strings")
+		}
+		return nil
+	default:
+		return fmt.Errorf("axis encoding: unsupported YAML node kind %d", node.Kind)
+	}
+}
+
+func (a *AxisEncoding) MarshalYAML() (any, error) {
+	if a == nil {
+		return nil, nil
+	}
+	if !a.hasMetadata() {
+		return a.Field, nil
+	}
+	return struct {
+		Field  any    `yaml:"field"`
+		Type   string `yaml:"type,omitempty"`
+		Title  string `yaml:"title,omitempty"`
+		Format string `yaml:"format,omitempty"`
+	}{a.Field, a.Type, a.Title, a.Format}, nil
+}
+
+func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	switch trimmed[0] {
+	case '"':
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		a.Field = s
+		return nil
+	case '[':
+		var list []string
+		if err := json.Unmarshal(data, &list); err != nil {
+			return err
+		}
+		a.Field = list
+		return nil
+	case '{':
+		var raw struct {
+			Field  json.RawMessage `json:"field"`
+			Type   string          `json:"type,omitempty"`
+			Title  string          `json:"title,omitempty"`
+			Format string          `json:"format,omitempty"`
+		}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return err
+		}
+		a.Type = raw.Type
+		a.Title = raw.Title
+		a.Format = raw.Format
+		if len(raw.Field) == 0 || string(raw.Field) == "null" {
+			return nil
+		}
+		fieldStr := strings.TrimSpace(string(raw.Field))
+		if len(fieldStr) > 0 && fieldStr[0] == '[' {
+			var list []string
+			if err := json.Unmarshal(raw.Field, &list); err != nil {
+				return err
+			}
+			a.Field = list
+			return nil
+		}
+		var s string
+		if err := json.Unmarshal(raw.Field, &s); err != nil {
+			return fmt.Errorf("axis encoding: field must be a string or list of strings")
+		}
+		a.Field = s
+		return nil
+	default:
+		return fmt.Errorf("axis encoding: unsupported JSON value")
+	}
+}
+
+func (a *AxisEncoding) MarshalJSON() ([]byte, error) {
+	if a == nil {
+		return []byte("null"), nil
+	}
+	if !a.hasMetadata() {
+		return json.Marshal(a.Field)
+	}
+	return json.Marshal(struct {
+		Field  any    `json:"field"`
+		Type   string `json:"type,omitempty"`
+		Title  string `json:"title,omitempty"`
+		Format string `json:"format,omitempty"`
+	}{a.Field, a.Type, a.Title, a.Format})
+}
+
+func newAxisField(s string) *AxisEncoding {
+	if s == "" {
+		return nil
+	}
+	return &AxisEncoding{Field: s}
+}
+
+func newAxisFields(list []string) *AxisEncoding {
+	if len(list) == 0 {
+		return nil
+	}
+	return &AxisEncoding{Field: list}
 }
 
 type QueryNotFoundError struct {
