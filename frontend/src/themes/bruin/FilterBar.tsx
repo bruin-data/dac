@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import type { DateRange } from "react-day-picker";
+import Select from "react-select";
 import type { FilterBarProps } from "../../types/template";
 import type { Filter } from "../../types/dashboard";
 import { popoverPortalTarget, usePopover } from "../../hooks/usePopover";
@@ -397,6 +398,11 @@ function DateRangeFilter({
   );
 }
 
+interface Option {
+  label: string;
+  value: string;
+}
+
 function MultiSelectFilter({
   filter,
   value,
@@ -408,133 +414,70 @@ function MultiSelectFilter({
   onChange: (value: unknown) => void;
   label: string;
 }) {
-  const options = filter.options?.values ?? [];
-  const selected: string[] = Array.isArray(value) ? (value as string[]) : [];
-
-  const { open, setOpen, popoverRef, triggerRef, position } = usePopover();
-  const listboxId = `multi-${filter.name}`;
-
-  const toggle = (v: string) => {
-    if (selected.includes(v)) onChange(selected.filter((s) => s !== v));
-    else onChange([...selected, v]);
-  };
+  const options: Option[] = (filter.options?.values ?? []).map((v) => ({ label: v, value: v }));
+  const selected = Array.isArray(value)
+    ? options.filter((o) => (value as string[]).includes(o.value))
+    : [];
+  const inputId = `multi-${filter.name}`;
 
   return (
     <div className="flex flex-col gap-1">
       <label
-        htmlFor={`${listboxId}-trigger`}
+        htmlFor={inputId}
         className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]"
       >
         {label}
       </label>
-      <button
-        id={`${listboxId}-trigger`}
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listboxId}
-        className={`${inputClass} cursor-pointer flex items-center gap-1.5 min-w-[140px]`}
-      >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0 opacity-50">
-          <path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-        </svg>
-        <MultiSelectTriggerLabel selected={selected} />
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0 opacity-40 ml-auto">
-          <path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
-
-      {open && createPortal(
-        <div
-          ref={popoverRef}
-          id={listboxId}
-          role="listbox"
-          aria-multiselectable
-          aria-label={label}
-          className="dac-popover"
-          style={{
-            position: "fixed",
-            top: position.top,
-            left: position.left,
-            minWidth: position.width,
-            zIndex: 9999,
-          }}
-        >
-          {selected.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onChange([])}
-              className="w-full text-left px-3 py-1.5 text-[12px] text-[var(--dac-text-secondary)] hover:text-[var(--dac-text-primary)] hover:bg-[var(--dac-surface-hover)] border-b border-[var(--dac-border)] transition-colors"
-            >
-              Clear selection
-            </button>
-          )}
-          <div className="flex flex-col max-h-[260px] overflow-y-auto py-1">
-            {options.map((v) => {
-              const checked = selected.includes(v);
-              return (
-                <div
-                  key={v}
-                  role="option"
-                  aria-selected={checked}
-                  onClick={() => toggle(v)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggle(v);
-                    }
-                  }}
-                  tabIndex={0}
-                  className="flex items-center gap-2 px-3 py-1.5 text-[13px] cursor-pointer hover:bg-[var(--dac-surface-hover)] focus:bg-[var(--dac-surface-hover)] focus:outline-none transition-colors duration-75"
-                >
-                  <CheckboxIcon checked={checked} />
-                  <span className="text-[var(--dac-text-primary)] truncate">{v}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>,
-        popoverPortalTarget(),
-      )}
+      <Select
+        inputId={inputId}
+        aria-label={label}
+        isMulti
+        options={options}
+        value={selected}
+        onChange={(opts) => onChange(opts.map((o) => o.value))}
+        placeholder="All"
+        menuPortalTarget={popoverPortalTarget() as HTMLElement}
+        menuPosition="fixed"
+        closeMenuOnSelect={false}
+        hideSelectedOptions={false}
+        unstyled
+        classNames={selectClassNames}
+        styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
+      />
     </div>
   );
 }
 
-function MultiSelectTriggerLabel({ selected }: { selected: string[] }) {
-  if (selected.length === 0) {
-    return <span className="text-[13px] text-[var(--dac-text-muted)]">All</span>;
-  }
-  if (selected.length <= 2) {
-    return (
-      <span className="text-[13px] whitespace-nowrap truncate text-[var(--dac-text-primary)]">
-        {selected.join(", ")}
-      </span>
-    );
-  }
-  return (
-    <span className="text-[13px] whitespace-nowrap text-[var(--dac-text-primary)]">
-      {selected[0]}, {selected[1]}{" "}
-      <span className="text-[var(--dac-text-muted)]">+{selected.length - 2}</span>
-    </span>
-  );
-}
+const selectControlBase =
+  "min-h-7 px-1.5 rounded-sm text-[13px] border bg-[var(--dac-background)] text-[var(--dac-text-primary)] transition-colors duration-100 cursor-pointer flex items-center";
 
-function CheckboxIcon({ checked }: { checked: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm border shrink-0 transition-colors ${
-        checked
-          ? "bg-[var(--dac-accent)] border-[var(--dac-accent)]"
-          : "border-[var(--dac-border)] bg-[var(--dac-background)]"
-      }`}
-    >
-      {checked && (
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      )}
-    </span>
-  );
-}
+const selectClassNames = {
+  control: ({ isFocused }: { isFocused: boolean }) =>
+    `${selectControlBase} min-w-[160px] ${
+      isFocused ? "border-[var(--dac-accent)]" : "border-[var(--dac-border)]"
+    }`,
+  valueContainer: () => "flex flex-wrap gap-1 py-0.5",
+  placeholder: () => "text-[var(--dac-text-muted)] px-1",
+  input: () => "text-[var(--dac-text-primary)] py-0",
+  indicatorsContainer: () => "flex items-center gap-0.5 text-[var(--dac-text-muted)]",
+  indicatorSeparator: () => "hidden",
+  dropdownIndicator: () => "px-1 opacity-50 hover:opacity-80 transition-opacity",
+  clearIndicator: () => "px-1 opacity-50 hover:opacity-80 transition-opacity cursor-pointer",
+  multiValue: () =>
+    "flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-[var(--dac-surface-hover)] border border-[var(--dac-border)] text-[12px]",
+  multiValueLabel: () => "text-[var(--dac-text-primary)]",
+  multiValueRemove: () =>
+    "text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] hover:bg-[var(--dac-border)] rounded-sm cursor-pointer transition-colors",
+  menu: () =>
+    "dac-popover mt-1 overflow-hidden text-[13px]",
+  menuList: () => "py-1 max-h-[260px] overflow-y-auto",
+  option: ({ isFocused, isSelected }: { isFocused: boolean; isSelected: boolean }) =>
+    `px-3 py-1.5 cursor-pointer transition-colors duration-75 ${
+      isSelected
+        ? "text-[var(--dac-accent)] bg-[var(--dac-accent-subtle)]"
+        : isFocused
+          ? "bg-[var(--dac-surface-hover)] text-[var(--dac-text-primary)]"
+          : "text-[var(--dac-text-primary)]"
+    }`,
+  noOptionsMessage: () => "px-3 py-2 text-[var(--dac-text-muted)]",
+};
