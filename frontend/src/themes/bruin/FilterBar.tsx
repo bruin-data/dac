@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import type { DateRange } from "react-day-picker";
+import Select, { components, type ValueContainerProps } from "react-select";
 import type { FilterBarProps } from "../../types/template";
 import type { Filter } from "../../types/dashboard";
+import { popoverPortalTarget, usePopover } from "../../hooks/usePopover";
 
 export function BruinFilterBar({ filters, values, onChange }: FilterBarProps) {
   if (!filters.length) return null;
@@ -192,6 +194,9 @@ function FilterControl({
 
   switch (filter.type) {
     case "select":
+      if (filter.multiple) {
+        return <MultiSelectFilter filter={filter} value={value} onChange={onChange} label={label} />;
+      }
       return (
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]">
@@ -253,43 +258,12 @@ function DateRangeFilter({
   const dateValue = value as { start: string; end: string } | undefined;
   const activePreset = dateValue ? detectPreset(dateValue, presets) : null;
 
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, popoverRef, triggerRef, position } = usePopover();
   const [showCalendar, setShowCalendar] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
-
-  const updatePosition = useCallback(() => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPopoverPos({ top: rect.bottom + 4, left: rect.left });
-    }
-  }, []);
-
-  useLayoutEffect(() => {
-    if (open) updatePosition();
-  }, [open, updatePosition]);
 
   useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-        setShowCalendar(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [open, updatePosition]);
+    if (!open) setShowCalendar(false);
+  }, [open]);
 
   const handlePresetClick = (preset: DatePreset) => {
     onChange(preset.resolve());
@@ -351,11 +325,11 @@ function DateRangeFilter({
       {open && createPortal(
         <div
           ref={popoverRef}
-          className="dac-calendar-popover"
+          className="dac-popover dac-popover--padded"
           style={{
             position: "fixed",
-            top: popoverPos.top,
-            left: popoverPos.left,
+            top: position.top,
+            left: position.left,
             zIndex: 9999,
           }}
         >
@@ -418,8 +392,149 @@ function DateRangeFilter({
             </div>
           )}
         </div>,
-        document.querySelector(".dac-root") ?? document.body,
+        popoverPortalTarget(),
       )}
     </div>
   );
 }
+
+interface Option {
+  label: string;
+  value: string;
+}
+
+function MultiSelectFilter({
+  filter,
+  value,
+  onChange,
+  label,
+}: {
+  filter: Filter;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  label: string;
+}) {
+  const options: Option[] = (filter.options?.values ?? []).map((v) => ({ label: v, value: v }));
+  const selected = Array.isArray(value)
+    ? options.filter((o) => (value as string[]).includes(o.value))
+    : [];
+  const inputId = `multi-${filter.name}`;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label
+        htmlFor={inputId}
+        className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]"
+      >
+        {label}
+      </label>
+      <Select<Option, true>
+        inputId={inputId}
+        aria-label={label}
+        isMulti
+        isSearchable={false}
+        options={options}
+        value={selected}
+        onChange={(opts) => onChange(opts.map((o) => o.value))}
+        placeholder="All"
+        menuPortalTarget={popoverPortalTarget() as HTMLElement}
+        menuPosition="fixed"
+        closeMenuOnSelect={false}
+        hideSelectedOptions={false}
+        controlShouldRenderValue
+        components={{ ValueContainer: CompactValueContainer }}
+        unstyled
+        classNames={selectClassNames}
+        styles={selectStyles}
+      />
+    </div>
+  );
+}
+
+function CompactValueContainer({ children, ...props }: ValueContainerProps<Option, true>) {
+  const count = props.getValue().length;
+  if (count === 0) {
+    return <components.ValueContainer {...props}>{children}</components.ValueContainer>;
+  }
+  const childArray = children as React.ReactNode[];
+  const input = childArray[childArray.length - 1];
+  return (
+    <components.ValueContainer {...props}>
+      <span className="text-[13px] text-[var(--dac-text-primary)] truncate">
+        {count === 1 ? props.getValue()[0].label : `${count} selected`}
+      </span>
+      {input}
+    </components.ValueContainer>
+  );
+}
+
+const selectControlBase =
+  "rounded-sm text-[13px] border bg-[var(--dac-background)] text-[var(--dac-text-primary)] transition-colors duration-100 cursor-pointer";
+
+const selectClassNames = {
+  control: ({ isFocused }: { isFocused: boolean }) =>
+    `${selectControlBase} ${
+      isFocused ? "border-[var(--dac-accent)]" : "border-[var(--dac-border)]"
+    }`,
+  valueContainer: () => "overflow-hidden",
+  placeholder: () => "text-[var(--dac-text-muted)]",
+  input: () => "text-[var(--dac-text-primary)]",
+  indicatorsContainer: () => "text-[var(--dac-text-muted)]",
+  indicatorSeparator: () => "hidden",
+  dropdownIndicator: () => "opacity-50 hover:opacity-80 transition-opacity",
+  clearIndicator: () => "opacity-50 hover:opacity-80 transition-opacity cursor-pointer",
+  menu: () =>
+    "dac-popover mt-1 overflow-hidden text-[13px]",
+  menuList: () => "py-1 max-h-[260px] overflow-y-auto",
+  option: ({ isFocused, isSelected }: { isFocused: boolean; isSelected: boolean }) =>
+    `px-3 py-1.5 cursor-pointer transition-colors duration-75 ${
+      isSelected
+        ? "text-[var(--dac-accent)] bg-[var(--dac-accent-subtle)]"
+        : isFocused
+          ? "bg-[var(--dac-surface-hover)] text-[var(--dac-text-primary)]"
+          : "text-[var(--dac-text-primary)]"
+    }`,
+  noOptionsMessage: () => "px-3 py-2 text-[var(--dac-text-muted)]",
+};
+
+const selectStyles = {
+  control: (base: Record<string, unknown>) => ({
+    ...base,
+    minHeight: 28,
+    height: 28,
+    minWidth: 140,
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "nowrap" as const,
+    padding: "0 4px 0 8px",
+  }),
+  valueContainer: (base: Record<string, unknown>) => ({
+    ...base,
+    padding: 0,
+    height: "100%",
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "nowrap" as const,
+  }),
+  input: (base: Record<string, unknown>) => ({
+    ...base,
+    margin: 0,
+    padding: 0,
+    height: 0,
+    width: 0,
+  }),
+  indicatorsContainer: (base: Record<string, unknown>) => ({
+    ...base,
+    height: "100%",
+    padding: 0,
+  }),
+  dropdownIndicator: (base: Record<string, unknown>) => ({
+    ...base,
+    padding: "0 2px",
+  }),
+  clearIndicator: (base: Record<string, unknown>) => ({
+    ...base,
+    padding: "0 2px",
+  }),
+  menuPortal: (base: Record<string, unknown>) => ({ ...base, zIndex: 9999 }),
+};
