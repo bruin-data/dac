@@ -1,5 +1,7 @@
+import { useContext } from "react";
 import type { WidgetFrameProps } from "../../types/template";
 import { useTemplate } from "../TemplateProvider";
+import { RowHeightContext } from "../RowContext";
 import { QueryInfo } from "../../components/widgets/QueryInfo";
 
 const containerClass: Record<string, string> = {
@@ -13,6 +15,8 @@ const containerClass: Record<string, string> = {
 
 export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) {
   const { MetricWidget, ChartWidget, TableWidget, TextWidget } = useTemplate();
+  const rowHeight = useContext(RowHeightContext);
+  const chartSkeletonHeight = rowHeight !== undefined ? Math.max(80, rowHeight - 60) : 240;
 
   // Divider: just a horizontal line, no title or data.
   if (widget.type === "divider") {
@@ -65,7 +69,7 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
         <div className={`text-xs text-[var(--dac-error)] font-mono mt-1 ${isTable ? "px-4" : ""}`}>{data.error}</div>
       )}
 
-      {!data && isLoading && <LoadingSkeleton type={widget.type} />}
+      {!data && isLoading && <LoadingSkeleton type={widget.type} chartHeight={chartSkeletonHeight} />}
 
       {data && !data.error && (
         <>
@@ -82,12 +86,12 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
   );
 }
 
-function LoadingSkeleton({ type }: { type: string }) {
+function LoadingSkeleton({ type, chartHeight = 240 }: { type: string; chartHeight?: number }) {
   if (type === "metric") {
     return <div className="skeleton h-8 w-24 mt-1" />;
   }
   if (type === "chart") {
-    return <div className="skeleton h-[240px] w-full mt-2 rounded" />;
+    return <div className="skeleton w-full mt-2 rounded" style={{ height: `${chartHeight}px` }} />;
   }
   if (type === "table") {
     return (

@@ -385,7 +385,7 @@ export function DashboardView() {
                 className="animate-in"
                 style={{ animationDelay: `${50 + rowIdx * 30}ms` }}
               >
-                <Row>
+                <Row height={row.height}>
                   {row.widgets.map((widget, widgetIdx) =>
                     renderWidget(widget, rowIdx, widgetIdx, row.widgets.length),
                   )}
@@ -421,7 +421,7 @@ export function DashboardView() {
                     className="animate-in"
                     style={{ animationDelay: `${50 + rowIdx * 30}ms` }}
                   >
-                    <Row>
+                    <Row height={row.height}>
                       {row.widgets.map((widget, widgetIdx) =>
                         renderWidget(widget, rowIdx, widgetIdx, row.widgets.length),
                       )}

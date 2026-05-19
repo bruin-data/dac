@@ -35,6 +35,7 @@ export interface FilterBarProps {
  */
 export interface RowProps {
   children: ReactNode;
+  height?: number | string;
 }
 
 /**

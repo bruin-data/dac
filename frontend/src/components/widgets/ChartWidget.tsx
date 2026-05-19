@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   ScatterChart, Scatter, ZAxis,
@@ -7,6 +7,11 @@ import {
 } from "recharts";
 import type { Widget, WidgetData } from "../../types/dashboard";
 import { useTokens } from "../../themes/TemplateProvider";
+import { RowHeightContext } from "../../themes/RowContext";
+
+const DEFAULT_CHART_HEIGHT = 240;
+// Approx pixels consumed by the widget frame's title/padding above the chart.
+const FRAME_OVERHEAD = 60;
 
 interface Props {
   widget: Widget;
@@ -498,6 +503,10 @@ function DumbbellChart({
 
 export function ChartWidget({ widget, data }: Props) {
   const tokens = useTokens();
+  const rowHeight = useContext(RowHeightContext);
+  const chartHeight = rowHeight !== undefined
+    ? Math.max(80, rowHeight - FRAME_OVERHEAD)
+    : DEFAULT_CHART_HEIGHT;
 
   if (!data?.rows?.length) {
     return <div className="text-[var(--dac-text-muted)] text-xs py-6 text-center">No data</div>;
@@ -520,7 +529,7 @@ export function ChartWidget({ widget, data }: Props) {
   switch (widget.chart) {
     case "line":
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <LineChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
@@ -546,7 +555,7 @@ export function ChartWidget({ widget, data }: Props) {
       const yFields = widget.y ?? [];
       const isStacked = widget.stacked && yFields.length > 1;
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
@@ -572,7 +581,7 @@ export function ChartWidget({ widget, data }: Props) {
       const yFields = widget.y ?? [];
       const isStacked = widget.stacked && yFields.length > 1;
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <AreaChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
@@ -598,7 +607,7 @@ export function ChartWidget({ widget, data }: Props) {
 
     case "pie": {
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <PieChart>
             <Pie
               data={chartData}
@@ -631,7 +640,7 @@ export function ChartWidget({ widget, data }: Props) {
       const xIsNumeric = chartData.length > 0 && typeof chartData[0][widget.x!] === "number";
       const yIsNumeric = chartData.length > 0 && typeof chartData[0][widget.y?.[0] ?? ""] === "number";
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <ScatterChart margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={widget.x} name={widget.x} {...commonAxisProps} dy={6}
@@ -650,7 +659,7 @@ export function ChartWidget({ widget, data }: Props) {
       const xIsNumeric = chartData.length > 0 && typeof chartData[0][widget.x!] === "number";
       const yIsNumeric = chartData.length > 0 && typeof chartData[0][widget.y?.[0] ?? ""] === "number";
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <ScatterChart margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={widget.x} name={widget.x} {...commonAxisProps} dy={6}
@@ -670,7 +679,7 @@ export function ChartWidget({ widget, data }: Props) {
       const yFields = widget.y ?? [];
       const lineSet = new Set(widget.lines ?? []);
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <ComposedChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
@@ -706,7 +715,7 @@ export function ChartWidget({ widget, data }: Props) {
     case "histogram": {
       const histData = buildHistogramData(chartData, widget.x!, widget.bins || 10);
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={histData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="bin" {...commonAxisProps} dy={6} angle={-30} textAnchor="end" height={50} />
@@ -722,7 +731,7 @@ export function ChartWidget({ widget, data }: Props) {
       const yField = widget.y?.[0] ?? "value";
       const boxData = buildBoxplotData(chartData, widget.x!, yField);
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <ComposedChart data={boxData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="category" {...commonAxisProps} dy={6} />
@@ -741,7 +750,7 @@ export function ChartWidget({ widget, data }: Props) {
 
     case "funnel":
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <FunnelChart>
             <Tooltip content={<CustomTooltip />} />
             <Funnel
@@ -772,7 +781,7 @@ export function ChartWidget({ widget, data }: Props) {
         widget.value || "value",
       );
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <Sankey
             data={sankeyData}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -834,7 +843,7 @@ export function ChartWidget({ widget, data }: Props) {
     case "waterfall": {
       const wfData = buildWaterfallData(chartData, widget.x!, widget.y?.[0] ?? "value");
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={wfData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="name" {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
@@ -854,7 +863,7 @@ export function ChartWidget({ widget, data }: Props) {
     case "xmr": {
       const yField = widget.y?.[0] ?? "value";
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <LineChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
