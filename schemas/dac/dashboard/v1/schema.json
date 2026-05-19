@@ -302,10 +302,10 @@
           ]
         },
         "x": {
-          "type": "string"
+          "$ref": "#/$defs/axisEncoding"
         },
         "y": {
-          "$ref": "#/$defs/stringList"
+          "$ref": "#/$defs/axisEncoding"
         },
         "label": {
           "type": "string"
@@ -545,6 +545,39 @@
       "items": {
         "type": "string"
       }
+    },
+    "axisEncoding": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/stringList"
+        },
+        {
+          "type": "object",
+          "required": ["field"],
+          "properties": {
+            "field": {
+              "oneOf": [
+                { "type": "string" },
+                { "$ref": "#/$defs/stringList" }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "enum": ["date", "number", "category"]
+            },
+            "title": {
+              "type": "string"
+            },
+            "format": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }
