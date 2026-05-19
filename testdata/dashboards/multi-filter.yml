@@ -1,0 +1,289 @@
+schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Multi-Filter Sales
+description: Sales and orders with region, channel, payment method, status, and date range filters
+connection: local_duckdb
+
+filters:
+  - name: region
+    type: select
+    multiple: true
+    default: []
+    options:
+      values: ["North America", "Europe", "APAC"]
+  - name: channel
+    type: select
+    multiple: true
+    default: []
+    options:
+      values: ["direct", "online", "partner", "retail"]
+  - name: payment_method
+    type: select
+    multiple: true
+    default: []
+    options:
+      values: ["credit_card", "paypal", "bank_transfer", "crypto"]
+  - name: status
+    type: select
+    multiple: true
+    default: []
+    options:
+      values: ["pending", "confirmed", "shipped", "completed", "refunded"]
+  - name: customer
+    type: text
+    default: ""
+  - name: date_range
+    type: date-range
+    default: all_time
+
+queries:
+  total_revenue:
+    sql: |
+      SELECT COALESCE(SUM(amount), 0) AS value
+      FROM sales
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.region %}
+          AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.channel %}
+          AND channel IN ({% for c in filters.channel %}'{{ c }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+
+  total_sales:
+    sql: |
+      SELECT COUNT(*) AS value
+      FROM sales
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.region %}
+          AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.channel %}
+          AND channel IN ({% for c in filters.channel %}'{{ c }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+
+  total_orders:
+    sql: |
+      SELECT COUNT(*) AS value
+      FROM orders
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.status %}
+          AND status IN ({% for s in filters.status %}'{{ s }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.payment_method %}
+          AND payment_method IN ({% for p in filters.payment_method %}'{{ p }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.customer %}
+          AND customer_name ILIKE '%{{ filters.customer }}%'
+        {% endif %}
+
+  average_order_value:
+    sql: |
+      SELECT ROUND(COALESCE(AVG(amount), 0), 2) AS value
+      FROM orders
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.status %}
+          AND status IN ({% for s in filters.status %}'{{ s }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.payment_method %}
+          AND payment_method IN ({% for p in filters.payment_method %}'{{ p }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.customer %}
+          AND customer_name ILIKE '%{{ filters.customer }}%'
+        {% endif %}
+
+  revenue_by_month:
+    sql: |
+      SELECT
+        STRFTIME(DATE_TRUNC('month', created_at), '%Y-%m') AS month,
+        SUM(amount) AS revenue
+      FROM sales
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.region %}
+          AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.channel %}
+          AND channel IN ({% for c in filters.channel %}'{{ c }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+      GROUP BY 1
+      ORDER BY 1
+
+  revenue_by_channel:
+    sql: |
+      SELECT channel, SUM(amount) AS revenue
+      FROM sales
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.region %}
+          AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.channel %}
+          AND channel IN ({% for c in filters.channel %}'{{ c }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+      GROUP BY 1
+      ORDER BY 2 DESC
+
+  revenue_by_region:
+    sql: |
+      SELECT region, SUM(amount) AS revenue
+      FROM sales
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.region %}
+          AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.channel %}
+          AND channel IN ({% for c in filters.channel %}'{{ c }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+      GROUP BY 1
+      ORDER BY 2 DESC
+
+  orders_by_status:
+    sql: |
+      SELECT status, COUNT(*) AS orders
+      FROM orders
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.status %}
+          AND status IN ({% for s in filters.status %}'{{ s }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.payment_method %}
+          AND payment_method IN ({% for p in filters.payment_method %}'{{ p }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.customer %}
+          AND customer_name ILIKE '%{{ filters.customer }}%'
+        {% endif %}
+      GROUP BY 1
+      ORDER BY 2 DESC
+
+  orders_by_payment:
+    sql: |
+      SELECT payment_method, COUNT(*) AS orders, SUM(amount) AS revenue
+      FROM orders
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.status %}
+          AND status IN ({% for s in filters.status %}'{{ s }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.payment_method %}
+          AND payment_method IN ({% for p in filters.payment_method %}'{{ p }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.customer %}
+          AND customer_name ILIKE '%{{ filters.customer }}%'
+        {% endif %}
+      GROUP BY 1
+      ORDER BY 2 DESC
+
+  filtered_orders:
+    sql: |
+      SELECT id, customer_name, status, payment_method, amount, created_at
+      FROM orders
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+        {% if filters.status %}
+          AND status IN ({% for s in filters.status %}'{{ s }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.payment_method %}
+          AND payment_method IN ({% for p in filters.payment_method %}'{{ p }}'{% if not loop.last %}, {% endif %}{% endfor %})
+        {% endif %}
+        {% if filters.customer %}
+          AND customer_name ILIKE '%{{ filters.customer }}%'
+        {% endif %}
+      ORDER BY created_at DESC, id DESC
+      LIMIT 25
+
+rows:
+  - widgets:
+      - name: Revenue
+        type: metric
+        query: total_revenue
+        column: value
+        prefix: "$"
+        format: currency
+        col: 3
+      - name: Sales
+        type: metric
+        query: total_sales
+        column: value
+        format: number
+        col: 3
+      - name: Orders
+        type: metric
+        query: total_orders
+        column: value
+        format: number
+        col: 3
+      - name: Avg Order Value
+        type: metric
+        query: average_order_value
+        column: value
+        prefix: "$"
+        format: currency
+        col: 3
+
+  - widgets:
+      - name: Revenue by Month
+        type: chart
+        chart: area
+        query: revenue_by_month
+        x: month
+        y: [revenue]
+        col: 8
+      - name: Orders by Status
+        type: chart
+        chart: pie
+        query: orders_by_status
+        label: status
+        value: orders
+        col: 4
+
+  - widgets:
+      - name: Revenue by Region
+        type: chart
+        chart: bar
+        query: revenue_by_region
+        x: region
+        y: [revenue]
+        col: 6
+      - name: Revenue by Channel
+        type: chart
+        chart: bar
+        query: revenue_by_channel
+        x: channel
+        y: [revenue]
+        col: 6
+
+  - widgets:
+      - name: Orders by Payment Method
+        type: table
+        query: orders_by_payment
+        col: 4
+        columns:
+          - name: payment_method
+            label: Payment
+          - name: orders
+            label: Orders
+          - name: revenue
+            label: Revenue
+            format: currency
+      - name: Filtered Orders
+        type: table
+        query: filtered_orders
+        col: 8
+        columns:
+          - name: id
+            label: Order ID
+          - name: customer_name
+            label: Customer
+          - name: status
+            label: Status
+          - name: payment_method
+            label: Payment
+          - name: amount
+            label: Amount
+            format: currency
+          - name: created_at
+            label: Date

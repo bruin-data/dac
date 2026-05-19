@@ -164,17 +164,21 @@ body {
   display: none !important;
 }
 
-/* react-day-picker calendar popover */
-.dac-calendar-popover {
+/* Shared popover surface used by date-range and multi-select filters */
+.dac-popover {
   background: var(--dac-surface);
   border: 1px solid var(--dac-border);
   border-radius: 6px;
-  padding: 12px;
+  padding: 4px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
   font-family: "Geist", system-ui, sans-serif;
 }
 
-.dac-calendar-popover .rdp-root {
+.dac-popover--padded {
+  padding: 12px;
+}
+
+.dac-popover .rdp-root {
   --rdp-accent-color: var(--dac-accent);
   --rdp-accent-background-color: color-mix(in srgb, var(--dac-accent) 12%, transparent);
   --rdp-range_middle-background-color: color-mix(in srgb, var(--dac-accent) 10%, transparent);
@@ -200,35 +204,35 @@ body {
   color: var(--dac-text-primary);
 }
 
-.dac-calendar-popover .rdp-month_caption {
+.dac-popover .rdp-month_caption {
   font-size: 13px;
   font-weight: 600;
   height: 32px;
 }
 
-.dac-calendar-popover .rdp-weekday {
+.dac-popover .rdp-weekday {
   font-size: 11px;
   color: var(--dac-text-muted);
   padding: 4px 0;
 }
 
-.dac-calendar-popover .rdp-day_button:hover {
+.dac-popover .rdp-day_button:hover {
   background: var(--dac-surface-hover);
 }
 
-.dac-calendar-popover .rdp-selected {
+.dac-popover .rdp-selected {
   font-weight: 500;
   font-size: inherit;
 }
 
-.dac-calendar-popover .rdp-chevron {
+.dac-popover .rdp-chevron {
   fill: var(--dac-text-secondary);
   width: 14px;
   height: 14px;
 }
 
-.dac-calendar-popover .rdp-button_previous:hover,
-.dac-calendar-popover .rdp-button_next:hover {
+.dac-popover .rdp-button_previous:hover,
+.dac-popover .rdp-button_next:hover {
   background: var(--dac-surface-hover);
   border-radius: 4px;
 }

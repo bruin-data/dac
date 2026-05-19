@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import type { DateRange } from "react-day-picker";
 import type { FilterBarProps } from "../../types/template";
 import type { Filter } from "../../types/dashboard";
+import { popoverPortalTarget, usePopover } from "../../hooks/usePopover";
 
 export function BruinFilterBar({ filters, values, onChange }: FilterBarProps) {
   if (!filters.length) return null;
@@ -192,6 +193,9 @@ function FilterControl({
 
   switch (filter.type) {
     case "select":
+      if (filter.multiple) {
+        return <MultiSelectFilter filter={filter} value={value} onChange={onChange} label={label} />;
+      }
       return (
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]">
@@ -253,43 +257,12 @@ function DateRangeFilter({
   const dateValue = value as { start: string; end: string } | undefined;
   const activePreset = dateValue ? detectPreset(dateValue, presets) : null;
 
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, popoverRef, triggerRef, position } = usePopover();
   const [showCalendar, setShowCalendar] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 });
-
-  const updatePosition = useCallback(() => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPopoverPos({ top: rect.bottom + 4, left: rect.left });
-    }
-  }, []);
-
-  useLayoutEffect(() => {
-    if (open) updatePosition();
-  }, [open, updatePosition]);
 
   useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-        setShowCalendar(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [open, updatePosition]);
+    if (!open) setShowCalendar(false);
+  }, [open]);
 
   const handlePresetClick = (preset: DatePreset) => {
     onChange(preset.resolve());
@@ -351,11 +324,11 @@ function DateRangeFilter({
       {open && createPortal(
         <div
           ref={popoverRef}
-          className="dac-calendar-popover"
+          className="dac-popover dac-popover--padded"
           style={{
             position: "fixed",
-            top: popoverPos.top,
-            left: popoverPos.left,
+            top: position.top,
+            left: position.left,
             zIndex: 9999,
           }}
         >
@@ -418,8 +391,150 @@ function DateRangeFilter({
             </div>
           )}
         </div>,
-        document.querySelector(".dac-root") ?? document.body,
+        popoverPortalTarget(),
       )}
     </div>
+  );
+}
+
+function MultiSelectFilter({
+  filter,
+  value,
+  onChange,
+  label,
+}: {
+  filter: Filter;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  label: string;
+}) {
+  const options = filter.options?.values ?? [];
+  const selected: string[] = Array.isArray(value) ? (value as string[]) : [];
+
+  const { open, setOpen, popoverRef, triggerRef, position } = usePopover();
+  const listboxId = `multi-${filter.name}`;
+
+  const toggle = (v: string) => {
+    if (selected.includes(v)) onChange(selected.filter((s) => s !== v));
+    else onChange([...selected, v]);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label
+        htmlFor={`${listboxId}-trigger`}
+        className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]"
+      >
+        {label}
+      </label>
+      <button
+        id={`${listboxId}-trigger`}
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        className={`${inputClass} cursor-pointer flex items-center gap-1.5 min-w-[140px]`}
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0 opacity-50">
+          <path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+        </svg>
+        <MultiSelectTriggerLabel selected={selected} />
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0 opacity-40 ml-auto">
+          <path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={popoverRef}
+          id={listboxId}
+          role="listbox"
+          aria-multiselectable
+          aria-label={label}
+          className="dac-popover"
+          style={{
+            position: "fixed",
+            top: position.top,
+            left: position.left,
+            minWidth: position.width,
+            zIndex: 9999,
+          }}
+        >
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="w-full text-left px-3 py-1.5 text-[12px] text-[var(--dac-text-secondary)] hover:text-[var(--dac-text-primary)] hover:bg-[var(--dac-surface-hover)] border-b border-[var(--dac-border)] transition-colors"
+            >
+              Clear selection
+            </button>
+          )}
+          <div className="flex flex-col max-h-[260px] overflow-y-auto py-1">
+            {options.map((v) => {
+              const checked = selected.includes(v);
+              return (
+                <div
+                  key={v}
+                  role="option"
+                  aria-selected={checked}
+                  onClick={() => toggle(v)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggle(v);
+                    }
+                  }}
+                  tabIndex={0}
+                  className="flex items-center gap-2 px-3 py-1.5 text-[13px] cursor-pointer hover:bg-[var(--dac-surface-hover)] focus:bg-[var(--dac-surface-hover)] focus:outline-none transition-colors duration-75"
+                >
+                  <CheckboxIcon checked={checked} />
+                  <span className="text-[var(--dac-text-primary)] truncate">{v}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>,
+        popoverPortalTarget(),
+      )}
+    </div>
+  );
+}
+
+function MultiSelectTriggerLabel({ selected }: { selected: string[] }) {
+  if (selected.length === 0) {
+    return <span className="text-[13px] text-[var(--dac-text-muted)]">All</span>;
+  }
+  if (selected.length <= 2) {
+    return (
+      <span className="text-[13px] whitespace-nowrap truncate text-[var(--dac-text-primary)]">
+        {selected.join(", ")}
+      </span>
+    );
+  }
+  return (
+    <span className="text-[13px] whitespace-nowrap text-[var(--dac-text-primary)]">
+      {selected[0]}, {selected[1]}{" "}
+      <span className="text-[var(--dac-text-muted)]">+{selected.length - 2}</span>
+    </span>
+  );
+}
+
+function CheckboxIcon({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm border shrink-0 transition-colors ${
+        checked
+          ? "bg-[var(--dac-accent)] border-[var(--dac-accent)]"
+          : "border-[var(--dac-border)] bg-[var(--dac-background)]"
+      }`}
+    >
+      {checked && (
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )}
+    </span>
   );
 }
