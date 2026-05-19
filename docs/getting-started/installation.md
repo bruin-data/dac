@@ -5,7 +5,7 @@ DAC is released as standalone binaries through GitHub Releases.
 ## Install Script
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash
+curl -LsSf https://getbruin.com/install/dac | sh
 ```
 
 The installer installs the Bruin CLI first if `bruin` is not already available on your `PATH`, then downloads the latest DAC GitHub release for your platform and installs `dac` into `~/.local/bin` by default.
@@ -15,19 +15,19 @@ DAC uses `.bruin.yml` connections and currently shells out to `bruin query` to e
 To install the latest edge build from `main`:
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash -s -- --channel edge
+curl -LsSf https://getbruin.com/install/dac | sh -s -- --channel edge
 ```
 
 To install into a different directory:
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash -s -- -b /usr/local/bin
+curl -LsSf https://getbruin.com/install/dac | sh -s -- -b /usr/local/bin
 ```
 
 To install a specific version:
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash -s -- v0.1.0
+curl -LsSf https://getbruin.com/install/dac | sh -s -- v0.1.0
 ```
 
 ## Upgrading
