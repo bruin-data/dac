@@ -56,7 +56,7 @@ jobs:
           Install with:
 
           \`\`\`bash
-          curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash -s -- --channel edge
+          curl -LsSf https://getbruin.com/install/dac | sh -s -- --channel edge
           \`\`\`
           EOF
 

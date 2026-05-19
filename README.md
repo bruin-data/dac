@@ -61,13 +61,13 @@ rows:
 Install the latest stable DAC release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash
+curl -LsSf https://getbruin.com/install/dac | sh
 ```
 
 Install the latest edge build from `main`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash -s -- --channel edge
+curl -LsSf https://getbruin.com/install/dac | sh -s -- --channel edge
 ```
 
 DAC uses your existing Bruin connections and currently shells out to `bruin query` for query execution. The install script installs the Bruin CLI first when `bruin` is not already available on your `PATH`.
