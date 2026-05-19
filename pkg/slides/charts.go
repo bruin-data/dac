@@ -129,14 +129,14 @@ func renderLineChart(w *dashboard.Widget, data *server.WidgetQueryResult) ([]byt
 
 // chartXY returns the x and first y column indices for a chart widget.
 func chartXY(w *dashboard.Widget, data *server.WidgetQueryResult) (int, int) {
-	xCol := colIdx(data, w.X)
+	xCol := colIdx(data, w.XField())
 	if xCol < 0 && w.Label != "" {
 		xCol = colIdx(data, w.Label)
 	}
 
 	yCol := -1
-	if len(w.Y) > 0 {
-		yCol = colIdx(data, w.Y[0])
+	if ys := w.YFields(); len(ys) > 0 {
+		yCol = colIdx(data, ys[0])
 	} else if w.Value != "" {
 		yCol = colIdx(data, w.Value)
 	}
