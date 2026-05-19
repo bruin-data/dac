@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import type { DateRange } from "react-day-picker";
-import Select from "react-select";
+import Select, { components, type ValueContainerProps } from "react-select";
 import type { FilterBarProps } from "../../types/template";
 import type { Filter } from "../../types/dashboard";
 import { popoverPortalTarget, usePopover } from "../../hooks/usePopover";
@@ -428,10 +428,11 @@ function MultiSelectFilter({
       >
         {label}
       </label>
-      <Select
+      <Select<Option, true>
         inputId={inputId}
         aria-label={label}
         isMulti
+        isSearchable={false}
         options={options}
         value={selected}
         onChange={(opts) => onChange(opts.map((o) => o.value))}
@@ -440,6 +441,8 @@ function MultiSelectFilter({
         menuPosition="fixed"
         closeMenuOnSelect={false}
         hideSelectedOptions={false}
+        controlShouldRenderValue
+        components={{ ValueContainer: CompactValueContainer }}
         unstyled
         classNames={selectClassNames}
         styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
@@ -448,26 +451,38 @@ function MultiSelectFilter({
   );
 }
 
+function CompactValueContainer({ children, ...props }: ValueContainerProps<Option, true>) {
+  const count = props.getValue().length;
+  if (count === 0) {
+    return <components.ValueContainer {...props}>{children}</components.ValueContainer>;
+  }
+  const childArray = children as React.ReactNode[];
+  const input = childArray[childArray.length - 1];
+  return (
+    <components.ValueContainer {...props}>
+      <span className="text-[13px] text-[var(--dac-text-primary)] truncate">
+        {count === 1 ? props.getValue()[0].label : `${count} selected`}
+      </span>
+      {input}
+    </components.ValueContainer>
+  );
+}
+
 const selectControlBase =
-  "min-h-7 px-1.5 rounded-sm text-[13px] border bg-[var(--dac-background)] text-[var(--dac-text-primary)] transition-colors duration-100 cursor-pointer flex items-center";
+  "h-7 px-1.5 rounded-sm text-[13px] border bg-[var(--dac-background)] text-[var(--dac-text-primary)] transition-colors duration-100 cursor-pointer flex items-center";
 
 const selectClassNames = {
   control: ({ isFocused }: { isFocused: boolean }) =>
-    `${selectControlBase} min-w-[160px] ${
+    `${selectControlBase} min-w-[140px] ${
       isFocused ? "border-[var(--dac-accent)]" : "border-[var(--dac-border)]"
     }`,
-  valueContainer: () => "flex flex-wrap gap-1 py-0.5",
+  valueContainer: () => "flex items-center gap-1 overflow-hidden flex-nowrap",
   placeholder: () => "text-[var(--dac-text-muted)] px-1",
-  input: () => "text-[var(--dac-text-primary)] py-0",
-  indicatorsContainer: () => "flex items-center gap-0.5 text-[var(--dac-text-muted)]",
+  input: () => "text-[var(--dac-text-primary)] py-0 m-0",
+  indicatorsContainer: () => "flex items-center text-[var(--dac-text-muted)]",
   indicatorSeparator: () => "hidden",
   dropdownIndicator: () => "px-1 opacity-50 hover:opacity-80 transition-opacity",
   clearIndicator: () => "px-1 opacity-50 hover:opacity-80 transition-opacity cursor-pointer",
-  multiValue: () =>
-    "flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-[var(--dac-surface-hover)] border border-[var(--dac-border)] text-[12px]",
-  multiValueLabel: () => "text-[var(--dac-text-primary)]",
-  multiValueRemove: () =>
-    "text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] hover:bg-[var(--dac-border)] rounded-sm cursor-pointer transition-colors",
   menu: () =>
     "dac-popover mt-1 overflow-hidden text-[13px]",
   menuList: () => "py-1 max-h-[260px] overflow-y-auto",
