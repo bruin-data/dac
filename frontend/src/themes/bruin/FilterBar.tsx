@@ -445,7 +445,7 @@ function MultiSelectFilter({
         components={{ ValueContainer: CompactValueContainer }}
         unstyled
         classNames={selectClassNames}
-        styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
+        styles={selectStyles}
       />
     </div>
   );
@@ -469,20 +469,20 @@ function CompactValueContainer({ children, ...props }: ValueContainerProps<Optio
 }
 
 const selectControlBase =
-  "h-7 px-1.5 rounded-sm text-[13px] border bg-[var(--dac-background)] text-[var(--dac-text-primary)] transition-colors duration-100 cursor-pointer flex items-center";
+  "rounded-sm text-[13px] border bg-[var(--dac-background)] text-[var(--dac-text-primary)] transition-colors duration-100 cursor-pointer";
 
 const selectClassNames = {
   control: ({ isFocused }: { isFocused: boolean }) =>
-    `${selectControlBase} min-w-[140px] ${
+    `${selectControlBase} ${
       isFocused ? "border-[var(--dac-accent)]" : "border-[var(--dac-border)]"
     }`,
-  valueContainer: () => "flex items-center gap-1 overflow-hidden flex-nowrap",
-  placeholder: () => "text-[var(--dac-text-muted)] px-1",
-  input: () => "text-[var(--dac-text-primary)] py-0 m-0",
-  indicatorsContainer: () => "flex items-center text-[var(--dac-text-muted)]",
+  valueContainer: () => "overflow-hidden",
+  placeholder: () => "text-[var(--dac-text-muted)]",
+  input: () => "text-[var(--dac-text-primary)]",
+  indicatorsContainer: () => "text-[var(--dac-text-muted)]",
   indicatorSeparator: () => "hidden",
-  dropdownIndicator: () => "px-1 opacity-50 hover:opacity-80 transition-opacity",
-  clearIndicator: () => "px-1 opacity-50 hover:opacity-80 transition-opacity cursor-pointer",
+  dropdownIndicator: () => "opacity-50 hover:opacity-80 transition-opacity",
+  clearIndicator: () => "opacity-50 hover:opacity-80 transition-opacity cursor-pointer",
   menu: () =>
     "dac-popover mt-1 overflow-hidden text-[13px]",
   menuList: () => "py-1 max-h-[260px] overflow-y-auto",
@@ -495,4 +495,46 @@ const selectClassNames = {
           : "text-[var(--dac-text-primary)]"
     }`,
   noOptionsMessage: () => "px-3 py-2 text-[var(--dac-text-muted)]",
+};
+
+const selectStyles = {
+  control: (base: Record<string, unknown>) => ({
+    ...base,
+    minHeight: 28,
+    height: 28,
+    minWidth: 140,
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "nowrap" as const,
+    padding: "0 4px 0 8px",
+  }),
+  valueContainer: (base: Record<string, unknown>) => ({
+    ...base,
+    padding: 0,
+    height: "100%",
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "nowrap" as const,
+  }),
+  input: (base: Record<string, unknown>) => ({
+    ...base,
+    margin: 0,
+    padding: 0,
+    height: 0,
+    width: 0,
+  }),
+  indicatorsContainer: (base: Record<string, unknown>) => ({
+    ...base,
+    height: "100%",
+    padding: 0,
+  }),
+  dropdownIndicator: (base: Record<string, unknown>) => ({
+    ...base,
+    padding: "0 2px",
+  }),
+  clearIndicator: (base: Record<string, unknown>) => ({
+    ...base,
+    padding: "0 2px",
+  }),
+  menuPortal: (base: Record<string, unknown>) => ({ ...base, zIndex: 9999 }),
 };
