@@ -6,10 +6,10 @@ connection: local_duckdb
 filters:
   - name: region
     type: select
-    multiple: false
-    default: "All"
+    multiple: true
+    default: []
     options:
-      values: ["All", "North America", "Europe", "APAC"]
+      values: ["North America", "Europe", "APAC"]
   - name: date_range
     type: date-range
     default: all_time
@@ -21,8 +21,8 @@ queries:
       FROM sales
       WHERE created_at >= '{{ filters.date_range.start }}'
         AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
-      {% if filters.region != 'All' %}
-        AND region = '{{ filters.region }}'
+      {% if filters.region %}
+        AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
       {% endif %}
 
   total_sales:
@@ -31,8 +31,8 @@ queries:
       FROM sales
       WHERE created_at >= '{{ filters.date_range.start }}'
         AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
-      {% if filters.region != 'All' %}
-        AND region = '{{ filters.region }}'
+      {% if filters.region %}
+        AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
       {% endif %}
 
   total_orders:
@@ -55,8 +55,8 @@ queries:
       FROM sales
       WHERE created_at >= '{{ filters.date_range.start }}'
         AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
-      {% if filters.region != 'All' %}
-        AND region = '{{ filters.region }}'
+      {% if filters.region %}
+        AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
       {% endif %}
 
   revenue_by_month:
@@ -67,8 +67,8 @@ queries:
       FROM sales
       WHERE created_at >= '{{ filters.date_range.start }}'
         AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
-      {% if filters.region != 'All' %}
-        AND region = '{{ filters.region }}'
+      {% if filters.region %}
+        AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
       {% endif %}
       GROUP BY 1
       ORDER BY 1
@@ -92,8 +92,8 @@ queries:
       FROM sales
       WHERE created_at >= '{{ filters.date_range.start }}'
         AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
-      {% if filters.region != 'All' %}
-        AND region = '{{ filters.region }}'
+      {% if filters.region %}
+        AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
       {% endif %}
       GROUP BY 1
       ORDER BY 2 DESC
@@ -106,8 +106,8 @@ queries:
       FROM sales
       WHERE created_at >= '{{ filters.date_range.start }}'
         AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
-      {% if filters.region != 'All' %}
-        AND region = '{{ filters.region }}'
+      {% if filters.region %}
+        AND region IN ({% for r in filters.region %}'{{ r }}'{% if not loop.last %}, {% endif %}{% endfor %})
       {% endif %}
       GROUP BY 1
       ORDER BY 2 DESC
