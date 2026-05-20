@@ -11,22 +11,10 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-// installScriptURLFmt is the canonical installer used by `dac upgrade`. The
-// ref is pinned to the running binary's version (a known-good release commit)
-// so a broken `main` cannot break every user's upgrade path. Dev/test builds
-// fall back to `main`.
-const installScriptURLFmt = "https://raw.githubusercontent.com/bruin-data/dac/%s/install.sh"
-
-// installScriptURL returns the install.sh URL pinned to the version of the
-// running binary, or to `main` for dev/test builds where no release commit
-// exists.
-func installScriptURL(version string) string {
-	ref := version
-	if ref == "" || ref == "dev" || strings.HasPrefix(ref, "test-") {
-		ref = "main"
-	}
-	return fmt.Sprintf(installScriptURLFmt, ref)
-}
+// installScriptURL is the canonical installer used by `dac upgrade`. It is
+// the same URL we publish in the README, and resolves to the latest install.sh
+// on the stable channel.
+const installScriptURL = "https://getbruin.com/install/dac"
 
 func upgradeCmd(build BuildInfo) *cli.Command {
 	return &cli.Command{
@@ -79,7 +67,7 @@ func runUpgrade(ctx context.Context, cmd *cli.Command, build BuildInfo) error {
 
 	fmt.Fprintf(os.Stderr, "Upgrading dac (%s channel) into %s...\n", channel, bindir)
 
-	args := []string{"-fsSL", installScriptURL(build.Version)}
+	args := []string{"-fsSL", installScriptURL}
 	curl := exec.CommandContext(ctx, "curl", args...)
 	curlOut, err := curl.StdoutPipe()
 	if err != nil {
