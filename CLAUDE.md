@@ -61,3 +61,7 @@ When verifying Go changes compile, use `go build ./...` for a quick check, but a
 ## Skills
 
 - `/create-dashboard [description]` — Full reference for creating dac dashboard YAML files. Covers widget types (metric, chart, table, text), filters, query templating (Jinja), grid layout, and CLI usage.
+
+## Documentation
+
+After every code change, scan `docs/` for areas the change touches and update them in the same change. If nothing existing fits, add a new doc page. Don't defer docs to a follow-up.
