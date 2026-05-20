@@ -51,7 +51,7 @@ Run DAC against an example project:
 
 - Use `make` commands instead of ad-hoc `go build`, `go test`, or `npm run build`.
 - Add or update tests for any behavioral change.
-- Update docs for user-facing changes.
+- After every change, scan `docs/` for areas the change touches and update them in the same PR — add a new doc page if nothing existing fits.
 - Update one of the curated projects in `examples/` if the authoring model changes.
 - Keep YAML and TSX behavior aligned when a feature exists in both surfaces.
 

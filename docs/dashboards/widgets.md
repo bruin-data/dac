@@ -11,6 +11,8 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 | `col` | integer | No | Column span from 1 to 12 |
 | `description` | string | No | Optional tooltip or subtitle |
 
+Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), `file` (external `.sql` path), or a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
+
 ## Metric
 
 Metric widgets display a single value.
@@ -57,7 +59,33 @@ Metric-specific fields:
 
 ## Chart
 
-Charts visualize one or more series. DAC supports line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, XMR, dumbbell, gauge, treemap, radar, and candlestick charts.
+Charts visualize one or more series. The `chart` field selects the chart type and determines which fields are required.
+
+### Chart types
+
+| Chart | Required | Optional | Description |
+|-------|----------|----------|-------------|
+| `line` | `x`, `y` | | Line chart |
+| `bar` | `x`, `y` | `stacked` | Bar chart |
+| `area` | `x`, `y` | `stacked` | Area chart |
+| `pie` | `label`, `value` | | Pie/donut chart |
+| `scatter` | `x`, `y` | | Scatter plot |
+| `bubble` | `x`, `y`, `size` | | Bubble chart |
+| `combo` | `x`, `y` | `lines` | Mixed bar + line chart (y series in `lines` render as lines, the rest as bars) |
+| `histogram` | `x` | `bins` | Histogram (client-side binning) |
+| `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
+| `funnel` | `label`, `value` | | Funnel chart |
+| `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
+| `heatmap` | `x`, `y`, `value` | | Grid heatmap |
+| `calendar` | `x`, `value` | | GitHub-style calendar heatmap |
+| `sparkline` | `x`, `y` | | Compact inline line (60px), no axes |
+| `waterfall` | `x`, `y` | | Waterfall chart |
+| `xmr` | `x`, `y` | `yMin`, `yMax` | Control chart with limits |
+| `dumbbell` | `x`, `y` (2 columns) | | Horizontal range comparison |
+| `gauge` | `value` | `target` | Semi-circular KPI-vs-target gauge (uses first row) |
+| `treemap` | `label`, `value` | | Rectangular part-to-whole hierarchy |
+| `radar` | `x`, `y` | | Multi-axis polar comparison |
+| `candlestick` | `x`, `open`, `high`, `low`, `close` | | OHLC chart |
 
 SQL-backed example:
 
@@ -99,11 +127,18 @@ Common chart fields:
 | `y` | string[] | Y-axis columns for SQL-backed charts |
 | `label` | string | Label column for pie, funnel, and treemap charts |
 | `value` | string | Value column for pie, funnel, heatmap, calendar, treemap, and gauge charts |
+| `source` | string | Source node column for sankey charts |
 | `target` | string | Target/max column for gauge charts (also sankey target node) |
 | `open` | string | Open column for candlestick charts |
 | `high` | string | High column for candlestick charts |
 | `low` | string | Low column for candlestick charts |
 | `close` | string | Close column for candlestick charts |
+| `stacked` | boolean | Stack series for bar and area charts |
+| `size` | string | Bubble size column for bubble charts |
+| `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
+| `bins` | integer | Number of bins for histogram charts (default 10) |
+| `yMin` | string | Lower control limit column for xmr charts |
+| `yMax` | string | Upper control limit column for xmr charts |
 | `dimension` | string | Semantic dimension name |
 | `granularity` | string | Semantic time grain for `dimension` |
 | `metrics` | string[] | Semantic metric names |
@@ -159,6 +194,14 @@ Semantic example:
 
 Tables can mix semantic dimensions and metrics with explicit `columns` metadata for display labels and formatting.
 
+Table column fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Result column name (must match the SQL output) |
+| `label` | string | Display header (defaults to `name`) |
+| `format` | string | `number` or `currency` |
+
 ## Text
 
 Text widgets render Markdown content.
@@ -171,6 +214,16 @@ Text widgets render Markdown content.
     **Important:** Data refreshes daily at 06:00 UTC.
 ```
 
+Supported markdown:
+
+- Headers (`#` through `######`)
+- Bold (`**text**`), italic (`*text*`), bold italic (`***text***`), strikethrough (`~~text~~`)
+- Inline code (`` `code` ``)
+- Links (`[text](url)`) and images (`![alt](src)`)
+- Unordered lists (`-` or `*`) and ordered lists (`1.`)
+- Blockquotes (`> text`)
+- Horizontal rules (`---`, `***`, or `___`)
+
 ## Image
 
 Image widgets render an image from a URL.
@@ -182,6 +235,13 @@ Image widgets render an image from a URL.
   src: https://example.com/logo.png
   alt: Company Logo
 ```
+
+Image-specific fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `src` | string | Yes | Image URL |
+| `alt` | string | No | Alt text for accessibility |
 
 ## Divider
 

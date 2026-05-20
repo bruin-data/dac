@@ -10,6 +10,6 @@ Describe the problem and the change.
 
 ## Checklist
 
-- [ ] docs updated if behavior changed
+- [ ] scanned `docs/` and updated (or added) the relevant pages
 - [ ] examples updated if the authoring model changed
 - [ ] screenshots or recordings attached for UI changes
