@@ -313,7 +313,16 @@
         "value": {
           "$ref": "#/$defs/valueEncoding"
         },
+        "color": {
+          "$ref": "#/$defs/colorEncoding"
+        },
         "stacked": {
+          "type": "boolean"
+        },
+        "normalized": {
+          "type": "boolean"
+        },
+        "horizontal": {
           "type": "boolean"
         },
         "size": {
@@ -603,6 +612,17 @@
           "additionalProperties": false
         }
       ]
+    },
+    "colorEncoding": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

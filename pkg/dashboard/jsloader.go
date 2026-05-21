@@ -548,19 +548,22 @@ func vnodeToWidget(n *vnode) Widget {
 		Limit:       asInt(n.Props["limit"]),
 
 		// Chart fields
-		Chart:   asString(n.Props["chart"]),
-		X:       asAxisEncoding(n.Props["x"]),
-		Y:       asAxisEncoding(n.Props["y"]),
-		Label:   asString(n.Props["label"]),
-		Value:   asValueEncoding(n.Props["value"]),
-		Stacked: asBool(n.Props["stacked"]),
-		Size:    asString(n.Props["size"]),
-		Source:  asString(n.Props["source"]),
-		Target:  asString(n.Props["target"]),
-		Bins:    asInt(n.Props["bins"]),
-		Lines:   asStringSlice(n.Props["lines"]),
-		YMin:    asString(n.Props["yMin"]),
-		YMax:    asString(n.Props["yMax"]),
+		Chart:      asString(n.Props["chart"]),
+		X:          asAxisEncoding(n.Props["x"]),
+		Y:          asAxisEncoding(n.Props["y"]),
+		Label:      asString(n.Props["label"]),
+		Value:      asValueEncoding(n.Props["value"]),
+		Color:      asColorEncoding(n.Props["color"]),
+		Stacked:    asBool(n.Props["stacked"]),
+		Normalized: asBool(n.Props["normalized"]),
+		Horizontal: asBool(n.Props["horizontal"]),
+		Size:       asString(n.Props["size"]),
+		Source:     asString(n.Props["source"]),
+		Target:     asString(n.Props["target"]),
+		Bins:       asInt(n.Props["bins"]),
+		Lines:      asStringSlice(n.Props["lines"]),
+		YMin:       asString(n.Props["yMin"]),
+		YMax:       asString(n.Props["yMax"]),
 
 		// Table fields
 		Columns: asTableColumns(n.Props["columns"]),
@@ -788,6 +791,21 @@ func asValueEncoding(v interface{}) *ValueEncoding {
 	default:
 		return nil
 	}
+}
+
+func asColorEncoding(v interface{}) *ColorEncoding {
+	if v == nil {
+		return nil
+	}
+	val, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	field := asString(val["field"])
+	if field == "" {
+		return nil
+	}
+	return &ColorEncoding{Field: field}
 }
 
 func asStringMap(v interface{}) map[string]string {
