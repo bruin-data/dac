@@ -84,7 +84,7 @@
           "minLength": 1
         },
         "type": {
-          "enum": ["select", "date-range", "text"]
+          "enum": ["select", "date-range", "date", "text", "number"]
         },
         "multiple": {
           "type": "boolean"
@@ -97,7 +97,23 @@
       "patternProperties": {
         "^x-": true
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "date" } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "string",
+                "pattern": "^(TODAY([+-][0-9]+)?|[0-9]{4}-[0-9]{2}-[0-9]{2})$"
+              }
+            }
+          }
+        }
+      ]
     },
     "filterOptions": {
       "type": "object",

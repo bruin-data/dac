@@ -3,6 +3,8 @@ package dashboard
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -219,6 +221,8 @@ type SemanticSort struct {
 // DefaultFilters returns a map of filter names to their default values.
 // For date-range filters, string defaults like "last_30_days" are resolved
 // to {start, end} maps so that query templating works correctly.
+// For date filters, expressions like "TODAY" or "TODAY-30" are resolved
+// to an ISO date string.
 func (d *Dashboard) DefaultFilters() map[string]any {
 	defaults := make(map[string]any)
 	for _, f := range d.Filters {
@@ -231,10 +235,42 @@ func (d *Dashboard) DefaultFilters() map[string]any {
 					}
 				}
 			}
+			if f.Type == "date" {
+				if expr, ok := val.(string); ok {
+					if resolved := ResolveDateExpression(expr); resolved != "" {
+						val = resolved
+					}
+				}
+			}
 			defaults[f.Name] = val
 		}
 	}
 	return defaults
+}
+
+// DateExpressionPattern is the regex that valid date filter defaults must
+// match: TODAY, TODAY+N, TODAY-N, or a YYYY-MM-DD literal.
+var DateExpressionPattern = regexp.MustCompile(`^(TODAY([+-]\d+)?|\d{4}-\d{2}-\d{2})$`)
+
+// ResolveDateExpression converts a date expression like "TODAY", "TODAY-30",
+// or "2024-01-15" into an ISO date string. Returns "" for unsupported input.
+func ResolveDateExpression(expr string) string {
+	if !DateExpressionPattern.MatchString(expr) {
+		return ""
+	}
+	if expr == "TODAY" {
+		return time.Now().Format("2006-01-02")
+	}
+	if strings.HasPrefix(expr, "TODAY") {
+		// "TODAY+N" or "TODAY-N"
+		n, err := strconv.Atoi(expr[len("TODAY"):])
+		if err != nil {
+			return ""
+		}
+		return time.Now().AddDate(0, 0, n).Format("2006-01-02")
+	}
+	// YYYY-MM-DD literal — pass through unchanged.
+	return expr
 }
 
 // ResolveDatePreset converts a preset key like "last_30_days" into a
