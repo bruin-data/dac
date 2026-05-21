@@ -180,15 +180,15 @@ func postProcessDashboard(d *Dashboard) {
 	for i, row := range d.Rows {
 		for j, w := range row.Widgets {
 			if w.Dimension != "" && len(w.MetricRefs) > 0 {
-				if x := defaultSemanticDimensionAlias(d, &w); x != "" && w.X == "" {
-					d.Rows[i].Widgets[j].X = x
+				if x := defaultSemanticDimensionAlias(d, &w); x != "" && w.XField() == "" {
+					d.Rows[i].Widgets[j].X = newAxisField(x)
 				}
-				if len(w.Y) == 0 {
-					d.Rows[i].Widgets[j].Y = w.MetricRefs
+				if len(w.YFields()) == 0 {
+					d.Rows[i].Widgets[j].Y = newAxisFields(w.MetricRefs)
 				}
 			}
 
-			if w.QueryRef == "" || w.X != "" || len(w.Y) > 0 {
+			if w.QueryRef == "" || w.XField() != "" || len(w.YFields()) > 0 {
 				continue
 			}
 			q, ok := d.Queries[w.QueryRef]
@@ -196,10 +196,10 @@ func postProcessDashboard(d *Dashboard) {
 				continue
 			}
 			if len(q.Dimensions) == 1 {
-				d.Rows[i].Widgets[j].X = q.Dimensions[0].Name
+				d.Rows[i].Widgets[j].X = newAxisField(q.Dimensions[0].Name)
 			}
 			if len(q.Metrics) > 0 {
-				d.Rows[i].Widgets[j].Y = append([]string(nil), q.Metrics...)
+				d.Rows[i].Widgets[j].Y = newAxisFields(append([]string(nil), q.Metrics...))
 			}
 		}
 	}

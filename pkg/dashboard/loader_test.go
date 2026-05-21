@@ -95,11 +95,11 @@ func TestLoadFile_AutoSetsXYForDimensionalChart(t *testing.T) {
 	if w.Name != "Daily Traffic" {
 		t.Fatalf("expected 'Daily Traffic', got %q", w.Name)
 	}
-	if w.X != "event_date" {
-		t.Errorf("expected X = 'event_date', got %q", w.X)
+	if w.XField() != "event_date" {
+		t.Errorf("expected X = 'event_date', got %q", w.XField())
 	}
-	if len(w.Y) != 2 || w.Y[0] != "page_views" || w.Y[1] != "users" {
-		t.Errorf("expected Y = [page_views, users], got %v", w.Y)
+	if ys := w.YFields(); len(ys) != 2 || ys[0] != "page_views" || ys[1] != "users" {
+		t.Errorf("expected Y = [page_views, users], got %v", ys)
 	}
 }
 
@@ -113,11 +113,11 @@ func TestLoadFile_AutoSetsXYForNonDateDimension(t *testing.T) {
 		t.Fatalf("expected 'Top Countries', got %q", w.Name)
 	}
 	// DimensionAlias("geo.country") = "country"
-	if w.X != "country" {
-		t.Errorf("expected X = 'country', got %q", w.X)
+	if w.XField() != "country" {
+		t.Errorf("expected X = 'country', got %q", w.XField())
 	}
-	if len(w.Y) != 1 || w.Y[0] != "users" {
-		t.Errorf("expected Y = [users], got %v", w.Y)
+	if ys := w.YFields(); len(ys) != 1 || ys[0] != "users" {
+		t.Errorf("expected Y = [users], got %v", ys)
 	}
 }
 
@@ -130,8 +130,8 @@ func TestLoadFile_DoesNotOverrideExplicitXY(t *testing.T) {
 	if w.Name != "Traffic Sources" {
 		t.Fatalf("expected 'Traffic Sources', got %q", w.Name)
 	}
-	if w.X != "source" {
-		t.Errorf("expected explicit X = 'source', got %q", w.X)
+	if w.XField() != "source" {
+		t.Errorf("expected explicit X = 'source', got %q", w.XField())
 	}
 }
 
@@ -175,19 +175,19 @@ func TestLoadFile_ProjectSemanticDashboardAutoSetsXY(t *testing.T) {
 	assertNoErr(t, err)
 
 	trend := d.Rows[1].Widgets[0]
-	if trend.X != "order_date" {
-		t.Fatalf("expected semantic chart x to default to dimension name, got %q", trend.X)
+	if trend.XField() != "order_date" {
+		t.Fatalf("expected semantic chart x to default to dimension name, got %q", trend.XField())
 	}
-	if len(trend.Y) != 1 || trend.Y[0] != "revenue" {
-		t.Fatalf("expected semantic chart y to default to metrics, got %v", trend.Y)
+	if ys := trend.YFields(); len(ys) != 1 || ys[0] != "revenue" {
+		t.Fatalf("expected semantic chart y to default to metrics, got %v", ys)
 	}
 
 	byCountry := d.Rows[1].Widgets[1]
-	if byCountry.X != "country" {
-		t.Fatalf("expected named semantic query x to default to dimension name, got %q", byCountry.X)
+	if byCountry.XField() != "country" {
+		t.Fatalf("expected named semantic query x to default to dimension name, got %q", byCountry.XField())
 	}
-	if len(byCountry.Y) != 1 || byCountry.Y[0] != "revenue" {
-		t.Fatalf("expected named semantic query y to default to metrics, got %v", byCountry.Y)
+	if ys := byCountry.YFields(); len(ys) != 1 || ys[0] != "revenue" {
+		t.Fatalf("expected named semantic query y to default to metrics, got %v", ys)
 	}
 }
 

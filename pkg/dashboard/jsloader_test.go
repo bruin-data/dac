@@ -84,8 +84,8 @@ func TestLoadTSXFile_DataDrivenWithMockBackend(t *testing.T) {
 	if bar.Chart != "bar" {
 		t.Errorf("expected bar chart, got %q", bar.Chart)
 	}
-	if len(bar.Y) != 3 {
-		t.Errorf("expected 3 y series from regions, got %d", len(bar.Y))
+	if len(bar.YFields()) != 3 {
+		t.Errorf("expected 3 y series from regions, got %d", len(bar.YFields()))
 	}
 
 	// Rows 3-4: auto-discovered table previews
@@ -483,8 +483,8 @@ export default (
 	if !w.Stacked {
 		t.Error("expected stacked=true")
 	}
-	if len(w.Y) != 2 {
-		t.Errorf("expected 2 y series, got %d", len(w.Y))
+	if len(w.YFields()) != 2 {
+		t.Errorf("expected 2 y series, got %d", len(w.YFields()))
 	}
 }
 
@@ -772,8 +772,8 @@ func TestLoadTSXFile_ProjectSemanticDashboard(t *testing.T) {
 	if trend.Granularity != "month" {
 		t.Fatalf("expected month granularity, got %q", trend.Granularity)
 	}
-	if trend.X != "order_date" {
-		t.Fatalf("expected trend x order_date, got %q", trend.X)
+	if trend.XField() != "order_date" {
+		t.Fatalf("expected trend x order_date, got %q", trend.XField())
 	}
 
 	table := d.Rows[2].Widgets[0]

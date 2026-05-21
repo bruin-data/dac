@@ -365,7 +365,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 
 	case "candlestick":
 		// x + open/high/low/close
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for candlestick charts", prefix))
 		}
 		if w.Open == "" {
@@ -395,10 +395,10 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 
 	case "heatmap":
 		// x + y + value
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for heatmap charts", prefix))
 		}
-		if len(w.Y) == 0 {
+		if len(w.YFields()) == 0 {
 			errs = append(errs, fmt.Sprintf("%s: y is required for heatmap charts", prefix))
 		}
 		if w.Value == "" {
@@ -407,7 +407,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 
 	case "calendar":
 		// x (date) + value
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x (date column) is required for calendar charts", prefix))
 		}
 		if w.Value == "" {
@@ -416,16 +416,16 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 
 	case "histogram":
 		// x (column to bin)
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for histogram charts", prefix))
 		}
 
 	case "bubble":
 		// x + y + size
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for bubble charts", prefix))
 		}
-		if len(w.Y) == 0 {
+		if len(w.YFields()) == 0 {
 			errs = append(errs, fmt.Sprintf("%s: y is required for bubble charts", prefix))
 		}
 		if w.Size == "" {
@@ -435,10 +435,10 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	default:
 		// line, bar, area, scatter, combo, sparkline, waterfall, xmr, dumbbell, boxplot, radar
 		// all need x + y
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for %s charts", prefix, w.Chart))
 		}
-		if len(w.Y) == 0 {
+		if len(w.YFields()) == 0 {
 			errs = append(errs, fmt.Sprintf("%s: y is required for %s charts", prefix, w.Chart))
 		}
 	}

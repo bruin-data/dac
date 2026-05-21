@@ -549,8 +549,8 @@ func vnodeToWidget(n *vnode) Widget {
 
 		// Chart fields
 		Chart:   asString(n.Props["chart"]),
-		X:       asString(n.Props["x"]),
-		Y:       asStringSlice(n.Props["y"]),
+		X:       asAxisEncoding(n.Props["x"]),
+		Y:       asAxisEncoding(n.Props["y"]),
 		Label:   asString(n.Props["label"]),
 		Value:   asString(n.Props["value"]),
 		Stacked: asBool(n.Props["stacked"]),
@@ -709,6 +709,57 @@ func asStringSlice(v interface{}) []string {
 		return result
 	case []string:
 		return val
+	default:
+		return nil
+	}
+}
+
+func asAxisEncoding(v interface{}) *AxisEncoding {
+	if v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case string:
+		if val == "" {
+			return nil
+		}
+		return &AxisEncoding{Field: val}
+	case []interface{}:
+		list := asStringSlice(val)
+		if len(list) == 0 {
+			return nil
+		}
+		return &AxisEncoding{Field: list}
+	case []string:
+		if len(val) == 0 {
+			return nil
+		}
+		return &AxisEncoding{Field: val}
+	case map[string]interface{}:
+		a := &AxisEncoding{
+			Type:   asString(val["type"]),
+			Title:  asString(val["title"]),
+			Format: asString(val["format"]),
+		}
+		switch f := val["field"].(type) {
+		case string:
+			if f != "" {
+				a.Field = f
+			}
+		case []interface{}:
+			list := asStringSlice(f)
+			if len(list) > 0 {
+				a.Field = list
+			}
+		case []string:
+			if len(f) > 0 {
+				a.Field = f
+			}
+		}
+		if a.Field == nil && a.Type == "" && a.Title == "" && a.Format == "" {
+			return nil
+		}
+		return a
 	default:
 		return nil
 	}
