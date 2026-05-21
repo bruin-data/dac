@@ -552,7 +552,7 @@ func vnodeToWidget(n *vnode) Widget {
 		X:       asAxisEncoding(n.Props["x"]),
 		Y:       asAxisEncoding(n.Props["y"]),
 		Label:   asString(n.Props["label"]),
-		Value:   asString(n.Props["value"]),
+		Value:   asValueEncoding(n.Props["value"]),
 		Stacked: asBool(n.Props["stacked"]),
 		Size:    asString(n.Props["size"]),
 		Source:  asString(n.Props["source"]),
@@ -760,6 +760,31 @@ func asAxisEncoding(v interface{}) *AxisEncoding {
 			return nil
 		}
 		return a
+	default:
+		return nil
+	}
+}
+
+func asValueEncoding(v interface{}) *ValueEncoding {
+	if v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case string:
+		if val == "" {
+			return nil
+		}
+		return &ValueEncoding{Field: val}
+	case map[string]interface{}:
+		field := asString(val["field"])
+		if field == "" {
+			return nil
+		}
+		return &ValueEncoding{
+			Field:  field,
+			Type:   asString(val["type"]),
+			Format: asString(val["format"]),
+		}
 	default:
 		return nil
 	}

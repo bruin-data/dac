@@ -353,13 +353,13 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if w.Label == "" {
 			errs = append(errs, fmt.Sprintf("%s: label is required for %s charts", prefix, w.Chart))
 		}
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for %s charts", prefix, w.Chart))
 		}
 
 	case "gauge":
 		// value column (current); target is optional
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for gauge charts", prefix))
 		}
 
@@ -389,7 +389,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if w.Target == "" {
 			errs = append(errs, fmt.Sprintf("%s: target is required for sankey charts", prefix))
 		}
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for sankey charts", prefix))
 		}
 
@@ -401,7 +401,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if len(w.YFields()) == 0 {
 			errs = append(errs, fmt.Sprintf("%s: y is required for heatmap charts", prefix))
 		}
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for heatmap charts", prefix))
 		}
 
@@ -410,7 +410,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x (date column) is required for calendar charts", prefix))
 		}
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for calendar charts", prefix))
 		}
 
