@@ -31,7 +31,7 @@ func renderChart(w *dashboard.Widget, data *server.WidgetQueryResult) ([]byte, e
 
 func renderPieChart(w *dashboard.Widget, data *server.WidgetQueryResult) ([]byte, error) {
 	labelCol := colIdx(data, w.Label)
-	valueCol := colIdx(data, w.Value)
+	valueCol := colIdx(data, w.ValueField())
 	if labelCol < 0 || valueCol < 0 {
 		return nil, fmt.Errorf("label/value columns not found")
 	}
@@ -137,8 +137,8 @@ func chartXY(w *dashboard.Widget, data *server.WidgetQueryResult) (int, int) {
 	yCol := -1
 	if ys := w.YFields(); len(ys) > 0 {
 		yCol = colIdx(data, ys[0])
-	} else if w.Value != "" {
-		yCol = colIdx(data, w.Value)
+	} else if v := w.ValueField(); v != "" {
+		yCol = colIdx(data, v)
 	}
 
 	return xCol, yCol
