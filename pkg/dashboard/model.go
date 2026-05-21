@@ -165,7 +165,7 @@ type Widget struct {
 	X       *AxisEncoding `yaml:"x,omitempty" json:"x,omitempty"`
 	Y       *AxisEncoding `yaml:"y,omitempty" json:"y,omitempty"`
 	Label   string        `yaml:"label,omitempty" json:"label,omitempty"`     // for pie/funnel/treemap
-	Value   string        `yaml:"value,omitempty" json:"value,omitempty"`     // for pie/funnel/heatmap/calendar/treemap/gauge
+	Value   *ValueEncoding `yaml:"value,omitempty" json:"value,omitempty"`
 	Stacked bool          `yaml:"stacked,omitempty" json:"stacked,omitempty"` // for bar/area charts
 	Size    string        `yaml:"size,omitempty" json:"size,omitempty"`       // bubble: size dimension column
 	Source  string        `yaml:"source,omitempty" json:"source,omitempty"`   // sankey: source column
@@ -620,6 +620,125 @@ func newAxisFields(list []string) *AxisEncoding {
 		return nil
 	}
 	return &AxisEncoding{Field: list}
+}
+
+type ValueEncoding struct {
+	Field  string `yaml:"field" json:"field"`
+	Type   string `yaml:"type,omitempty" json:"type,omitempty"`
+	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+}
+
+func (v *ValueEncoding) FieldString() string {
+	if v == nil {
+		return ""
+	}
+	return v.Field
+}
+
+func (v *ValueEncoding) hasMetadata() bool {
+	return v != nil && (v.Type != "" || v.Format != "")
+}
+
+func (w *Widget) ValueField() string { return w.Value.FieldString() }
+
+func (v *ValueEncoding) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		var s string
+		if err := node.Decode(&s); err != nil {
+			return err
+		}
+		v.Field = s
+		return nil
+	case yaml.MappingNode:
+		type valueFields struct {
+			Field  string `yaml:"field"`
+			Type   string `yaml:"type,omitempty"`
+			Format string `yaml:"format,omitempty"`
+		}
+		var tmp valueFields
+		if err := node.Decode(&tmp); err != nil {
+			return err
+		}
+		if tmp.Field == "" {
+			return fmt.Errorf("value encoding: field is required when using object form")
+		}
+		v.Field = tmp.Field
+		v.Type = tmp.Type
+		v.Format = tmp.Format
+		return nil
+	default:
+		return fmt.Errorf("value encoding: unsupported YAML node kind %d", node.Kind)
+	}
+}
+
+func (v *ValueEncoding) MarshalYAML() (any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	if !v.hasMetadata() {
+		return v.Field, nil
+	}
+	return struct {
+		Field  string `yaml:"field"`
+		Type   string `yaml:"type,omitempty"`
+		Format string `yaml:"format,omitempty"`
+	}{v.Field, v.Type, v.Format}, nil
+}
+
+func (v *ValueEncoding) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	switch trimmed[0] {
+	case '"':
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		v.Field = s
+		return nil
+	case '{':
+		var raw struct {
+			Field  string `json:"field"`
+			Type   string `json:"type,omitempty"`
+			Format string `json:"format,omitempty"`
+		}
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return err
+		}
+		if raw.Field == "" {
+			return fmt.Errorf("value encoding: field is required when using object form")
+		}
+		v.Field = raw.Field
+		v.Type = raw.Type
+		v.Format = raw.Format
+		return nil
+	default:
+		return fmt.Errorf("value encoding: unsupported JSON value")
+	}
+}
+
+func (v *ValueEncoding) MarshalJSON() ([]byte, error) {
+	if v == nil {
+		return []byte("null"), nil
+	}
+	if !v.hasMetadata() {
+		return json.Marshal(v.Field)
+	}
+	return json.Marshal(struct {
+		Field  string `json:"field"`
+		Type   string `json:"type,omitempty"`
+		Format string `json:"format,omitempty"`
+	}{v.Field, v.Type, v.Format})
+}
+
+func newValueField(s string) *ValueEncoding {
+	if s == "" {
+		return nil
+	}
+	return &ValueEncoding{Field: s}
 }
 
 type QueryNotFoundError struct {
