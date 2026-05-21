@@ -3,6 +3,7 @@ package dashboard
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	sem "github.com/bruin-data/dac/pkg/semantic"
 )
@@ -162,9 +163,20 @@ func Validate(d *Dashboard) error {
 		if f.Type == "" {
 			errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
 		}
-		validTypes := map[string]bool{"date-range": true, "select": true, "text": true}
+		validTypes := map[string]bool{"date-range": true, "date": true, "select": true, "text": true, "number": true}
 		if f.Type != "" && !validTypes[f.Type] {
 			errs = append(errs, fmt.Sprintf("%s: unknown filter type %q", prefix, f.Type))
+		}
+		if f.Type == "date" && f.Default != nil {
+			switch v := f.Default.(type) {
+			case string:
+				if ResolveDateExpression(v) == "" {
+					errs = append(errs, fmt.Sprintf("%s: invalid date default %q (must be TODAY, TODAY+/-N, or YYYY-MM-DD)", prefix, v))
+				}
+			case time.Time:
+			default:
+				errs = append(errs, fmt.Sprintf("%s: invalid date default %v (must be TODAY, TODAY+/-N, or YYYY-MM-DD)", prefix, f.Default))
+			}
 		}
 	}
 

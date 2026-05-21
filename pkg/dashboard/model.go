@@ -3,6 +3,8 @@ package dashboard
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -231,10 +233,41 @@ func (d *Dashboard) DefaultFilters() map[string]any {
 					}
 				}
 			}
+			if f.Type == "date" {
+				if t, ok := val.(time.Time); ok {
+					val = t.Format("2006-01-02")
+				} else if expr, ok := val.(string); ok {
+					if resolved := ResolveDateExpression(expr); resolved != "" {
+						val = resolved
+					}
+				}
+			}
 			defaults[f.Name] = val
 		}
 	}
 	return defaults
+}
+
+var DateExpressionPattern = regexp.MustCompile(`^(TODAY([+-]\d+)?|\d{4}-\d{2}-\d{2})$`)
+
+func ResolveDateExpression(expr string) string {
+	if !DateExpressionPattern.MatchString(expr) {
+		return ""
+	}
+	if expr == "TODAY" {
+		return time.Now().Format("2006-01-02")
+	}
+	if strings.HasPrefix(expr, "TODAY") {
+		n, err := strconv.Atoi(expr[len("TODAY"):])
+		if err != nil {
+			return ""
+		}
+		return time.Now().AddDate(0, 0, n).Format("2006-01-02")
+	}
+	if _, err := time.Parse("2006-01-02", expr); err != nil {
+		return ""
+	}
+	return expr
 }
 
 // ResolveDatePreset converts a preset key like "last_30_days" into a
