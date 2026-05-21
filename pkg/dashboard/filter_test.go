@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestResolveDateExpression_Today(t *testing.T) {
@@ -151,5 +153,85 @@ func TestValidate_DateRangeStillWorks(t *testing.T) {
 	}
 	if err := Validate(d); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
+	}
+}
+
+func TestResolveDateExpression_RejectsImpossibleDate(t *testing.T) {
+	cases := []string{"9999-99-99", "2024-13-01", "2024-02-30", "0000-00-00"}
+	for _, c := range cases {
+		t.Run(c, func(t *testing.T) {
+			if got := ResolveDateExpression(c); got != "" {
+				t.Errorf("expected empty for impossible date %q, got %q", c, got)
+			}
+		})
+	}
+}
+
+func TestValidate_DateFilterRejectsImpossibleDate(t *testing.T) {
+	d := &Dashboard{
+		Name: "t",
+		Rows: []Row{{Widgets: []Widget{{Name: "w", Type: WidgetTypeText, Content: "hi"}}}},
+		Filters: []Filter{
+			{Name: "as_of", Type: "date", Default: "9999-99-99"},
+		},
+	}
+	err := Validate(d)
+	if err == nil || !strings.Contains(err.Error(), "invalid date default") {
+		t.Fatalf("expected invalid-date-default error, got: %v", err)
+	}
+}
+
+func TestDefaultFilters_UnquotedYAMLDate(t *testing.T) {
+	yamlBody := `
+name: t
+rows:
+  - widgets:
+      - { name: w, type: text, content: hi }
+filters:
+  - name: as_of
+    type: date
+    default: 2024-01-15
+`
+	var d Dashboard
+	if err := yaml.Unmarshal([]byte(yamlBody), &d); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	got := d.DefaultFilters()
+	if got["as_of"] != "2024-01-15" {
+		t.Errorf("expected %q, got %v (%T)", "2024-01-15", got["as_of"], got["as_of"])
+	}
+}
+
+func TestValidate_UnquotedYAMLDateAccepted(t *testing.T) {
+	yamlBody := `
+name: t
+rows:
+  - widgets:
+      - { name: w, type: text, content: hi }
+filters:
+  - name: as_of
+    type: date
+    default: 2024-01-15
+`
+	var d Dashboard
+	if err := yaml.Unmarshal([]byte(yamlBody), &d); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if err := Validate(&d); err != nil {
+		t.Fatalf("expected no error for unquoted YAML date, got: %v", err)
+	}
+}
+
+func TestValidate_DateFilterRejectsNonStringNonTimeDefault(t *testing.T) {
+	d := &Dashboard{
+		Name: "t",
+		Rows: []Row{{Widgets: []Widget{{Name: "w", Type: WidgetTypeText, Content: "hi"}}}},
+		Filters: []Filter{
+			{Name: "as_of", Type: "date", Default: 123},
+		},
+	}
+	err := Validate(d)
+	if err == nil || !strings.Contains(err.Error(), "invalid date default") {
+		t.Fatalf("expected invalid-date-default error for int default, got: %v", err)
 	}
 }
