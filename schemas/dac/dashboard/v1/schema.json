@@ -311,7 +311,7 @@
           "type": "string"
         },
         "value": {
-          "type": "string"
+          "$ref": "#/$defs/valueEncoding"
         },
         "stacked": {
           "type": "boolean"
@@ -570,6 +570,31 @@
             },
             "title": {
               "type": "string"
+            },
+            "format": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "valueEncoding": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": ["field"],
+          "properties": {
+            "field": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": {
+              "type": "string",
+              "enum": ["date", "number", "category"]
             },
             "format": {
               "type": "string"
