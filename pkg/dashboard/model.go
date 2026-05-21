@@ -734,13 +734,6 @@ func (v *ValueEncoding) MarshalJSON() ([]byte, error) {
 	}{v.Field, v.Type, v.Format})
 }
 
-func newValueField(s string) *ValueEncoding {
-	if s == "" {
-		return nil
-	}
-	return &ValueEncoding{Field: s}
-}
-
 type QueryNotFoundError struct {
 	Name   string
 	Widget string
