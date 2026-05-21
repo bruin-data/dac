@@ -443,6 +443,27 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		}
 	}
 
+	if w.Color != nil {
+		if w.Color.Field == "" {
+			errs = append(errs, fmt.Sprintf("%s: color.field is required", prefix))
+		}
+		if w.Chart != "bar" && w.Chart != "line" && w.Chart != "area" {
+			errs = append(errs, fmt.Sprintf("%s: color is only valid on bar, line, or area charts", prefix))
+		}
+		if len(w.YFields()) > 1 {
+			errs = append(errs, fmt.Sprintf("%s: color with multiple y fields is not supported", prefix))
+		}
+	}
+	if w.Normalized && !w.Stacked {
+		errs = append(errs, fmt.Sprintf("%s: normalized requires stacked: true", prefix))
+	}
+	if w.Normalized && w.Chart != "bar" {
+		errs = append(errs, fmt.Sprintf("%s: normalized is only valid on bar charts", prefix))
+	}
+	if w.Horizontal && w.Chart != "bar" {
+		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar charts", prefix))
+	}
+
 	return errs
 }
 
