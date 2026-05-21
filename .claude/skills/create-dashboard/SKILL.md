@@ -18,6 +18,25 @@ When invoked, use `$ARGUMENTS` as the description of what dashboard to create.
 
 ---
 
+## Validation Workflow — Read Before Editing
+
+`dac check` runs **every widget's query** against the live database and scales with total widget count. Running it after every edit is the single biggest waste of time when iterating on a dashboard. Pick the cheapest tool that proves the change is correct:
+
+| Change you just made | Run this | Why |
+|---|---|---|
+| UI-only — `chart` type, `col`, labels, `format`, `prefix`/`suffix`, colors, text/markdown, divider/image, theme, row order | **nothing** | No query changed. `dac serve` live-reloads instantly in the browser. |
+| One widget's SQL, `query:` ref, or column mapping | `dac query --dir ./dashboards --dashboard "X" --widget "Y"` | Executes only that one query, returns rows. ~1 query of latency. |
+| Filters, named queries, metrics/dimensions wiring, `col` sums, new widget skeletons | `dac validate --dir ./dashboards` | Structural check, no SQL executed. Sub-second. |
+| End-of-task sweep, or many widgets changed at once | `dac check --dir ./dashboards` | Full execution. Slow — only run once when you think you're done. |
+
+**Rules:**
+1. Default to **no command** for UI tweaks. The live reload in `dac serve` is the feedback loop, not the CLI.
+2. Never run `dac check` and then re-run individual widgets — pick one. Per-edit = `dac query --widget`; end-of-task = `dac check`.
+3. If you changed N widgets and N ≥ ~half the dashboard, `dac check` is fine. Otherwise `dac query --widget` per change is cheaper.
+4. `dac validate` is cheap (<1s) but only catches structure, never SQL errors. Don't rely on it for SQL edits.
+
+---
+
 ## Project Structure
 
 ```
@@ -1061,6 +1080,8 @@ dac check --dir ./dashboards
 ```
 
 Goes beyond `validate`: parses YAML, resolves all query references, applies default filter values, executes every query, and reports results with row/column counts and timing. Catches SQL errors, missing tables, bad column names.
+
+> **Cost warning:** runtime scales linearly with the total widget count across all dashboards in `--dir`. Reserve it for end-of-task sweeps. For per-edit checks, use `dac query --dashboard X --widget Y` to run a single widget instead. See the [Validation Workflow](#validation-workflow--read-before-editing) section at the top.
 
 ### `dac query` — Run a SQL query
 
