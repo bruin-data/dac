@@ -518,6 +518,7 @@ func vnodeToRow(n *vnode) Row {
 
 func vnodeToWidget(n *vnode) Widget {
 	w := Widget{
+		ID:          asString(n.Props["id"]),
 		Name:        asString(n.Props["name"]),
 		Description: asString(n.Props["description"]),
 		Type:        widgetType(n.Tag),

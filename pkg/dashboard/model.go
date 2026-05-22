@@ -131,9 +131,10 @@ type Row struct {
 // Widget represents a single dashboard widget.
 // Query resolution priority: query (named ref) > sql (inline) > file (external).
 type Widget struct {
+	ID          string `yaml:"id,omitempty" json:"id,omitempty"`
 	Name        string `yaml:"name" json:"name"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
-	Type        string `yaml:"type" json:"type"` // metric, chart, table, text
+	Type        string `yaml:"type" json:"type"`
 	Col         int    `yaml:"col,omitempty" json:"col,omitempty"`
 
 	// Query source (pick one)
