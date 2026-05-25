@@ -163,7 +163,7 @@ func Validate(d *Dashboard) error {
 		if f.Type == "" {
 			errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
 		}
-		validTypes := map[string]bool{"date-range": true, "date": true, "select": true, "text": true, "number": true}
+		validTypes := map[string]bool{"date": true, "date-range": true, "number": true, "select": true, "text": true}
 		if f.Type != "" && !validTypes[f.Type] {
 			errs = append(errs, fmt.Sprintf("%s: unknown filter type %q", prefix, f.Type))
 		}

@@ -217,6 +217,41 @@ function FilterControl({
     case "date-range":
       return <DateRangeFilter filter={filter} value={value} onChange={onChange} label={label} />;
 
+    case "date":
+      return (
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]">
+            {label}
+          </label>
+          <input
+            type="date"
+            className={`${inputClass} min-w-[128px]`}
+            value={String(value ?? filter.default ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </div>
+      );
+
+    case "number":
+      return (
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]">
+            {label}
+          </label>
+          <input
+            type="number"
+            className={`${inputClass} w-[112px] tabular-nums`}
+            value={String(value ?? filter.default ?? "")}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const next = e.target.valueAsNumber;
+              onChange(raw === "" || Number.isNaN(next) ? raw : next);
+            }}
+            placeholder={label}
+          />
+        </div>
+      );
+
     case "text":
       return (
         <div className="flex flex-col gap-1">

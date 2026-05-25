@@ -113,6 +113,28 @@ func TestValidate_ChartWidgetMissingChartType(t *testing.T) {
 	assertValidationContains(t, err, "chart type is required")
 }
 
+func TestValidate_FilterTypes(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Filters: []Filter{
+			{Name: "region", Type: "select"},
+			{Name: "date_range", Type: "date-range"},
+			{Name: "as_of_date", Type: "date"},
+			{Name: "min_revenue", Type: "number"},
+			{Name: "search", Type: "text"},
+		},
+		Rows: []Row{
+			{Widgets: []Widget{{Name: "w", Type: WidgetTypeText, Content: "hi"}}},
+		},
+	}
+	assertNoErr(t, Validate(d))
+
+	d.Filters = append(d.Filters, Filter{Name: "bad", Type: "boolean"})
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, `unknown filter type "boolean"`)
+}
+
 func TestValidate_ProjectSemanticDashboard(t *testing.T) {
 	d, err := LoadFile("../../testdata/project/dashboards/semantic-sales.yml")
 	assertNoErr(t, err)

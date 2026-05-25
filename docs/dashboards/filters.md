@@ -4,7 +4,7 @@ Filters add interactive controls to dashboards. Users can change filter values i
 
 ## Filter Types
 
-DAC supports three filter types:
+DAC supports five filter types:
 
 ### Select
 
@@ -65,6 +65,26 @@ With specific presets:
         - this_year
 ```
 
+### Date
+
+A single plain date input. The current value is a `YYYY-MM-DD` string.
+
+```yaml
+  - name: as_of_date
+    type: date
+    default: "2025-01-31"
+```
+
+### Number
+
+A plain numerical input. Numeric values are sent to queries as numbers.
+
+```yaml
+  - name: min_order_value
+    type: number
+    default: 100
+```
+
 ### Text
 
 A free-form text input.
@@ -121,6 +141,20 @@ WHERE created_at >= '{{ filters.date_range.start }}'
   AND created_at <= '{{ filters.date_range.end }}'
 ```
 
+### Date Filters
+
+```sql
+SELECT * FROM orders
+WHERE created_at::date = DATE '{{ filters.as_of_date }}'
+```
+
+### Number Filters
+
+```sql
+SELECT * FROM orders
+WHERE order_value >= {{ filters.min_order_value }}
+```
+
 ### Text Filters
 
 ```sql
@@ -133,9 +167,9 @@ WHERE customer_name LIKE '%{{ filters.search }}%'
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Filter identifier, used in `filters.<name>` |
-| `type` | string | Yes | `select`, `date-range`, or `text` |
+| `type` | string | Yes | `select`, `date-range`, `date`, `number`, or `text` |
 | `multiple` | bool | No | Allow multiple selections (select only) |
-| `default` | any | No | Initial value. String preset for date-range, array for multi-select |
+| `default` | any | No | Initial value. String preset for date-range, `YYYY-MM-DD` string for date, number for number, array for multi-select |
 | `options` | object | No | Filter options configuration |
 | `options.values` | string[] | No | Static list of options (select) |
 | `options.query` | string | No | SQL to populate options (select) |

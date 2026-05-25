@@ -252,7 +252,7 @@ rows:
 
 DAC has two related filter concepts:
 
-- Dashboard filters define UI controls, such as `select`, `date-range`, and `text`.
+- Dashboard filters define UI controls, such as `select`, `date-range`, `date`, `number`, and `text`.
 - Semantic query filters define predicates applied to semantic dimensions before SQL execution.
 
 Dashboard filter values can be referenced in semantic filters with the same Jinja-style syntax used by SQL queries:

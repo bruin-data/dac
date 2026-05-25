@@ -23,7 +23,7 @@ export interface Dashboard {
 
 export interface Filter {
   name: string;
-  type: "date-range" | "select" | "text";
+  type: "date" | "date-range" | "number" | "select" | "text";
   multiple?: boolean;
   default?: unknown;
   options?: {

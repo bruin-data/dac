@@ -1,0 +1,98 @@
+name: Date and Number Filters
+description: Minimal dashboard for validating plain date and number filters
+connection: local_duckdb
+
+filters:
+  - name: as_of_date
+    type: date
+    default: "2099-12-31"
+  - name: min_order_value
+    type: number
+    default: 100
+
+rows:
+  - widgets:
+      - name: Filtered Orders
+        type: metric
+        col: 3
+        sql: |
+          SELECT COUNT(*) AS value
+          FROM orders
+          WHERE created_at <= DATE '{{ filters.as_of_date }}'
+            AND amount >= {{ filters.min_order_value }}
+        column: value
+        format: number
+
+      - name: Filtered Revenue
+        type: metric
+        col: 3
+        sql: |
+          SELECT SUM(amount) AS value
+          FROM orders
+          WHERE created_at <= DATE '{{ filters.as_of_date }}'
+            AND amount >= {{ filters.min_order_value }}
+        column: value
+        prefix: "$"
+        format: number
+
+      - name: Average Order Value
+        type: metric
+        col: 3
+        sql: |
+          SELECT ROUND(AVG(amount), 2) AS value
+          FROM orders
+          WHERE created_at <= DATE '{{ filters.as_of_date }}'
+            AND amount >= {{ filters.min_order_value }}
+        column: value
+        prefix: "$"
+        format: number
+
+      - name: Max Order Value
+        type: metric
+        col: 3
+        sql: |
+          SELECT MAX(amount) AS value
+          FROM orders
+          WHERE created_at <= DATE '{{ filters.as_of_date }}'
+            AND amount >= {{ filters.min_order_value }}
+        column: value
+        prefix: "$"
+        format: number
+
+  - widgets:
+      - name: Orders by Status
+        type: chart
+        chart: bar
+        col: 5
+        sql: |
+          SELECT status, COUNT(*) AS orders
+          FROM orders
+          WHERE created_at <= DATE '{{ filters.as_of_date }}'
+            AND amount >= {{ filters.min_order_value }}
+          GROUP BY 1
+          ORDER BY 2 DESC
+        x: status
+        y: [orders]
+
+      - name: Recent Matching Orders
+        type: table
+        col: 7
+        sql: |
+          SELECT id, customer_name, amount, status, created_at
+          FROM orders
+          WHERE created_at <= DATE '{{ filters.as_of_date }}'
+            AND amount >= {{ filters.min_order_value }}
+          ORDER BY created_at DESC
+          LIMIT 20
+        columns:
+          - name: id
+            label: Order ID
+          - name: customer_name
+            label: Customer
+          - name: amount
+            label: Amount
+            format: currency
+          - name: status
+            label: Status
+          - name: created_at
+            label: Date

@@ -17,7 +17,7 @@ import (
 const dashboardSchemaRef = `Dashboard YAML structure:
 - schema: optional; v1 is assumed when omitted
 - name, description, connection (default DB connection)
-- filters: [{name, type (select|date-range), default, options}]
+- filters: [{name, type (select|date-range|date|number|text), default, options}]
 - queries: named reusable SQL queries (sql: inline | file: path.sql)
 - rows: [{widgets: [...]}]
 

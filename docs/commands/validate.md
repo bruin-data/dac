@@ -37,7 +37,7 @@ dac validate --with-database
 - **Widgets**: `type` and `name` are required
 - **Grid**: column spans are 1-12, row totals don't exceed 12
 - **Query references**: named queries referenced by widgets exist in the `queries` map
-- **Filter types**: must be `select`, `date-range`, or `text`
+- **Filter types**: must be `select`, `date-range`, `date`, `number`, or `text`
 - **Chart types**: valid chart type names
 - **Semantic layer**:
   - model files under `semantic/` have a `name` and `source.table`
