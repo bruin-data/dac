@@ -300,6 +300,37 @@ rows:
         # ...
 ```
 
+### Row Height
+
+Each row accepts an optional `height` to override its rendered height. Useful when you want charts in a row to be taller (or shorter) than the default.
+
+- Number → pixels (e.g. `height: 480`). Charts inside the row expand to fill it.
+- String pixel value → e.g. `"480px"`. Same behavior as a number.
+- Other CSS strings → e.g. `"60vh"`, `"32rem"`. The row container takes that height, but charts fall back to their default 240px (use a pixel value if you want the chart to grow).
+- Omitted → default height; widgets use their built-in sizing.
+
+```yaml
+rows:
+  - height: 480               # Tall row — charts fill the extra vertical space
+    widgets:
+      - name: Revenue Trend
+        type: chart
+        chart: area
+        col: 8
+        # ...
+      - name: By Region
+        type: chart
+        chart: pie
+        col: 4
+        # ...
+
+  - widgets:                  # No height → default
+      - name: Recent Orders
+        type: table
+        col: 12
+        # ...
+```
+
 ---
 
 ## Widget Types
