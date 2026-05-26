@@ -137,28 +137,25 @@ export default (
         name="Tables Discovered"
         col={3}
         sql={`SELECT ${tableNames.length} as value`}
-        column="value"
-        format="number"
+        value={{ field: "value", type: "number", format: ",.0f" }}
       />
       <Metric
         name="Total Rows"
         col={3}
         sql={`SELECT ${totalRows} as value`}
-        column="value"
-        format="number"
+        value={{ field: "value", type: "number", format: ",.0f" }}
       />
       <Metric
         name="Largest Table"
         col={3}
         sql={`SELECT '${largestTable}' as value`}
-        column="value"
+        value={{ field: "value" }}
       />
       <Metric
         name={`${titleCase(largestTable)} Rows`}
         col={3}
         sql={`SELECT ${rowCounts[largestTable] || 0} as value`}
-        column="value"
-        format="number"
+        value={{ field: "value", type: "number", format: ",.0f" }}
       />
     </Row>
 
@@ -178,21 +175,18 @@ export default (
                 name="Row Count"
                 col={3}
                 sql={`SELECT COUNT(*) as value FROM "${table}"`}
-                column="value"
-                format="number"
+                value={{ field: "value", type: "number", format: ",.0f" }}
               />
               {kpiCols.slice(0, 3).map(col => {
                 const agg = bestAggregate(col.name)
                 const fmt = formatColumn(col.name)
+                const spec = fmt === "currency" ? "$,.2f" : fmt === "percent" ? ",.1f" : ",.0f"
                 return (
                   <Metric
                     name={`${agg === 'AVG' ? 'Avg' : 'Total'} ${titleCase(col.name)}`}
                     col={3}
                     sql={`SELECT ${agg}("${col.name}") as value FROM "${table}"`}
-                    column="value"
-                    format={fmt}
-                    prefix={fmt === "currency" ? "$" : ""}
-                    suffix={fmt === "percent" ? "%" : ""}
+                    value={{ field: "value", type: "number", format: spec }}
                   />
                 )
               })}

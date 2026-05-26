@@ -40,8 +40,9 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        prefix: "$"
-        format: number
+        value:
+          type: number
+          format: "$,.0f"
         col: 3
 
       - name: Sales Count
@@ -56,7 +57,9 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        format: number
+        value:
+          type: number
+          format: ",.0f"
         col: 3
 
       - name: Unique Customers
@@ -71,7 +74,9 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        format: number
+        value:
+          type: number
+          format: ",.0f"
         col: 3
 
       - name: Average Sale Value
@@ -86,8 +91,9 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        prefix: "$"
-        format: number
+        value:
+          type: number
+          format: "$,.2f"
         col: 3
 
   - widgets:

@@ -31,8 +31,7 @@ export default (
           { dimension: "region", operator: "equals", value: "{{ filters.region }}" },
           { dimension: "created_at", operator: "between", value: { start: "{{ filters.date_range.start }}", end: "{{ filters.date_range.end }}" } },
         ]}
-        prefix="$"
-        format="number"
+        value={{ type: "number", format: "$,.0f" }}
         col={3}
       />
       <Metric
@@ -42,7 +41,7 @@ export default (
           { dimension: "region", operator: "equals", value: "{{ filters.region }}" },
           { dimension: "created_at", operator: "between", value: { start: "{{ filters.date_range.start }}", end: "{{ filters.date_range.end }}" } },
         ]}
-        format="number"
+        value={{ type: "number", format: ",.0f" }}
         col={3}
       />
       <Metric
@@ -52,7 +51,7 @@ export default (
           { dimension: "region", operator: "equals", value: "{{ filters.region }}" },
           { dimension: "created_at", operator: "between", value: { start: "{{ filters.date_range.start }}", end: "{{ filters.date_range.end }}" } },
         ]}
-        format="number"
+        value={{ type: "number", format: ",.0f" }}
         col={3}
       />
       <Metric
@@ -62,8 +61,7 @@ export default (
           { dimension: "region", operator: "equals", value: "{{ filters.region }}" },
           { dimension: "created_at", operator: "between", value: { start: "{{ filters.date_range.start }}", end: "{{ filters.date_range.end }}" } },
         ]}
-        prefix="$"
-        format="number"
+        value={{ type: "number", format: "$,.2f" }}
         col={3}
       />
     </Row>

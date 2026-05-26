@@ -31,10 +31,11 @@ rows:
       - name: Total Revenue
         type: metric
         query: total_revenue
-        column: value
-        prefix: "$"
-        format: number
         col: 3
+        value:
+          field: value
+          type: number
+          format: "$,.0f"
       - name: Total Orders
         type: metric
         col: 3
@@ -42,8 +43,10 @@ rows:
           SELECT COUNT(*) as total FROM orders
           WHERE created_at >= '{{ filters.date_range.start }}'
             AND created_at <= '{{ filters.date_range.end }}'
-        column: total
-        format: number
+        value:
+          field: total
+          type: number
+          format: ",.0f"
       - name: Average Order Value
         type: metric
         col: 3
@@ -51,9 +54,10 @@ rows:
           SELECT ROUND(AVG(amount), 2) as avg_value FROM orders
           WHERE created_at >= '{{ filters.date_range.start }}'
             AND created_at <= '{{ filters.date_range.end }}'
-        column: avg_value
-        prefix: "$"
-        format: number
+        value:
+          field: avg_value
+          type: number
+          format: "$,.2f"
       - name: P90 Order Value
         type: metric
         col: 3
@@ -61,9 +65,10 @@ rows:
           SELECT ROUND(quantile_cont(amount, 0.9), 2) as p90_value FROM orders
           WHERE created_at >= '{{ filters.date_range.start }}'
             AND created_at <= '{{ filters.date_range.end }}'
-        column: p90_value
-        prefix: "$"
-        format: number
+        value:
+          field: p90_value
+          type: number
+          format: "$,.2f"
 
   # Revenue trend + region breakdown
   - widgets:
