@@ -53,6 +53,12 @@ export interface Row {
   widgets: Widget[];
 }
 
+export interface ValueEncoding {
+  field: string;
+  type?: "date" | "number" | "category";
+  format?: string;
+}
+
 export interface Widget {
   name: string;
   description?: string;
@@ -76,18 +82,13 @@ export interface Widget {
   segments?: string[];
   sort?: SemanticSort[];
 
-  // Metric
-  column?: string;
-  prefix?: string;
-  suffix?: string;
-  format?: string;
 
   // Chart
   chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick";
   x?: string;
   y?: string[];
   label?: string;
-  value?: string;
+  value?: string | ValueEncoding;
   stacked?: boolean;
   size?: string;       // bubble: size dimension
   source?: string;     // sankey: source column
