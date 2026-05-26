@@ -331,10 +331,11 @@ rows:
   - widgets:
       - name: Total Revenue
         type: metric
-        column: value
-        prefix: "$"
-        format: number
         col: 3
+        value:
+          field: value
+          type: number
+          format: "$,.0f"
         sql: |
 __INIT_CTE_WIDGET__
           SELECT SUM(amount) AS value
@@ -357,8 +358,10 @@ __INIT_CTE_WIDGET__
           {% if filters.region != 'All' %}
             AND region = '{{ filters.region }}'
           {% endif %}
-        column: value
-        format: number
+        value:
+          field: value
+          type: number
+          format: ",.0f"
 
       - name: Unique Customers
         type: metric
@@ -372,8 +375,10 @@ __INIT_CTE_WIDGET__
           {% if filters.region != 'All' %}
             AND region = '{{ filters.region }}'
           {% endif %}
-        column: value
-        format: number
+        value:
+          field: value
+          type: number
+          format: ",.0f"
 
       - name: Average Sale Value
         type: metric
@@ -387,9 +392,10 @@ __INIT_CTE_WIDGET__
           {% if filters.region != 'All' %}
             AND region = '{{ filters.region }}'
           {% endif %}
-        column: value
-        prefix: "$"
-        format: number
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
 
   - widgets:
       - name: Revenue Trend
@@ -529,8 +535,9 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        prefix: "$"
-        format: number
+        value:
+          type: number
+          format: "$,.0f"
         col: 3
 
       - name: Sales Count
@@ -545,7 +552,9 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        format: number
+        value:
+          type: number
+          format: ",.0f"
         col: 3
 
       - name: Unique Customers
@@ -560,7 +569,9 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        format: number
+        value:
+          type: number
+          format: ",.0f"
         col: 3
 
       - name: Average Sale Value
@@ -575,8 +586,9 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        prefix: "$"
-        format: number
+        value:
+          type: number
+          format: "$,.2f"
         col: 3
 
   - widgets:

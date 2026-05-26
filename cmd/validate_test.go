@@ -59,7 +59,7 @@ func TestValidateDashboardWithDatabaseDryRunsWidgetQueries(t *testing.T) {
 				Name:     "Total Revenue",
 				Type:     dashboard.WidgetTypeMetric,
 				QueryRef: "total_revenue",
-				Column:   "value",
+				Value:    &dashboard.ValueEncoding{Field: "value"},
 			}},
 		}},
 	}
@@ -182,7 +182,8 @@ rows:
       - name: Total
         type: metric
         query: total
-        column: value
+        value:
+          field: value
 `), 0o644); err != nil {
 		t.Fatalf("write dashboard: %v", err)
 	}
