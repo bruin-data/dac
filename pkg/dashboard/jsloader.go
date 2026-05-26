@@ -532,12 +532,6 @@ func vnodeToWidget(n *vnode) Widget {
 		Model:      asString(n.Props["model"]),
 		Connection: asString(n.Props["connection"]),
 
-		// Metric fields
-		Column: asString(n.Props["column"]),
-		Prefix: asString(n.Props["prefix"]),
-		Suffix: asString(n.Props["suffix"]),
-		Format: asString(n.Props["format"]),
-
 		// Declarative chart fields
 		Dimension:   asString(n.Props["dimension"]),
 		Granularity: asString(n.Props["granularity"]),
@@ -780,15 +774,15 @@ func asValueEncoding(v interface{}) *ValueEncoding {
 		}
 		return &ValueEncoding{Field: val}
 	case map[string]interface{}:
-		field := asString(val["field"])
-		if field == "" {
-			return nil
-		}
-		return &ValueEncoding{
-			Field:  field,
+		ve := &ValueEncoding{
+			Field:  asString(val["field"]),
 			Type:   asString(val["type"]),
 			Format: asString(val["format"]),
 		}
+		if ve.Field == "" && ve.Type == "" && ve.Format == "" {
+			return nil
+		}
+		return ve
 	default:
 		return nil
 	}

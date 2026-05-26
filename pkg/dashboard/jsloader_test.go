@@ -118,9 +118,9 @@ export default (
   <Dashboard name="Loop Test" connection="duckdb">
     <Row>
       {regions.map(r =>
-        <Metric name={r + " Revenue"} col={4} prefix="$"
+        <Metric name={r + " Revenue"} col={4}
           sql={"SELECT SUM(amount) as value FROM sales WHERE region = '" + r + "'"}
-          column="value" format="number" />
+          value={{ field: "value", type: "number", format: "$,.0f" }} />
       )}
     </Row>
   </Dashboard>
@@ -144,8 +144,8 @@ export default (
 		if w.Name != names[i] {
 			t.Errorf("widget %d: expected name %q, got %q", i, names[i], w.Name)
 		}
-		if w.Prefix != "$" {
-			t.Errorf("widget %d: expected prefix %q, got %q", i, "$", w.Prefix)
+		if w.ValueField() != "value" {
+			t.Errorf("widget %d: expected value.field = %q, got %q", i, "value", w.ValueField())
 		}
 		if !strings.Contains(w.SQL, "WHERE region") {
 			t.Errorf("widget %d: expected SQL with region filter", i)
@@ -156,13 +156,13 @@ export default (
 func TestEvalTSX_CustomComponent(t *testing.T) {
 	source := `
 function KPI({ name, sql, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" {...rest} />
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format: "$,.0f" }} {...rest} />
 }
 
 export default (
   <Dashboard name="Custom Component" connection="duckdb">
     <Row>
-      <KPI name="Revenue" sql="SELECT 100 as value" prefix="$" col={4} />
+      <KPI name="Revenue" sql="SELECT 100 as value" col={4} />
       <KPI name="Orders" sql="SELECT 42 as value" col={4} />
     </Row>
   </Dashboard>
@@ -182,11 +182,8 @@ export default (
 	if w0.Type != WidgetTypeMetric {
 		t.Errorf("expected metric, got %q", w0.Type)
 	}
-	if w0.Column != "value" {
-		t.Errorf("expected column %q, got %q", "value", w0.Column)
-	}
-	if w0.Prefix != "$" {
-		t.Errorf("expected prefix %q, got %q", "$", w0.Prefix)
+	if w0.ValueField() != "value" {
+		t.Errorf("expected value.field %q, got %q", "value", w0.ValueField())
 	}
 }
 

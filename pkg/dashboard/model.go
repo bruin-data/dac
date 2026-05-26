@@ -147,12 +147,6 @@ type Widget struct {
 	// Connection override for inline queries
 	Connection string `yaml:"connection,omitempty" json:"connection,omitempty"`
 
-	// Metric fields
-	Column string `yaml:"column,omitempty" json:"column,omitempty"`
-	Prefix string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
-	Suffix string `yaml:"suffix,omitempty" json:"suffix,omitempty"`
-	Format string `yaml:"format,omitempty" json:"format,omitempty"`
-
 	// Declarative chart fields (use with source + metrics)
 	Dimension   string                 `yaml:"dimension,omitempty" json:"dimension,omitempty"` // GROUP BY column
 	Granularity string                 `yaml:"granularity,omitempty" json:"granularity,omitempty"`
@@ -697,9 +691,6 @@ func (v *ValueEncoding) UnmarshalYAML(node *yaml.Node) error {
 		if err := node.Decode(&tmp); err != nil {
 			return err
 		}
-		if tmp.Field == "" {
-			return fmt.Errorf("value encoding: field is required when using object form")
-		}
 		v.Field = tmp.Field
 		v.Type = tmp.Type
 		v.Format = tmp.Format
@@ -744,9 +735,6 @@ func (v *ValueEncoding) UnmarshalJSON(data []byte) error {
 		}
 		if err := json.Unmarshal(data, &raw); err != nil {
 			return err
-		}
-		if raw.Field == "" {
-			return fmt.Errorf("value encoding: field is required when using object form")
 		}
 		v.Field = raw.Field
 		v.Type = raw.Type

@@ -478,13 +478,13 @@ func uploadImage(ctx context.Context, driveSvc *driveapi.Service, name string, d
 
 func formatMetricValue(w *dashboard.Widget, data *server.WidgetQueryResult) string {
 	if data == nil || data.Error != "" || len(data.Rows) == 0 || len(data.Rows[0]) == 0 {
-		return "\u2014" // em dash
+		return "\u2014"
 	}
 
 	ci := 0
-	if w.Column != "" {
+	if col := w.ValueField(); col != "" {
 		for i, c := range data.Columns {
-			if c.Name == w.Column {
+			if c.Name == col {
 				ci = i
 				break
 			}
@@ -492,20 +492,8 @@ func formatMetricValue(w *dashboard.Widget, data *server.WidgetQueryResult) stri
 	}
 
 	val := toFloat64(data.Rows[0][ci])
-
-	var s string
-	switch w.Format {
-	case "currency", "number":
-		if val == float64(int64(val)) {
-			s = humanize.Comma(int64(val))
-		} else {
-			s = humanize.CommafWithDigits(val, 2)
-		}
-	case "percent":
-		s = fmt.Sprintf("%.1f%%", val)
-	default:
-		s = fmt.Sprintf("%v", data.Rows[0][ci])
+	if val == float64(int64(val)) {
+		return humanize.Comma(int64(val))
 	}
-
-	return w.Prefix + s + w.Suffix
+	return humanize.CommafWithDigits(val, 2)
 }

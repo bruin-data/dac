@@ -126,38 +126,19 @@ func TestValueEncoding_YAML_RoundTripBare(t *testing.T) {
 	}
 }
 
-func TestValueEncoding_YAML_ObjectFormRequiresField(t *testing.T) {
-	cases := map[string]string{
-		"empty object":  `value: {}`,
-		"metadata only": "value:\n  type: number\n",
-		"explicit null": "value:\n  field: null\n  type: number\n",
-		"empty string":  "value:\n  field: \"\"\n  type: number\n",
+func TestValueEncoding_YAML_ObjectFormFieldOptional(t *testing.T) {
+	yamlBody := "value:\n  type: number\n  format: \"$,.2f\"\n"
+	var w Widget
+	if err := yaml.Unmarshal([]byte(yamlBody), &w); err != nil {
+		t.Fatalf("unmarshal: %v", err)
 	}
-	for name, body := range cases {
-		t.Run(name, func(t *testing.T) {
-			var w Widget
-			err := yaml.Unmarshal([]byte(body), &w)
-			if err == nil {
-				t.Fatalf("expected error for input %q, got nil", body)
-			}
-		})
+	if w.Value == nil {
+		t.Fatal("expected Value to be populated")
 	}
-}
-
-func TestValueEncoding_JSON_ObjectFormRequiresField(t *testing.T) {
-	cases := map[string][]byte{
-		"empty object":  []byte(`{"value": {}}`),
-		"metadata only": []byte(`{"value": {"type": "number"}}`),
-		"explicit null": []byte(`{"value": {"field": null, "type": "number"}}`),
-		"empty string":  []byte(`{"value": {"field": "", "type": "number"}}`),
+	if w.Value.Field != "" {
+		t.Errorf("expected Field empty, got %q", w.Value.Field)
 	}
-	for name, body := range cases {
-		t.Run(name, func(t *testing.T) {
-			var w Widget
-			err := json.Unmarshal(body, &w)
-			if err == nil {
-				t.Fatalf("expected error for input %s, got nil", string(body))
-			}
-		})
+	if w.Value.Format != "$,.2f" {
+		t.Errorf("expected Format %q, got %q", "$,.2f", w.Value.Format)
 	}
 }

@@ -145,8 +145,8 @@ func TestLoadFile_MetricRefColumnNotForced(t *testing.T) {
 	if w.Name != "Page Views" {
 		t.Fatalf("expected 'Page Views', got %q", w.Name)
 	}
-	if w.Column != "" {
-		t.Errorf("expected empty column for metric-ref widget, got %q", w.Column)
+	if w.ValueField() != "" {
+		t.Errorf("expected empty value.field for metric-ref widget, got %q", w.ValueField())
 	}
 }
 
