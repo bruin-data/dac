@@ -817,6 +817,13 @@ WHERE created_at >= '{{ filters.date_range.start }}'
 {{ filters.search }}
 ```
 
+**Multi-select values (`multiple: true`)** — value is a list, render with `join` and guard the empty case:
+```sql
+{% if filters.status and filters.status | length > 0 %}
+  AND status IN ('{{ filters.status | join("','") }}')
+{% endif %}
+```
+
 ---
 
 ## TSX Dashboards (Code-Based)

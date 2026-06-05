@@ -111,6 +111,15 @@ WHERE region = '{{ filters.region }}'
 {% endif %}
 ```
 
+Multi-select (`multiple: true`) — the value is a list, render it with `join`:
+
+```sql
+SELECT * FROM orders
+{% if filters.status and filters.status | length > 0 %}
+WHERE status IN ('{{ filters.status | join("','") }}')
+{% endif %}
+```
+
 ### Date Range Filters
 
 Date range filters provide `.start` and `.end` properties:
