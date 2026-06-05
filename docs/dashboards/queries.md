@@ -152,6 +152,13 @@ WHERE created_at >= '{{ filters.date_range.start }}'
   AND created_at < DATE '{{ filters.date_range.end }}' + INTERVAL 1 DAY
 ```
 
+Plain date filters expose a single `YYYY-MM-DD` string, while number filters expose a numeric value:
+
+```sql
+WHERE order_date = DATE '{{ filters.as_of_date }}'
+  AND order_value >= {{ filters.min_order_value }}
+```
+
 The same pattern works in semantic filters:
 
 ```yaml

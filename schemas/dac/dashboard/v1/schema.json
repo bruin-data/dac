@@ -84,7 +84,7 @@
           "minLength": 1
         },
         "type": {
-          "enum": ["select", "date-range", "date", "text", "number"]
+          "enum": ["select", "date-range", "date", "number", "text"]
         },
         "multiple": {
           "type": "boolean"

@@ -109,6 +109,8 @@ Supported filter types:
 
 - `select`
 - `date-range`
+- `date`
+- `number`
 - `text`
 
 Date range presets include `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, and `all_time`.

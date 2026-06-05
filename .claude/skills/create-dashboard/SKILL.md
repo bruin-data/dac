@@ -166,9 +166,19 @@ filters:
   - name: search
     type: text
     default: ""
+
+  # Plain date input
+  - name: as_of_date
+    type: date
+    default: "2025-01-01"
+
+  # Plain numeric input
+  - name: min_revenue
+    type: number
+    default: 1000
 ```
 
-**Filter types:** `select`, `date-range`, `text`
+**Filter types:** `select`, `date-range`, `date`, `number`, `text`
 
 **Date range presets:** `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, `all_time`. If `options.presets` is omitted, a default set is shown. Users can always pick "Custom range" for arbitrary dates.
 
@@ -811,9 +821,11 @@ WHERE created_at >= '{{ filters.date_range.start }}'
 {{ filters.date_range.end }}
 ```
 
-**Accessing simple values (select, text):**
+**Accessing simple values (select, date, number, text):**
 ```sql
 {{ filters.region }}
+{{ filters.as_of_date }}
+{{ filters.min_revenue }}
 {{ filters.search }}
 ```
 
@@ -1452,7 +1464,7 @@ rows:
 - `text` widgets require `content`.
 - `image` widgets require `src`.
 - `divider` widgets have no required fields.
-- Filter types must be one of: `select`, `date-range`, `text`.
+- Filter types must be one of: `select`, `date-range`, `date`, `number`, `text`.
 - Named query references (`query: name`) must exist in the `queries:` map.
 - `source` is required when `metrics` or `dimensions` are defined; `source.table` is required.
 - Each metric must have either `aggregate` or `expression` (not both).
