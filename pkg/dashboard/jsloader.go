@@ -532,12 +532,6 @@ func vnodeToWidget(n *vnode) Widget {
 		Model:      asString(n.Props["model"]),
 		Connection: asString(n.Props["connection"]),
 
-		// Metric fields
-		Column: asString(n.Props["column"]),
-		Prefix: asString(n.Props["prefix"]),
-		Suffix: asString(n.Props["suffix"]),
-		Format: asString(n.Props["format"]),
-
 		// Declarative chart fields
 		Dimension:   asString(n.Props["dimension"]),
 		Granularity: asString(n.Props["granularity"]),

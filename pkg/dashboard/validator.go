@@ -301,8 +301,8 @@ func validateMetricWidget(prefix string, w *Widget, d *Dashboard) []string {
 		}
 		return errs
 	}
-	if w.Column == "" {
-		errs = append(errs, fmt.Sprintf("%s: column is required for metric widgets", prefix))
+	if w.ValueField() == "" {
+		errs = append(errs, fmt.Sprintf("%s: value is required for metric widgets", prefix))
 	}
 	return errs
 }
