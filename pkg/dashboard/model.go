@@ -30,8 +30,6 @@ type Dashboard struct {
 	Connection  string            `yaml:"connection,omitempty" json:"connection,omitempty"`
 	Model       string            `yaml:"model,omitempty" json:"model,omitempty"`
 	Models      map[string]string `yaml:"models,omitempty" json:"models,omitempty"`
-	Theme       string            `yaml:"theme,omitempty" json:"theme,omitempty"`
-	Refresh     *RefreshConfig    `yaml:"refresh,omitempty" json:"refresh,omitempty"`
 	Filters     []Filter          `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Queries     map[string]Query  `yaml:"queries,omitempty" json:"queries,omitempty"`
 	Semantic    *SemanticLayer    `yaml:"semantic,omitempty" json:"semantic,omitempty"`
@@ -53,10 +51,6 @@ type SemanticLayer struct {
 	Source     *Source              `yaml:"source,omitempty" json:"source,omitempty"`
 	Metrics    map[string]Metric    `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	Dimensions map[string]Dimension `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-}
-
-type RefreshConfig struct {
-	Interval string `yaml:"interval" json:"interval"`
 }
 
 type Filter struct {
@@ -147,12 +141,6 @@ type Widget struct {
 	// Connection override for inline queries
 	Connection string `yaml:"connection,omitempty" json:"connection,omitempty"`
 
-	// Metric fields
-	Column string `yaml:"column,omitempty" json:"column,omitempty"`
-	Prefix string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
-	Suffix string `yaml:"suffix,omitempty" json:"suffix,omitempty"`
-	Format string `yaml:"format,omitempty" json:"format,omitempty"`
-
 	// Declarative chart fields (use with source + metrics)
 	Dimension   string                 `yaml:"dimension,omitempty" json:"dimension,omitempty"` // GROUP BY column
 	Granularity string                 `yaml:"granularity,omitempty" json:"granularity,omitempty"`
@@ -168,7 +156,7 @@ type Widget struct {
 	X          *AxisEncoding  `yaml:"x,omitempty" json:"x,omitempty"`
 	Y          *AxisEncoding  `yaml:"y,omitempty" json:"y,omitempty"`
 	Label      string         `yaml:"label,omitempty" json:"label,omitempty"` // for pie/funnel/treemap
-	Value      *ValueEncoding `yaml:"value,omitempty" json:"value,omitempty"`
+	Value      *ValueEncoding `yaml:"value,omitempty" json:"value,omitempty"` // metric: the value; pie/funnel/heatmap/calendar/treemap/gauge: value column
 	Color      *ColorEncoding `yaml:"color,omitempty" json:"color,omitempty"`
 	Stacked    bool           `yaml:"stacked,omitempty" json:"stacked,omitempty"`
 	Normalized bool           `yaml:"normalized,omitempty" json:"normalized,omitempty"`

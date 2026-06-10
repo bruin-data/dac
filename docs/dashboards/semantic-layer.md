@@ -186,8 +186,10 @@ In this example, dashboard widgets can use `model: sales_model`, and DAC resolve
     - dimension: region
       operator: equals
       value: "{{ filters.region }}"
-  prefix: "$"
-  format: number
+  value:
+    field: revenue
+    type: number
+    format: "$,.0f"
   col: 3
 ```
 

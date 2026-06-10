@@ -9,20 +9,11 @@ DAC includes a theme system based on design tokens. Choose a built-in theme or d
 | `bruin` | Light theme (default) |
 | `bruin-dark` | Dark theme |
 
-Set the theme in your dashboard:
-
-```yaml
-name: My Dashboard
-theme: bruin-dark
-```
-
-Or via the CLI:
+Select the theme with the `--template` flag, which applies to all dashboards:
 
 ```shell
 dac serve --template bruin-dark
 ```
-
-The `--template` flag overrides the theme for all dashboards.
 
 ## Custom Themes
 
@@ -45,13 +36,6 @@ Use it:
 
 ```shell
 dac serve --template ./themes/corporate.yml
-```
-
-Or reference it in your dashboard:
-
-```yaml
-name: My Dashboard
-theme: ./themes/corporate.yml
 ```
 
 ### Token Reference

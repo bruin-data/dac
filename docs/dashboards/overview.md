@@ -33,8 +33,10 @@ rows:
       - name: Revenue
         type: metric
         sql: SELECT SUM(amount) AS value FROM sales
-        column: value
-        prefix: "$"
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 4
 ```
 
@@ -57,7 +59,7 @@ export default (
               name="Row Count"
               col={4}
               sql={`SELECT COUNT(*) AS value FROM "${table}"`}
-              column="value"
+              value={{ field: "value", type: "number", format: ",.0f" }}
             />
           </Row>
         </Tab>

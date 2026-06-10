@@ -5,7 +5,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/dustin/go-humanize"
 
@@ -482,30 +485,192 @@ func formatMetricValue(w *dashboard.Widget, data *server.WidgetQueryResult) stri
 	}
 
 	ci := 0
-	if w.Column != "" {
+	if field := w.ValueField(); field != "" {
 		for i, c := range data.Columns {
-			if c.Name == w.Column {
+			if c.Name == field {
 				ci = i
 				break
 			}
 		}
 	}
 
-	val := toFloat64(data.Rows[0][ci])
+	raw := data.Rows[0][ci]
 
-	var s string
-	switch w.Format {
-	case "currency", "number":
-		if val == float64(int64(val)) {
-			s = humanize.Comma(int64(val))
-		} else {
-			s = humanize.CommafWithDigits(val, 2)
-		}
-	case "percent":
-		s = fmt.Sprintf("%.1f%%", val)
-	default:
-		s = fmt.Sprintf("%v", data.Rows[0][ci])
+	var format, typ string
+	if w.Value != nil {
+		format, typ = w.Value.Format, w.Value.Type
 	}
 
-	return w.Prefix + s + w.Suffix
+	// Date-typed values render with the d3-time-format string.
+	if typ == "date" {
+		if t, ok := parseMetricTime(raw); ok {
+			if layout := strftimeToGo(format); layout != "" {
+				return t.Format(layout)
+			}
+		}
+		return fmt.Sprintf("%v", raw)
+	}
+
+	num, ok := toFloat64OK(raw)
+	if !ok {
+		return fmt.Sprintf("%v", raw)
+	}
+
+	if format == "" {
+		// No explicit format: comma-group, trimming to whole numbers when exact.
+		if num == float64(int64(num)) {
+			return humanize.Comma(int64(num))
+		}
+		return humanize.CommafWithDigits(num, 2)
+	}
+
+	return formatD3Number(format, num)
+}
+
+// formatD3Number renders val using the subset of d3-format specifiers dac
+// dashboards rely on: an optional "$" currency prefix, "," group separators, a
+// ".N" precision, and a type of f (fixed), % (percent), or d/"," (integer).
+// Unrecognized specs fall back to a comma-grouped, two-decimal number.
+func formatD3Number(format string, val float64) string {
+	spec := format
+
+	prefix := ""
+	if strings.HasPrefix(spec, "$") {
+		prefix = "$"
+		spec = spec[1:]
+	}
+
+	group := strings.HasPrefix(spec, ",")
+	if group {
+		spec = spec[1:]
+	}
+
+	prec := -1
+	if strings.HasPrefix(spec, ".") {
+		rest := spec[1:]
+		j := 0
+		for j < len(rest) && rest[j] >= '0' && rest[j] <= '9' {
+			j++
+		}
+		if j > 0 {
+			prec, _ = strconv.Atoi(rest[:j])
+		}
+		spec = rest[j:]
+	}
+
+	var typ byte
+	if len(spec) > 0 {
+		typ = spec[len(spec)-1]
+	}
+
+	switch typ {
+	case '%':
+		if prec < 0 {
+			prec = 0
+		}
+		s := strconv.FormatFloat(val*100, 'f', prec, 64)
+		if group {
+			s = groupInteger(s)
+		}
+		return prefix + s + "%"
+	case 'd', ',':
+		return prefix + groupInteger(strconv.FormatFloat(val, 'f', 0, 64))
+	default: // 'f' and anything unrecognized
+		if prec < 0 {
+			prec = 2
+		}
+		s := strconv.FormatFloat(val, 'f', prec, 64)
+		if group {
+			s = groupInteger(s)
+		}
+		return prefix + s
+	}
+}
+
+// groupInteger inserts thousands separators into the integer part of a numeric
+// string, preserving any sign and fractional part.
+func groupInteger(s string) string {
+	neg := strings.HasPrefix(s, "-")
+	if neg {
+		s = s[1:]
+	}
+
+	intPart, frac := s, ""
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		intPart, frac = s[:i], s[i:]
+	}
+
+	n := len(intPart)
+	if n > 3 {
+		var b strings.Builder
+		pre := n % 3
+		if pre > 0 {
+			b.WriteString(intPart[:pre])
+			b.WriteByte(',')
+		}
+		for i := pre; i < n; i += 3 {
+			b.WriteString(intPart[i : i+3])
+			if i+3 < n {
+				b.WriteByte(',')
+			}
+		}
+		intPart = b.String()
+	}
+
+	out := intPart + frac
+	if neg {
+		out = "-" + out
+	}
+	return out
+}
+
+// strftimeToGo converts a d3-time-format (strftime-style) string into a Go
+// reference layout. Returns "" when nothing was converted.
+func strftimeToGo(f string) string {
+	out := strings.NewReplacer(
+		"%Y", "2006", "%y", "06",
+		"%m", "01", "%d", "02",
+		"%H", "15", "%M", "04", "%S", "05",
+		"%b", "Jan", "%B", "January",
+		"%a", "Mon", "%A", "Monday",
+		"%p", "PM",
+	).Replace(f)
+	if out == f {
+		return ""
+	}
+	return out
+}
+
+// parseMetricTime coerces a query value into a time.Time for date-typed metrics.
+func parseMetricTime(v any) (time.Time, bool) {
+	switch t := v.(type) {
+	case time.Time:
+		return t, true
+	case string:
+		for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02", "2006-01"} {
+			if parsed, err := time.Parse(layout, t); err == nil {
+				return parsed, true
+			}
+		}
+	}
+	return time.Time{}, false
+}
+
+// toFloat64OK parses a query value as a float, reporting whether it is numeric.
+func toFloat64OK(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case string:
+		f, err := strconv.ParseFloat(n, 64)
+		return f, err == nil
+	default:
+		return 0, false
+	}
 }

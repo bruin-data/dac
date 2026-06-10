@@ -135,18 +135,18 @@ func TestLoadFile_DoesNotOverrideExplicitXY(t *testing.T) {
 	}
 }
 
-func TestLoadFile_MetricRefColumnNotForced(t *testing.T) {
+func TestLoadFile_MetricRefValueNotForced(t *testing.T) {
 	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
 	assertNoErr(t, err)
 
-	// Row 0, widget 0: "Page Views" — metric ref, column should be empty
-	// (MetricWidget falls back to first column).
-	w := d.Rows[0].Widgets[0]
-	if w.Name != "Page Views" {
-		t.Fatalf("expected 'Page Views', got %q", w.Name)
+	// Row 0, widget 3: "Pages / Session" — metric ref with no value encoding;
+	// the loader must not synthesize one (MetricWidget falls back to first column).
+	w := d.Rows[0].Widgets[3]
+	if w.Name != "Pages / Session" {
+		t.Fatalf("expected 'Pages / Session', got %q", w.Name)
 	}
-	if w.Column != "" {
-		t.Errorf("expected empty column for metric-ref widget, got %q", w.Column)
+	if w.ValueField() != "" {
+		t.Errorf("expected empty value field for metric-ref widget, got %q", w.ValueField())
 	}
 }
 

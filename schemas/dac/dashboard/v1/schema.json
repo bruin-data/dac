@@ -27,12 +27,6 @@
         "type": "string"
       }
     },
-    "theme": {
-      "type": "string"
-    },
-    "refresh": {
-      "$ref": "#/$defs/refresh"
-    },
     "filters": {
       "type": "array",
       "items": {
@@ -61,20 +55,6 @@
   },
   "additionalProperties": false,
   "$defs": {
-    "refresh": {
-      "type": "object",
-      "required": ["interval"],
-      "properties": {
-        "interval": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
     "filter": {
       "type": "object",
       "required": ["name", "type"],
@@ -247,18 +227,6 @@
           "type": "string"
         },
         "connection": {
-          "type": "string"
-        },
-        "column": {
-          "type": "string"
-        },
-        "prefix": {
-          "type": "string"
-        },
-        "suffix": {
-          "type": "string"
-        },
-        "format": {
           "type": "string"
         },
         "dimension": {

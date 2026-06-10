@@ -118,9 +118,9 @@ export default (
   <Dashboard name="Loop Test" connection="duckdb">
     <Row>
       {regions.map(r =>
-        <Metric name={r + " Revenue"} col={4} prefix="$"
+        <Metric name={r + " Revenue"} col={4}
           sql={"SELECT SUM(amount) as value FROM sales WHERE region = '" + r + "'"}
-          column="value" format="number" />
+          value={{ field: "value", type: "number", format: "$,.0f" }} />
       )}
     </Row>
   </Dashboard>
@@ -144,8 +144,11 @@ export default (
 		if w.Name != names[i] {
 			t.Errorf("widget %d: expected name %q, got %q", i, names[i], w.Name)
 		}
-		if w.Prefix != "$" {
-			t.Errorf("widget %d: expected prefix %q, got %q", i, "$", w.Prefix)
+		if w.Value == nil || w.Value.Field != "value" {
+			t.Errorf("widget %d: expected value field %q, got %+v", i, "value", w.Value)
+		}
+		if w.Value == nil || w.Value.Format != "$,.0f" {
+			t.Errorf("widget %d: expected format %q, got %+v", i, "$,.0f", w.Value)
 		}
 		if !strings.Contains(w.SQL, "WHERE region") {
 			t.Errorf("widget %d: expected SQL with region filter", i)
@@ -155,14 +158,14 @@ export default (
 
 func TestEvalTSX_CustomComponent(t *testing.T) {
 	source := `
-function KPI({ name, sql, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" {...rest} />
+function KPI({ name, sql, format = ",.0f", ...rest }) {
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format }} {...rest} />
 }
 
 export default (
   <Dashboard name="Custom Component" connection="duckdb">
     <Row>
-      <KPI name="Revenue" sql="SELECT 100 as value" prefix="$" col={4} />
+      <KPI name="Revenue" sql="SELECT 100 as value" format="$,.0f" col={4} />
       <KPI name="Orders" sql="SELECT 42 as value" col={4} />
     </Row>
   </Dashboard>
@@ -182,11 +185,11 @@ export default (
 	if w0.Type != WidgetTypeMetric {
 		t.Errorf("expected metric, got %q", w0.Type)
 	}
-	if w0.Column != "value" {
-		t.Errorf("expected column %q, got %q", "value", w0.Column)
+	if w0.Value == nil || w0.Value.Field != "value" {
+		t.Errorf("expected value field %q, got %+v", "value", w0.Value)
 	}
-	if w0.Prefix != "$" {
-		t.Errorf("expected prefix %q, got %q", "$", w0.Prefix)
+	if w0.Value == nil || w0.Value.Format != "$,.0f" {
+		t.Errorf("expected format %q, got %+v", "$,.0f", w0.Value)
 	}
 }
 
@@ -335,7 +338,7 @@ export default (
   <Dashboard name="Named Query" connection="db">
     <Query name="total_revenue" sql="SELECT SUM(amount) as value FROM sales" />
     <Row>
-      <Metric name="Revenue" query="total_revenue" column="value" col={6} />
+      <Metric name="Revenue" query="total_revenue" value="value" col={6} />
     </Row>
   </Dashboard>
 )
@@ -410,27 +413,6 @@ export default (
 	}
 	if w.Alt != "Company Logo" {
 		t.Errorf("expected alt %q, got %q", "Company Logo", w.Alt)
-	}
-}
-
-func TestEvalTSX_RefreshConfig(t *testing.T) {
-	source := `
-export default (
-  <Dashboard name="Refresh Test" connection="db" refresh={{ interval: "30s" }}>
-    <Row>
-      <Text name="Note" content="test" col={12} />
-    </Row>
-  </Dashboard>
-)
-`
-	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
-	assertNoErr(t, err)
-
-	if d.Refresh == nil {
-		t.Fatal("expected refresh config")
-	}
-	if d.Refresh.Interval != "30s" {
-		t.Errorf("expected interval %q, got %q", "30s", d.Refresh.Interval)
 	}
 }
 
@@ -587,7 +569,7 @@ func TestEvalTSX_RequireModule(t *testing.T) {
 	// Write the shared module.
 	helperCode := `
 function KPI({ name, sql }) {
-  return h("Metric", { name: name, sql: sql, column: "value", format: "number" })
+  return h("Metric", { name: name, sql: sql, value: { field: "value", type: "number", format: ",.0f" } })
 }
 module.exports = { KPI }
 `
@@ -641,7 +623,7 @@ func TestEvalTSX_RequireTSXModule(t *testing.T) {
 	// Write a .tsx helper module.
 	helperCode := `
 function KPI({ name, sql, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" {...rest} />
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format: ",.0f" }} {...rest} />
 }
 module.exports = { KPI }
 `
@@ -696,7 +678,7 @@ export default (
   <Dashboard name="JSON Require" connection="db">
     <Row>
       {config.regions.map(function(r) {
-        return <Metric name={r} sql={"SELECT 1 as value"} column="value" col={4} />
+        return <Metric name={r} sql={"SELECT 1 as value"} value="value" col={4} />
       })}
     </Row>
   </Dashboard>

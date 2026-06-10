@@ -13,8 +13,6 @@ export interface Dashboard {
   connection?: string;
   model?: string;
   models?: Record<string, string>;
-  theme?: string;
-  refresh?: { interval: string };
   filters?: Filter[];
   queries?: Record<string, Query>;
   rows: Row[];
@@ -76,18 +74,13 @@ export interface Widget {
   segments?: string[];
   sort?: SemanticSort[];
 
-  // Metric
-  column?: string;
-  prefix?: string;
-  suffix?: string;
-  format?: string;
-
   // Chart
   chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick";
   x?: string;
   y?: string[];
   label?: string;
-  value?: string;
+  // metric: the value + formatting; pie/funnel/heatmap/calendar/treemap/gauge: value column
+  value?: string | ValueEncoding;
   stacked?: boolean;
   size?: string;       // bubble: size dimension
   source?: string;     // sankey: source column
@@ -116,6 +109,13 @@ export interface TableColumn {
   name: string;
   label?: string;
   format?: string;
+}
+
+/** Structured encoding for a widget's value channel (metric value, pie/funnel/gauge value column). */
+export interface ValueEncoding {
+  field: string;
+  type?: "number" | "date" | "category";
+  format?: string; // d3-format / d3-time-format string, e.g. "$,.2f", ".0%", "%b %Y"
 }
 
 export interface SemanticDimensionRef {

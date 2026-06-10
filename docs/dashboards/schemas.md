@@ -19,7 +19,7 @@ rows:
       - name: Revenue
         type: metric
         sql: SELECT SUM(amount) AS value FROM sales
-        column: value
+        value: value
 ```
 
 Semantic model example:

@@ -27,9 +27,7 @@ It is built for AI agents to build dashboards in a reliable and reviewable way.
         name="Total Revenue"
         col={4}
         sql="SELECT SUM(amount) AS value FROM sales"
-        column="value"
-        prefix="$"
-        format="number"
+        value={{ field: "value", type: "number", format: "$,.2f" }}
       /&gt;
     &lt;/Row&gt;
   &lt;/Dashboard&gt;
@@ -46,8 +44,10 @@ rows:
       - name: Revenue
         type: metric
         sql: SELECT SUM(amount) AS value FROM sales
-        column: value
-        prefix: "$"
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 4</code></pre>
 
 </td>

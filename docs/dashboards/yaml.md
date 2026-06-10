@@ -13,10 +13,6 @@ name: Sales Analytics              # required
 description: Revenue tracking      # optional
 connection: local_duckdb           # optional default connection
 model: sales                       # optional default semantic model
-theme: bruin-dark                  # optional
-
-refresh:
-  interval: 5m
 
 filters:
   - name: region
@@ -48,7 +44,10 @@ rows:
       - name: Row Count
         type: metric
         sql: SELECT COUNT(*) AS value FROM my_table
-        column: value
+        value:
+          field: value
+          type: number
+          format: ",.0f"
 ```
 
 ## Semantic Example
@@ -95,8 +94,10 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        prefix: "$"
-        format: number
+        value:
+          field: revenue
+          type: number
+          format: "$,.0f"
         col: 3
 
       - name: Revenue Trend
@@ -134,8 +135,6 @@ For a complete runnable project, see `examples/semantic-yaml`.
 | `connection` | string | No | Default connection for widgets and named queries |
 | `model` | string | No | Default semantic model for semantic widgets and named semantic queries |
 | `models` | map | No | Optional aliases that map dashboard names to semantic model names |
-| `theme` | string | No | Theme name or theme file path |
-| `refresh` | object | No | Auto-refresh configuration |
 | `filters` | array | No | Interactive filter controls |
 | `queries` | map | No | Named SQL or semantic queries |
 | `rows` | array | Yes | Dashboard layout rows |
@@ -162,7 +161,7 @@ rows:
       - name: Revenue
         type: metric
         query: total_revenue
-        column: value
+        value: value
 ```
 
 ### Inline SQL
@@ -171,7 +170,7 @@ rows:
 - name: Revenue
   type: metric
   sql: SELECT SUM(amount) AS value FROM sales
-  column: value
+  value: value
 ```
 
 ### External SQL File
@@ -180,7 +179,7 @@ rows:
 - name: Revenue
   type: metric
   file: queries/revenue.sql
-  column: value
+  value: value
 ```
 
 ### Direct Semantic Query
