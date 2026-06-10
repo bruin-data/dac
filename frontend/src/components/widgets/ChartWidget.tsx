@@ -9,6 +9,7 @@ import {
 } from "recharts";
 import type { TreemapNode } from "recharts";
 import type { Widget, WidgetData } from "../../types/dashboard";
+import { valueField } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
 import { RowHeightContext } from "../../themes/RowContext";
 
@@ -864,7 +865,7 @@ export function ChartWidget({ widget, data }: Props) {
           <PieChart>
             <Pie
               data={chartData}
-              dataKey={widget.value || "value"}
+              dataKey={valueField(widget.value) || "value"}
               nameKey={widget.label || "label"}
               cx="50%"
               cy="45%"
@@ -1011,7 +1012,7 @@ export function ChartWidget({ widget, data }: Props) {
                 ...d,
                 fill: colors[i % colors.length],
               }))}
-              dataKey={widget.value || "value"}
+              dataKey={valueField(widget.value) || "value"}
               nameKey={widget.label || "label"}
               isAnimationActive={false}
             >
@@ -1031,7 +1032,7 @@ export function ChartWidget({ widget, data }: Props) {
         chartData,
         widget.source || "source",
         widget.target || "target",
-        widget.value || "value",
+        valueField(widget.value) || "value",
       );
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
@@ -1056,7 +1057,7 @@ export function ChartWidget({ widget, data }: Props) {
           data={chartData}
           xKey={widget.x!}
           yKey={widget.y?.[0] ?? "y"}
-          valueKey={widget.value || "value"}
+          valueKey={valueField(widget.value) || "value"}
           colors={colors}
           axisColor={axisColor}
         />
@@ -1067,7 +1068,7 @@ export function ChartWidget({ widget, data }: Props) {
         <CalendarHeatmap
           data={chartData}
           dateKey={widget.x!}
-          valueKey={widget.value || "value"}
+          valueKey={valueField(widget.value) || "value"}
           colors={colors}
           axisColor={axisColor}
         />
@@ -1150,7 +1151,7 @@ export function ChartWidget({ widget, data }: Props) {
       );
 
     case "gauge": {
-      const valueKey = widget.value || "value";
+      const valueKey = valueField(widget.value) || "value";
       const targetKey = widget.target;
       const first = chartData[0] ?? {};
       const current = Number(first[valueKey]) || 0;
@@ -1168,7 +1169,7 @@ export function ChartWidget({ widget, data }: Props) {
 
     case "treemap": {
       const labelKey = widget.label || "label";
-      const valueKey = widget.value || "value";
+      const valueKey = valueField(widget.value) || "value";
       const tmData = chartData.map((d, i) => ({
         name: String(d[labelKey]),
         size: Number(d[valueKey]) || 0,
