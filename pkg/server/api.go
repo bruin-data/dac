@@ -7,8 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/bruin-data/dac/pkg/dashboard"
@@ -78,69 +76,15 @@ func (s *Server) handleListDashboards(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"dashboards": summaries})
 }
 
-// resolveDashboard loads a single dashboard by name, using the draft file if ?draft=draftId is set.
-func (s *Server) resolveDashboard(name string, r *http.Request) (*dashboard.Dashboard, error) {
-	draftID := r.URL.Query().Get("draft")
-
-	if draftID != "" {
-		// Try the in-memory map first.
-		draft := s.resolveDraft(draftID)
-
-		// If not in memory (e.g. server restarted), scan the directory for a matching file.
-		if draft == nil {
-			draft = s.findDraftOnDisk(draftID, name)
-		}
-
-		if draft != nil && draft.DraftPath != "" {
-			d, err := s.loader.LoadPath(draft.DraftPath)
-			if err != nil {
-				log.Printf("draft parse error (falling back to live): %v", err)
-			} else {
-				return d, nil
-			}
-		}
-	}
-
+// resolveDashboard loads a single dashboard by name.
+func (s *Server) resolveDashboard(name string) (*dashboard.Dashboard, error) {
 	return s.loader.LoadOne(name)
-}
-
-// findDraftOnDisk scans the dashboard directory for a .draft.<id>.* file
-// and re-registers it in the in-memory map. This handles server restarts.
-func (s *Server) findDraftOnDisk(draftID, dashName string) *DraftInfo {
-	prefix := ".draft." + draftID + "."
-	entries, err := os.ReadDir(s.paths.DashboardDir)
-	if err != nil {
-		return nil
-	}
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), prefix) {
-			draftPath := filepath.Join(s.paths.DashboardDir, e.Name())
-
-			// Find the original live file path.
-			originalName := strings.TrimPrefix(e.Name(), prefix)
-			originalPath := filepath.Join(s.paths.DashboardDir, originalName)
-
-			draft := &DraftInfo{
-				DraftID:       draftID,
-				DashboardName: dashName,
-				DraftPath:     draftPath,
-				OriginalPath:  originalPath,
-			}
-			// Re-register so subsequent requests are fast.
-			s.draftsMu.Lock()
-			s.drafts[draftID] = draft
-			s.draftsMu.Unlock()
-			log.Printf("draft: recovered %s from disk", draftPath)
-			return draft
-		}
-	}
-	return nil
 }
 
 func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
-	d, err := s.resolveDashboard(name, r)
+	d, err := s.resolveDashboard(name)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -154,29 +98,6 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetDashboardRaw(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-
-	// Check for draft source first.
-	draftID := r.URL.Query().Get("draft")
-	if draftID != "" {
-		draft := s.resolveDraft(draftID)
-		if draft == nil {
-			draft = s.findDraftOnDisk(draftID, name)
-		}
-		if draft != nil && draft.DraftPath != "" {
-			data, err := os.ReadFile(draft.DraftPath)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, "failed to read draft file: "+err.Error())
-				return
-			}
-			ct := "text/yaml; charset=utf-8"
-			if strings.HasSuffix(draft.DraftPath, ".tsx") {
-				ct = "text/typescript; charset=utf-8"
-			}
-			w.Header().Set("Content-Type", ct)
-			w.Write(data)
-			return
-		}
-	}
 
 	dashboards, err := s.loader.LoadMeta()
 	if err != nil {
@@ -663,7 +584,7 @@ func (s *Server) handleWidgetQuery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	d, err := s.resolveDashboard(name, r)
+	d, err := s.resolveDashboard(name)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

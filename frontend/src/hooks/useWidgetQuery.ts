@@ -12,11 +12,10 @@ export function useWidgetQuery(
   widgetId: string,
   filters?: Record<string, unknown>,
   enabled = true,
-  draftId?: string,
 ) {
   return useQuery<WidgetData>({
-    queryKey: ["widget-data", dashboardName, widgetId, filters, draftId],
-    queryFn: () => fetchWidgetData(dashboardName, widgetId, filters, draftId),
+    queryKey: ["widget-data", dashboardName, widgetId, filters],
+    queryFn: () => fetchWidgetData(dashboardName, widgetId, filters),
     enabled: enabled && !!dashboardName && !!widgetId,
     placeholderData: keepPreviousData,
   });

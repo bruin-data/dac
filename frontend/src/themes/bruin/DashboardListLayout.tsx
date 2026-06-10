@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { DashboardListLayoutProps } from "../../types/template";
 
-export function BruinDashboardListLayout({ dashboards, adminEnabled, onCreateClick }: DashboardListLayoutProps) {
+export function BruinDashboardListLayout({ dashboards, adminEnabled }: DashboardListLayoutProps) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -24,21 +24,9 @@ export function BruinDashboardListLayout({ dashboards, adminEnabled, onCreateCli
         </h1>
         <div className="border border-dashed border-[var(--dac-border)] rounded px-6 py-12 text-center">
           <p className="text-[13px] text-[var(--dac-text-secondary)] mb-1">No dashboards found</p>
-          <p className="text-[12px] text-[var(--dac-text-muted)] mb-4">
+          <p className="text-[12px] text-[var(--dac-text-muted)]">
             Create a <code className="font-mono text-[var(--dac-text-secondary)] bg-[var(--dac-surface)] px-1.5 py-0.5 rounded text-[11px]">.yml</code> file in your dashboards directory to get started.
           </p>
-          {onCreateClick && (
-            <button
-              onClick={onCreateClick}
-              className="inline-flex items-center gap-1.5 h-7 px-3 rounded-sm border border-[var(--dac-border)] bg-[var(--dac-background)] text-[13px] text-[var(--dac-text-secondary)] hover:text-[var(--dac-text-primary)] hover:border-[var(--dac-text-muted)] hover:bg-[var(--dac-surface-hover)] transition-all duration-100"
-            >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                <path d="M8 3V13" />
-                <path d="M3 8H13" />
-              </svg>
-              Create with AI
-            </button>
-          )}
         </div>
       </div>
     );
@@ -50,18 +38,6 @@ export function BruinDashboardListLayout({ dashboards, adminEnabled, onCreateCli
         <h1 className="text-lg font-semibold tracking-tight text-[var(--dac-text-primary)]">
           Dashboards
         </h1>
-        {onCreateClick && (
-          <button
-            onClick={onCreateClick}
-            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-sm border border-[var(--dac-border)] bg-[var(--dac-background)] text-[13px] text-[var(--dac-text-secondary)] hover:text-[var(--dac-text-primary)] hover:border-[var(--dac-text-muted)] hover:bg-[var(--dac-surface-hover)] transition-all duration-100"
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M8 3V13" />
-              <path d="M3 8H13" />
-            </svg>
-            Create
-          </button>
-        )}
       </div>
 
       <div className="mb-4 animate-in" style={{ animationDelay: "20ms" }}>

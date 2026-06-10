@@ -11,7 +11,6 @@ DAC (**D**ashboard-**a**s-**C**ode) is a tool for defining, validating, and serv
 - Supports all the major databases: Postgres, MySQL, Snowflake, BigQuery, Redshift, Databricks, and more via [Bruin](https://github.com/bruin-data/bruin)
 - Interactive [filters](/dashboards/filters). Date pickers, numeric inputs, dropdowns, multiselects, and search inputs that inject into SQL via [Jinja templating](/dashboards/queries) and re-run affected widgets in place.
 - Dynamic charts, tabs, loops and conditionals with TSX
-- Built-in AI agent via Codex: chat with your dashboard live and get it updated
 
 ```tsx
 export default (

@@ -8,10 +8,10 @@ export function useDashboardList() {
   });
 }
 
-export function useDashboard(name: string, draftId?: string) {
+export function useDashboard(name: string) {
   return useQuery({
-    queryKey: ["dashboard", name, draftId],
-    queryFn: () => getDashboard(name, draftId),
+    queryKey: ["dashboard", name],
+    queryFn: () => getDashboard(name),
     enabled: !!name,
     placeholderData: keepPreviousData,
   });

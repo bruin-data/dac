@@ -2,7 +2,6 @@
 
 DAC is a Dashboard-as-Code tool for defining, validating, and serving dashboards from YAML and TSX.
 - Dynamic charts, tabs, loops and conditionals with TSX.
-- Built-in AI agent via Codex: chat with your dashboard live and get it updated.
 - Supports all the major databases: Postgres, MySQL, Snowflake, BigQuery, Redshift, Databricks, and more via [Bruin](https://github.com/bruin-data/bruin)
 - Built-in semantic layer: define metrics and dimensions once in `semantic/`, reference them from any widget. DAC generates the SQL.
 

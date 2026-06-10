@@ -41,11 +41,6 @@ func serveCmd() *cli.Command {
 				Name:  "password",
 				Usage: "Admin password for management API (admin endpoints disabled if not set)",
 			},
-			&cli.StringFlag{
-				Name:  "agent-effort",
-				Usage: "Reasoning effort for AI agent (low, medium, high)",
-				Value: "medium",
-			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			dir, err := dashboardDirFromCommand(cmd)
@@ -62,7 +57,6 @@ func serveCmd() *cli.Command {
 				ConfigFile:    configFile,
 				Environment:   cmd.Root().String("environment"),
 				AdminPassword: cmd.String("password"),
-				AgentEffort:   cmd.String("agent-effort"),
 				Frontend:      frontendFS,
 			})
 			if err != nil {
