@@ -16,7 +16,6 @@ dac serve [flags]
 | `--host` | | string | `localhost` | Host to bind to |
 | `--open` | | bool | `false` | Open browser automatically |
 | `--password` | | string | | Admin password for management API |
-| `--agent-effort` | | string | `medium` | AI agent reasoning effort (`low`, `medium`, `high`) |
 
 ## Examples
 
@@ -51,10 +50,6 @@ If the requested port is already in use, the server automatically tries the next
 ### Admin API
 
 When `--password` is set, the server exposes admin endpoints for managing database connections via the browser UI. See the [API section](#api-endpoints) for details.
-
-### AI Agent
-
-The server includes an AI-powered agent that can edit dashboards through natural language. Access it through the chat interface in the browser. The `--agent-effort` flag controls the reasoning depth.
 
 ## API Endpoints
 
