@@ -249,18 +249,6 @@
         "connection": {
           "type": "string"
         },
-        "column": {
-          "type": "string"
-        },
-        "prefix": {
-          "type": "string"
-        },
-        "suffix": {
-          "type": "string"
-        },
-        "format": {
-          "type": "string"
-        },
         "dimension": {
           "type": "string"
         },
