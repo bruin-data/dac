@@ -93,9 +93,10 @@ rows:
           {% if filters.region != 'All' %}
             AND region = '{{ filters.region }}'
           {% endif %}
-        column: value
-        prefix: "$"
-        format: number
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 3
 ```
 
@@ -210,8 +211,10 @@ rows:
           - dimension: region
             operator: equals
             value: "{{ filters.region }}"
-        prefix: "$"
-        format: number
+        value:
+          field: revenue
+          type: number
+          format: "$,.0f"
         col: 3
 
       - name: Revenue by Month
@@ -251,8 +254,7 @@ export default (
         filters={[
           { dimension: "region", operator: "equals", value: "{{ filters.region }}" },
         ]}
-        prefix="$"
-        format="number"
+        value={{ field: "revenue", type: "number", format: "$,.0f" }}
         col={3}
       />
       <Chart

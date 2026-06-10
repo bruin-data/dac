@@ -106,7 +106,7 @@ In TSX, use the `<Tabs>` and `<Tab>` components:
 ```tsx
 <Dashboard name="Analytics" connection="my_db">
   <Row>
-    <Metric name="Revenue" col={4} sql="..." column="value" />
+    <Metric name="Revenue" col={4} sql="..." value={{ field: "value", type: "number", format: "$,.2f" }} />
   </Row>
 
   <Tabs>

@@ -48,7 +48,10 @@ rows:
       - name: Row Count
         type: metric
         sql: SELECT COUNT(*) AS value FROM my_table
-        column: value
+        value:
+          field: value
+          type: number
+          format: ",.0f"
 ```
 
 ## Semantic Example
@@ -95,8 +98,10 @@ rows:
             value:
               start: "{{ filters.date_range.start }}"
               end: "{{ filters.date_range.end }}"
-        prefix: "$"
-        format: number
+        value:
+          field: revenue
+          type: number
+          format: "$,.0f"
         col: 3
 
       - name: Revenue Trend
@@ -162,7 +167,7 @@ rows:
       - name: Revenue
         type: metric
         query: total_revenue
-        column: value
+        value: value
 ```
 
 ### Inline SQL
@@ -171,7 +176,7 @@ rows:
 - name: Revenue
   type: metric
   sql: SELECT SUM(amount) AS value FROM sales
-  column: value
+  value: value
 ```
 
 ### External SQL File
@@ -180,7 +185,7 @@ rows:
 - name: Revenue
   type: metric
   file: queries/revenue.sql
-  column: value
+  value: value
 ```
 
 ### Direct Semantic Query

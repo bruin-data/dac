@@ -20,9 +20,7 @@ export default (
         name="Total Revenue"
         col={4}
         sql="SELECT SUM(amount) AS value FROM sales"
-        column="value"
-        prefix="$"
-        format="number"
+        value={{ field: "value", type: "number", format: "$,.2f" }}
       />
       <Chart
         name="Revenue Over Time"
@@ -62,8 +60,10 @@ rows:
       - name: Revenue
         type: metric
         sql: SELECT SUM(amount) AS value FROM sales
-        column: value
-        prefix: "$"
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 4
 ```
 

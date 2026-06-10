@@ -15,17 +15,24 @@ Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `quer
 
 ## Metric
 
-Metric widgets display a single value.
+Metric widgets display a single value. The value is configured with a `value`
+encoding — which column to read, its type, and a [d3-format](https://d3js.org/d3-format)
+string for display.
 
 ```yaml
 - name: Total Revenue
   type: metric
   sql: SELECT SUM(amount) AS value FROM sales
-  column: value
-  prefix: "$"
-  format: number
+  value:
+    field: value
+    type: number
+    format: "$,.2f"
   col: 3
 ```
+
+`value` also accepts a bare string as shorthand for the field name (`value: revenue`
+is the same as `value: { field: revenue }`), in which case the number is rendered
+with an auto-compact fallback (e.g. `1.2M`).
 
 Metric widgets can also use semantic models:
 
@@ -40,8 +47,10 @@ Metric widgets can also use semantic models:
       value:
         start: "{{ filters.date_range.start }}"
         end: "{{ filters.date_range.end }}"
-  prefix: "$"
-  format: number
+  value:
+    field: revenue
+    type: number
+    format: "$,.0f"
   col: 3
 ```
 
@@ -51,11 +60,15 @@ Metric-specific fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `column` | string | Result column to display for SQL-backed metrics |
+| `value` | string \| object | Value encoding. String form is the field name; object form takes `field`, `type`, and `format` |
+| `value.field` | string | Result column to display |
+| `value.type` | string | `number`, `date`, or `category` |
+| `value.format` | string | [d3-format](https://d3js.org/d3-format) string (numbers, e.g. `"$,.2f"`, `".0%"`) or d3-time-format string (dates, e.g. `"%b %Y"`) |
 | `metric` | string | Semantic metric name |
-| `prefix` | string | Text before the value |
-| `suffix` | string | Text after the value |
-| `format` | string | `number`, `currency`, or `percent` |
+
+> **Note:** Currency and unit affixes live in the format string — `$` is a d3-format
+> prefix (`"$,.2f"`) and `%` comes from the percent type (`".0%"` renders `0.12` as
+> `12%`). There are no separate `prefix`/`suffix` fields.
 
 ## Chart
 

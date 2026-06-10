@@ -24,7 +24,7 @@ When invoked, use `$ARGUMENTS` as the description of what dashboard to create.
 
 | Change you just made | Run this | Why |
 |---|---|---|
-| UI-only — `chart` type, `col`, labels, `format`, `prefix`/`suffix`, colors, text/markdown, divider/image, theme, row order | **nothing** | No query changed. `dac serve` live-reloads instantly in the browser. |
+| UI-only — `chart` type, `col`, labels, `value` formatting, colors, text/markdown, divider/image, theme, row order | **nothing** | No query changed. `dac serve` live-reloads instantly in the browser. |
 | One widget's SQL, `query:` ref, or column mapping | `dac query --dir ./dashboards --dashboard "X" --widget "Y"` | Executes only that one query, returns rows. ~1 query of latency. |
 | Filters, named queries, metrics/dimensions wiring, `col` sums, new widget skeletons | `dac validate --dir ./dashboards` | Structural check, no SQL executed. Sub-second. |
 | End-of-task sweep, or many widgets changed at once | `dac check --dir ./dashboards` | Full execution. Slow — only run once when you think you're done. |
@@ -360,11 +360,22 @@ Single KPI number card. Two modes: **declarative** (using top-level metrics) or 
 - name: Page Views
   type: metric
   metric: page_views              # References a metric from the metrics: map
-  format: number                  # Optional: "number" for locale formatting
+  value:
+    field: value                  # Result column (auto-aliased to "value" for metric refs)
+    type: number
+    format: ",.0f"                # Optional: d3-format string
   col: 3
 ```
 
 All metric-ref widgets sharing the same dashboard are merged into a **single SQL query** for efficiency. Expression metrics (e.g. `pages_per_session`) are evaluated client-side from the query results.
+
+The `value` encoding controls how the number is displayed:
+
+- `value.field` — REQUIRED: which result column holds the number.
+- `value.type` — `number`, `date`, or `category`.
+- `value.format` — optional [d3-format](https://github.com/d3/d3-format) string. Currency and percent are expressed in the format string itself — there are no `prefix`/`suffix` fields. Examples: `",.0f"` (integer with thousands separators), `"$,.2f"` (currency), `".1%"` (percent).
+
+When no formatting is needed, `value` can be a bare column name string (shorthand for `{ field: "<col>" }`).
 
 **Query-based mode** — provide SQL directly:
 
@@ -372,14 +383,24 @@ All metric-ref widgets sharing the same dashboard are merged into a **single SQL
 - name: Total Revenue
   type: metric
   query: total_revenue          # or sql: / file:
-  column: value                 # REQUIRED: which result column to display
-  prefix: "$"                   # Optional: shown before the number
-  suffix: "%"                   # Optional: shown after the number
-  format: number                # Optional: "number" for locale formatting
+  value:
+    field: value                # REQUIRED: which result column to display
+    type: number                # number | date | category
+    format: "$,.2f"             # Optional: d3-format string (currency, percent, etc.)
   col: 3
 ```
 
-The SQL must return at least one row. The value from `column` in the first row is displayed.
+Shorthand — when no formatting is needed, set `value` to the column name directly:
+
+```yaml
+- name: Total Orders
+  type: metric
+  sql: SELECT COUNT(*) as total FROM orders
+  value: total                  # Shorthand: just the result column
+  col: 3
+```
+
+The SQL must return at least one row. The value from `value.field` in the first row is displayed.
 
 ### Chart Widget
 
@@ -855,10 +876,10 @@ export default (
     <Row>
       <Metric name="Revenue" col={3}
         sql="SELECT SUM(amount) as value FROM sales"
-        column="value" prefix="$" format="number" />
+        value={{ field: "value", type: "number", format: "$,.2f" }} />
       <Metric name="Orders" col={3}
         sql="SELECT COUNT(*) as value FROM orders"
-        column="value" format="number" />
+        value={{ field: "value", type: "number", format: ",.0f" }} />
     </Row>
 
     <Row>
@@ -889,7 +910,7 @@ Every YAML widget type has a corresponding JSX tag. Props map directly to YAML f
 | `<Filter>` | (filter) | `name`, `type`, `default`, `multiple`, `options` |
 | `<Query>` | (named query) | `name`, `sql`, `file`, `connection` |
 | `<Semantic>` | (semantic layer) | `source`, `metrics`, `dimensions` |
-| `<Metric>` | `metric` | `name`, `col`, `sql`, `query`, `column`, `prefix`, `suffix`, `format`, `metric` |
+| `<Metric>` | `metric` | `name`, `col`, `sql`, `query`, `value`, `metric` |
 | `<Chart>` | `chart` | `name`, `col`, `chart`, `sql`, `x`, `y`, `label`, `value`, `stacked`, `dimension`, `metrics`, `limit`, etc. |
 | `<Table>` | `table` | `name`, `col`, `sql`, `query`, `columns` |
 | `<Text>` | `text` | `name`, `col`, `content` |
@@ -901,14 +922,14 @@ Every YAML widget type has a corresponding JSX tag. Props map directly to YAML f
 Define reusable widget patterns as functions — impossible in YAML:
 
 ```tsx
-function KPI({ name, sql, prefix, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" prefix={prefix} {...rest} />
+function KPI({ name, sql, format = ",.0f", ...rest }) {
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format }} {...rest} />
 }
 
 export default (
   <Dashboard name="Sales" connection="duckdb">
     <Row>
-      <KPI name="Revenue" sql="SELECT SUM(amount) as value FROM sales" prefix="$" col={4} />
+      <KPI name="Revenue" sql="SELECT SUM(amount) as value FROM sales" format="$,.0f" col={4} />
       <KPI name="Orders" sql="SELECT COUNT(*) as value FROM orders" col={4} />
     </Row>
   </Dashboard>
@@ -926,9 +947,9 @@ export default (
   <Dashboard name="Sales" connection="duckdb">
     <Row>
       {regions.map(r =>
-        <Metric name={`${r} Revenue`} col={4} prefix="$"
+        <Metric name={`${r} Revenue`} col={4}
           sql={`SELECT SUM(amount) as value FROM sales WHERE region = '${r}'`}
-          column="value" format="number" />
+          value={{ field: "value", type: "number", format: "$,.2f" }} />
       )}
     </Row>
   </Dashboard>
@@ -947,8 +968,8 @@ const tables = query("duckdb",
   "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY 1"
 )
 
-function KPI({ name, sql, prefix, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" prefix={prefix} {...rest} />
+function KPI({ name, sql, format = ",.0f", ...rest }) {
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format }} {...rest} />
 }
 
 export default (
@@ -960,7 +981,7 @@ export default (
     {/* Auto-generated per-region KPIs — adapts when data changes */}
     <Row>
       {regions.rows.map(([region]) => (
-        <KPI name={region} prefix="$"
+        <KPI name={region} format="$,.0f"
           col={Math.floor(12 / regions.rows.length)}
           sql={`SELECT SUM(amount) as value FROM sales WHERE region = '${region}'`} />
       ))}
@@ -1030,8 +1051,8 @@ Import shared `.tsx`, `.js`, or `.json` files using CommonJS `require()`:
 
 ```tsx
 // lib/kpi.tsx
-function KPI({ name, sql, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" {...rest} />
+function KPI({ name, sql, format = ",.0f", ...rest }) {
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format }} {...rest} />
 }
 module.exports = { KPI }
 
@@ -1041,7 +1062,7 @@ const { KPI } = require("./lib/kpi")
 export default (
   <Dashboard name="Sales" connection="duckdb">
     <Row>
-      <KPI name="Revenue" sql="..." prefix="$" col={4} />
+      <KPI name="Revenue" sql="..." format="$,.0f" col={4} />
     </Row>
   </Dashboard>
 )
@@ -1262,21 +1283,34 @@ rows:
       - name: Page Views
         type: metric
         metric: page_views
-        format: number
+        value:
+          field: value
+          type: number
+          format: ",.0f"
         col: 3
       - name: Users
         type: metric
         metric: users
-        format: number
+        value:
+          field: value
+          type: number
+          format: ",.0f"
         col: 3
       - name: Sessions
         type: metric
         metric: sessions
-        format: number
+        value:
+          field: value
+          type: number
+          format: ",.0f"
         col: 3
       - name: Pages / Session
         type: metric
         metric: pages_per_session
+        value:
+          field: value
+          type: number
+          format: ".2f"
         col: 3
 
   # Dimensional charts — SQL auto-generated from source + metrics + dimensions
@@ -1355,23 +1389,27 @@ rows:
       - name: Total Revenue
         type: metric
         query: total_revenue
-        column: value
-        prefix: "$"
-        format: number
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 4
       - name: Total Orders
         type: metric
         col: 4
         sql: SELECT COUNT(*) as total FROM orders
-        column: total
-        format: number
+        value:
+          field: total
+          type: number
+          format: ",.0f"
       - name: Avg Order
         type: metric
         col: 4
         sql: SELECT ROUND(AVG(amount), 2) as avg FROM orders
-        column: avg
-        prefix: "$"
-        format: number
+        value:
+          field: avg
+          type: number
+          format: "$,.2f"
 
   - widgets:
       - name: Revenue Trend
@@ -1418,7 +1456,7 @@ rows:
 
 | Type | Required Fields | Query Source | Description |
 |------|----------------|--------------|-------------|
-| `metric` | `metric:` ref OR `column` + query | Declarative or SQL | Single KPI number card |
+| `metric` | `metric:` ref OR `value` + query | Declarative or SQL | Single KPI number card |
 | `chart` | `dimension` + `metrics` OR `chart` + x/y + query | Declarative or SQL | Visualization (21 chart types) |
 | `table` | — | SQL | Data table with optional column config |
 | `text` | `content` | None | Markdown/text content |
@@ -1459,7 +1497,7 @@ rows:
 - At least one row is required; each row needs at least one widget.
 - `col` must be 1-12; total per row must not exceed 12.
 - Every widget that requires data needs a query source (`query`, `sql`, `file`) OR a declarative reference (`metric:` for metric widgets, `dimension:` + `metrics:` for chart widgets).
-- `metric` widgets require either `metric: <name>` (declarative) or `column` + query source (SQL mode).
+- `metric` widgets require either `metric: <name>` (declarative) or `value` + query source (SQL mode).
 - `chart` widgets require `chart` type plus either `dimension` + `metrics` (declarative) or chart-specific fields (SQL mode).
 - `text` widgets require `content`.
 - `image` widgets require `src`.

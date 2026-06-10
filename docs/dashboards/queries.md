@@ -20,7 +20,7 @@ rows:
       - name: Revenue
         type: metric
         query: total_revenue
-        column: value
+        value: value
 ```
 
 ## Named Semantic Queries
@@ -91,19 +91,19 @@ Examples:
 - name: Revenue
   type: metric
   query: total_revenue
-  column: value
+  value: value
 
 # Inline SQL
 - name: Revenue
   type: metric
   sql: SELECT SUM(amount) AS value FROM sales
-  column: value
+  value: value
 
 # External file
 - name: Revenue
   type: metric
   file: queries/revenue.sql
-  column: value
+  value: value
 
 # Semantic metric widget
 - name: Revenue
