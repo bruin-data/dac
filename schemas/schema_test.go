@@ -22,7 +22,7 @@ rows:
       - name: One
         type: metric
         sql: SELECT 1 AS value
-        column: value
+        value: value
 `,
 		},
 		{
@@ -42,7 +42,7 @@ rows:
       - name: One
         type: metric
         sql: SELECT 1 AS value
-        column: value
+        value: value
 `,
 		},
 		{
@@ -92,7 +92,7 @@ rows:
       - name: One
         type: metric
         sql: SELECT 1 AS value
-        column: value
+        value: value
 `,
 		},
 		{
