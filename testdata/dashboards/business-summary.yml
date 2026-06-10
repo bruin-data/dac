@@ -132,35 +132,42 @@ rows:
       - name: Revenue
         type: metric
         query: total_revenue
-        column: value
-        prefix: "$"
-        format: currency
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 3
       - name: Sales
         type: metric
         query: total_sales
-        column: value
-        format: number
+        value:
+          field: value
+          type: number
+          format: ",.0f"
         col: 2
       - name: Orders
         type: metric
         query: total_orders
-        column: value
-        format: number
+        value:
+          field: value
+          type: number
+          format: ",.0f"
         col: 2
       - name: Average Order Value
         type: metric
         query: average_order_value
-        column: value
-        prefix: "$"
-        format: currency
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 3
       - name: Revenue / Sale
         type: metric
         query: revenue_per_sale
-        column: value
-        prefix: "$"
-        format: currency
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 2
 
   - widgets:

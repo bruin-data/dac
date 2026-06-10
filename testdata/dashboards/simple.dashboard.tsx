@@ -12,8 +12,8 @@ const tables = query("local_duckdb",
 const regionSeries = regions.rows.length ? regions.rows.map(([r]) => r) : ["placeholder"]
 
 // Reusable KPI component
-function KPI({ name, sql, prefix, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" prefix={prefix} {...rest} />
+function KPI({ name, sql, format = ",.0f", ...rest }) {
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format }} {...rest} />
 }
 
 export default (
@@ -33,7 +33,7 @@ export default (
       {regions.rows.map(([region]) => (
         <KPI
           name={`${region}`}
-          prefix="$"
+          format="$,.0f"
           col={Math.floor(12 / regions.rows.length)}
           sql={`SELECT SUM(amount) as value FROM sales WHERE region = '${region}'`}
         />

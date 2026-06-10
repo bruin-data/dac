@@ -20,8 +20,10 @@ rows:
           FROM orders
           WHERE created_at <= DATE '{{ filters.as_of_date }}'
             AND amount >= {{ filters.min_order_value }}
-        column: value
-        format: number
+        value:
+          field: value
+          type: number
+          format: ",.0f"
 
       - name: Filtered Revenue
         type: metric
@@ -31,9 +33,10 @@ rows:
           FROM orders
           WHERE created_at <= DATE '{{ filters.as_of_date }}'
             AND amount >= {{ filters.min_order_value }}
-        column: value
-        prefix: "$"
-        format: number
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
 
       - name: Average Order Value
         type: metric
@@ -43,9 +46,10 @@ rows:
           FROM orders
           WHERE created_at <= DATE '{{ filters.as_of_date }}'
             AND amount >= {{ filters.min_order_value }}
-        column: value
-        prefix: "$"
-        format: number
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
 
       - name: Max Order Value
         type: metric
@@ -55,9 +59,10 @@ rows:
           FROM orders
           WHERE created_at <= DATE '{{ filters.as_of_date }}'
             AND amount >= {{ filters.min_order_value }}
-        column: value
-        prefix: "$"
-        format: number
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
 
   - widgets:
       - name: Orders by Status
