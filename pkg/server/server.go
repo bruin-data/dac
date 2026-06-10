@@ -9,9 +9,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"sync"
 
-	"github.com/bruin-data/dac/pkg/codex"
 	"github.com/bruin-data/dac/pkg/dashboard"
 	"github.com/bruin-data/dac/pkg/query"
 	"github.com/bruin-data/dac/pkg/theme"
@@ -26,16 +24,7 @@ type Config struct {
 	ConfigFile    string
 	Environment   string
 	AdminPassword string
-	AgentEffort   string // reasoning effort for agent turns: "low", "medium", "high"
-	Frontend      fs.FS  // embedded frontend files, nil for dev mode
-}
-
-// DraftInfo tracks a draft copy of a dashboard.
-type DraftInfo struct {
-	DraftID       string // short random ID (e.g. "a1b2c3d4")
-	DashboardName string // original dashboard name
-	DraftPath     string // path to the draft file (dot-prefixed in dashboard dir)
-	OriginalPath  string // path to the original live file
+	Frontend      fs.FS // embedded frontend files, nil for dev mode
 }
 
 // Server is the dac HTTP server.
@@ -46,16 +35,7 @@ type Server struct {
 	themes  *theme.Registry
 	loader  *dashboardLoader
 	watcher *Watcher
-	codex   *codex.Process
 	mux     *http.ServeMux
-
-	// Maps agent session (thread) IDs to their dashboard name.
-	sessionDashMu sync.RWMutex
-	sessionDash   map[string]string
-
-	// Draft file management — keyed by draft ID (not session ID).
-	draftsMu sync.RWMutex
-	drafts   map[string]*DraftInfo // draft ID -> draft info
 }
 
 type dashboardLoader struct {
@@ -146,11 +126,8 @@ func New(cfg Config) (*Server, error) {
 		paths:       paths,
 		backend:     cachedBackend,
 		themes:      themes,
-		loader:      &dashboardLoader{dir: paths.RootDir, backend: cachedBackend},
-		codex:       codex.New(filepath.Join(paths.DashboardDir, ".sessions")),
-		mux:         http.NewServeMux(),
-		sessionDash: make(map[string]string),
-		drafts:      make(map[string]*DraftInfo),
+		loader:  &dashboardLoader{dir: paths.RootDir, backend: cachedBackend},
+		mux:     http.NewServeMux(),
 	}
 
 	s.setupRoutes()
@@ -187,17 +164,6 @@ func (s *Server) setupRoutes() {
 		s.mux.HandleFunc("DELETE /api/v1/admin/connections/{type}/{name}", s.requireAdmin(s.handleAdminDeleteConnection))
 		s.mux.HandleFunc("POST /api/v1/admin/connections/{type}/{name}/test", s.requireAdmin(s.handleAdminTestConnection))
 	}
-
-	// Draft routes.
-	s.mux.HandleFunc("POST /api/v1/dashboards/{name}/drafts", s.handleDraftCreate)
-	s.mux.HandleFunc("POST /api/v1/drafts/{id}/save", s.handleDraftSave)
-	s.mux.HandleFunc("POST /api/v1/drafts/{id}/discard", s.handleDraftDiscard)
-
-	// Agent routes (codex-powered dashboard editor).
-	s.mux.HandleFunc("POST /api/v1/agent/sessions", s.handleAgentCreateSession)
-	s.mux.HandleFunc("POST /api/v1/agent/sessions/{id}/messages", s.handleAgentSendMessage)
-	s.mux.HandleFunc("GET /api/v1/agent/sessions/{id}/events", s.handleAgentEvents)
-	s.mux.HandleFunc("POST /api/v1/agent/sessions/{id}/interrupt", s.handleAgentInterrupt)
 
 	// Frontend static files with SPA fallback for client-side routing.
 	if s.config.Frontend != nil {
