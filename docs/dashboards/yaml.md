@@ -13,10 +13,6 @@ name: Sales Analytics              # required
 description: Revenue tracking      # optional
 connection: local_duckdb           # optional default connection
 model: sales                       # optional default semantic model
-theme: bruin-dark                  # optional
-
-refresh:
-  interval: 5m
 
 filters:
   - name: region
@@ -139,8 +135,6 @@ For a complete runnable project, see `examples/semantic-yaml`.
 | `connection` | string | No | Default connection for widgets and named queries |
 | `model` | string | No | Default semantic model for semantic widgets and named semantic queries |
 | `models` | map | No | Optional aliases that map dashboard names to semantic model names |
-| `theme` | string | No | Theme name or theme file path |
-| `refresh` | object | No | Auto-refresh configuration |
 | `filters` | array | No | Interactive filter controls |
 | `queries` | map | No | Named SQL or semantic queries |
 | `rows` | array | Yes | Dashboard layout rows |

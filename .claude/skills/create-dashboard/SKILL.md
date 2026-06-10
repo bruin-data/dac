@@ -102,11 +102,6 @@ rows: []                              # At least one row required
 # Optional
 description: A description            # Shown on the dashboard list page
 connection: my_duckdb                 # Default connection for all queries
-theme: bruin                          # Template name (bruin, bruin-dark, or custom)
-
-# Optional: refresh config
-refresh:
-  interval: 5m                        # Cache TTL for query results
 
 # Optional: interactive filters
 filters: []

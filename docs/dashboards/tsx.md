@@ -77,8 +77,6 @@ interface QueryResult {
   description="Description"
   connection="my_db"
   model="sales"
-  theme="bruin-dark"
-  refresh={{ interval: "5m" }}
 >
   {children}
 </Dashboard>

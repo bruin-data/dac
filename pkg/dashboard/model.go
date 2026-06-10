@@ -30,8 +30,6 @@ type Dashboard struct {
 	Connection  string            `yaml:"connection,omitempty" json:"connection,omitempty"`
 	Model       string            `yaml:"model,omitempty" json:"model,omitempty"`
 	Models      map[string]string `yaml:"models,omitempty" json:"models,omitempty"`
-	Theme       string            `yaml:"theme,omitempty" json:"theme,omitempty"`
-	Refresh     *RefreshConfig    `yaml:"refresh,omitempty" json:"refresh,omitempty"`
 	Filters     []Filter          `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Queries     map[string]Query  `yaml:"queries,omitempty" json:"queries,omitempty"`
 	Semantic    *SemanticLayer    `yaml:"semantic,omitempty" json:"semantic,omitempty"`
@@ -53,10 +51,6 @@ type SemanticLayer struct {
 	Source     *Source              `yaml:"source,omitempty" json:"source,omitempty"`
 	Metrics    map[string]Metric    `yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	Dimensions map[string]Dimension `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
-}
-
-type RefreshConfig struct {
-	Interval string `yaml:"interval" json:"interval"`
 }
 
 type Filter struct {

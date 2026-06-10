@@ -397,15 +397,6 @@ func vnodeToDashboard(root *vnode) (*Dashboard, error) {
 		Connection:  asString(root.Props["connection"]),
 		Model:       asString(root.Props["model"]),
 		Models:      asStringMap(root.Props["models"]),
-		Theme:       asString(root.Props["theme"]),
-	}
-
-	if v := root.Props["refresh"]; v != nil {
-		if m, ok := v.(map[string]interface{}); ok {
-			d.Refresh = &RefreshConfig{
-				Interval: asString(m["interval"]),
-			}
-		}
 	}
 
 	for _, child := range root.Children {

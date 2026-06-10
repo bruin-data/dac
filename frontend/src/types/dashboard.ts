@@ -13,8 +13,6 @@ export interface Dashboard {
   connection?: string;
   model?: string;
   models?: Record<string, string>;
-  theme?: string;
-  refresh?: { interval: string };
   filters?: Filter[];
   queries?: Record<string, Query>;
   rows: Row[];

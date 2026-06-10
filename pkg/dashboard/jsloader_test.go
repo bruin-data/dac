@@ -416,27 +416,6 @@ export default (
 	}
 }
 
-func TestEvalTSX_RefreshConfig(t *testing.T) {
-	source := `
-export default (
-  <Dashboard name="Refresh Test" connection="db" refresh={{ interval: "30s" }}>
-    <Row>
-      <Text name="Note" content="test" col={12} />
-    </Row>
-  </Dashboard>
-)
-`
-	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
-	assertNoErr(t, err)
-
-	if d.Refresh == nil {
-		t.Fatal("expected refresh config")
-	}
-	if d.Refresh.Interval != "30s" {
-		t.Errorf("expected interval %q, got %q", "30s", d.Refresh.Interval)
-	}
-}
-
 func TestEvalTSX_TableWithColumns(t *testing.T) {
 	source := `
 export default (
