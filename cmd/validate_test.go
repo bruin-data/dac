@@ -182,7 +182,7 @@ rows:
       - name: Total
         type: metric
         query: total
-        value: value
+        value: { field: value }
 `), 0o644); err != nil {
 		t.Fatalf("write dashboard: %v", err)
 	}

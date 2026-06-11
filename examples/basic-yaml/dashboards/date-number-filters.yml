@@ -76,8 +76,8 @@ rows:
             AND amount >= {{ filters.min_order_value }}
           GROUP BY 1
           ORDER BY 2 DESC
-        x: status
-        y: [orders]
+        x: { field: status }
+        y: { field: [orders] }
 
       - name: Recent Matching Orders
         type: table

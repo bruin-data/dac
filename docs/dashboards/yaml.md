@@ -88,7 +88,7 @@ rows:
         filters:
           - dimension: region
             operator: equals
-            value: "{{ filters.region }}"
+            value: { field: "{{ filters.region }}" }
           - dimension: created_at
             operator: between
             value:
@@ -161,7 +161,7 @@ rows:
       - name: Revenue
         type: metric
         query: total_revenue
-        value: value
+        value: { field: value }
 ```
 
 ### Inline SQL
@@ -170,16 +170,7 @@ rows:
 - name: Revenue
   type: metric
   sql: SELECT SUM(amount) AS value FROM sales
-  value: value
-```
-
-### External SQL File
-
-```yaml
-- name: Revenue
-  type: metric
-  file: queries/revenue.sql
-  value: value
+  value: { field: value }
 ```
 
 ### Direct Semantic Query

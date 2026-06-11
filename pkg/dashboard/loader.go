@@ -121,47 +121,12 @@ func loadFileWithContext(path string, paths ProjectPaths, semanticModels semanti
 	d.FileType = "yaml"
 	d.SetProjectContext(paths.RootDir, semanticModels.models, semanticModels.invalid)
 
-	// Resolve file-based queries (both named and inline on widgets).
-	dir := filepath.Dir(path)
-	if err := resolveQueryFiles(&d, dir); err != nil {
-		return nil, err
-	}
-
 	postProcessDashboard(&d)
 
 	return &d, nil
 }
 
-// resolveQueryFiles reads external .sql files referenced by queries and widgets.
-func resolveQueryFiles(d *Dashboard, baseDir string) error {
-	// Resolve named queries with file references.
-	for name, q := range d.Queries {
-		if q.File != "" {
-			sql, err := readQueryFile(baseDir, q.File)
-			if err != nil {
-				return fmt.Errorf("query %q: %w", name, err)
-			}
-			q.SQL = sql
-			d.Queries[name] = q
-		}
-	}
-
-	// Resolve inline file references on widgets.
-	for i, row := range d.Rows {
-		for j, w := range row.Widgets {
-			if w.File != "" && w.QueryRef == "" {
-				sql, err := readQueryFile(baseDir, w.File)
-				if err != nil {
-					return fmt.Errorf("widget %q: %w", w.Name, err)
-				}
-				d.Rows[i].Widgets[j].SQL = sql
-			}
-		}
-	}
-
-	return nil
-}
-
+// readQueryFile reads a .sql file relative to the dashboard; used by the TSX include() helper.
 func readQueryFile(baseDir, relPath string) (string, error) {
 	path := filepath.Join(baseDir, relPath)
 	data, err := os.ReadFile(path)

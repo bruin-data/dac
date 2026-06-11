@@ -13,7 +13,7 @@ name: w
 type: metric
 id: kpi_rev
 sql: SELECT 1 AS value
-value: value
+value: { field: value }
 `
 	var w Widget
 	if err := yaml.Unmarshal([]byte(yamlBody), &w); err != nil {
@@ -25,7 +25,7 @@ value: value
 }
 
 func TestWidgetID_JSON(t *testing.T) {
-	body := []byte(`{"name":"w","type":"metric","id":"kpi_rev","sql":"SELECT 1","value":"value"}`)
+	body := []byte(`{"name":"w","type":"metric","id":"kpi_rev","sql":"SELECT 1","value":{"field":"value"}}`)
 	var w Widget
 	if err := json.Unmarshal(body, &w); err != nil {
 		t.Fatalf("unmarshal: %v", err)

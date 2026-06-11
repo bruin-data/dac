@@ -175,15 +175,15 @@ rows:
         type: chart
         chart: area
         query: revenue_by_month
-        x: month
-        y: [revenue]
+        x: { field: month }
+        y: { field: [revenue] }
         col: 8
       - name: Orders by Status
         type: chart
         chart: pie
         query: orders_by_status
         label: status
-        value: orders
+        value: { field: orders }
         col: 4
 
   - widgets:
@@ -191,15 +191,15 @@ rows:
         type: chart
         chart: bar
         query: revenue_by_region
-        x: region
-        y: [revenue]
+        x: { field: region }
+        y: { field: [revenue] }
         col: 6
       - name: Revenue by Channel
         type: chart
         chart: bar
         query: revenue_by_channel
-        x: channel
-        y: [revenue]
+        x: { field: channel }
+        y: { field: [revenue] }
         col: 6
 
   - widgets:

@@ -13,14 +13,16 @@ queries:
         AND created_at <= '{{ filters.date_range.end }}'
 
   revenue_by_month:
-    file: queries/revenue_by_month.sql
+    sql: |
+      SELECT DATE_TRUNC('month', created_at) AS month, SUM(amount) AS revenue
+      FROM sales GROUP BY 1 ORDER BY 1
 
 rows:
   - widgets:
       - name: Revenue
         type: metric
         query: total_revenue
-        value: value
+        value: { field: value }
 ```
 
 ## Named Semantic Queries
@@ -91,19 +93,13 @@ Examples:
 - name: Revenue
   type: metric
   query: total_revenue
-  value: value
+  value: { field: value }
 
 # Inline SQL
 - name: Revenue
   type: metric
   sql: SELECT SUM(amount) AS value FROM sales
-  value: value
-
-# External file
-- name: Revenue
-  type: metric
-  file: queries/revenue.sql
-  value: value
+  value: { field: value }
 
 # Semantic metric widget
 - name: Revenue

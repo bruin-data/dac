@@ -118,8 +118,8 @@ rows:
           GROUP BY 1
           ORDER BY 2 DESC
           LIMIT 8
-        x: source
-        y: [users]
+        x: { field: source }
+        y: { field: [users] }
 
       - name: Top Countries
         type: chart

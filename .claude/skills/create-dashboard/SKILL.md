@@ -50,7 +50,7 @@ my-project/
     lib/
       kpi.tsx                   # Shared TSX helpers (not auto-discovered)
     queries/
-      my_query.sql              # Shared SQL files (referenced from YAML or TSX)
+      my_query.sql              # SQL files for TSX include() and dac query -f
   themes/
     corporate.yml               # Optional custom themes (token overrides)
 ```
@@ -59,7 +59,7 @@ my-project/
 - Any `*.dashboard.tsx` file is auto-discovered as a TSX dashboard.
 - Files in `lib/` or without the `.dashboard.tsx` suffix are NOT auto-discovered (use `require()` to import them).
 - Files starting with `.` are ignored (e.g. `.bruin.yml`).
-- SQL files can live in `queries/` or any subdirectory — referenced by relative path.
+- SQL files in `queries/` are for TSX `include()` and `dac query -f` — YAML widgets always inline their SQL (or reference a named query).
 
 ---
 
@@ -191,7 +191,9 @@ queries:
       WHERE created_at >= '{{ filters.date_range.start }}'
 
   revenue_by_month:
-    file: queries/revenue_by_month.sql       # Relative to the YAML file
+    sql: |
+      SELECT DATE_TRUNC('month', created_at) AS month, SUM(amount) AS revenue
+      FROM sales GROUP BY 1 ORDER BY 1
     connection: my_postgres                  # Optional connection override
 ```
 
@@ -343,7 +345,8 @@ rows:
 Every widget (except `text`, `divider`, and `image`) needs a query source. **Priority order:**
 1. `query: <name>` — reference a named query from the `queries:` map
 2. `sql: |` — inline SQL
-3. `file: path/to/query.sql` — external SQL file (relative to the YAML)
+
+(In TSX, `include("path/to/query.sql")` reads a .sql file into an inline `sql` string at load time.)
 
 ### Metric Widget
 
@@ -370,14 +373,14 @@ The `value` encoding controls how the number is displayed:
 - `value.type` — `number`, `date`, or `category`.
 - `value.format` — optional [d3-format](https://github.com/d3/d3-format) string. Currency and percent are expressed in the format string itself — there are no `prefix`/`suffix` fields. Examples: `",.0f"` (integer with thousands separators), `"$,.2f"` (currency), `".1%"` (percent).
 
-When no formatting is needed, `value` can be a bare column name string (shorthand for `{ field: "<col>" }`).
+`value` is always an object; `field` is required, `type` and `format` are optional.
 
 **Query-based mode** — provide SQL directly:
 
 ```yaml
 - name: Total Revenue
   type: metric
-  query: total_revenue          # or sql: / file:
+  query: total_revenue          # or sql:
   value:
     field: value                # REQUIRED: which result column to display
     type: number                # number | date | category
@@ -385,13 +388,13 @@ When no formatting is needed, `value` can be a bare column name string (shorthan
   col: 3
 ```
 
-Shorthand — when no formatting is needed, set `value` to the column name directly:
+When no formatting is needed, only `field` is required:
 
 ```yaml
 - name: Total Orders
   type: metric
   sql: SELECT COUNT(*) as total FROM orders
-  value: total                  # Shorthand: just the result column
+  value: { field: total }
   col: 3
 ```
 
@@ -436,6 +439,14 @@ Reference top-level dimensions and metrics. SQL is auto-generated with GROUP BY,
 
 #### Query-Based Charts (SQL mode)
 
+`x` and `y` are encoding objects. `field` is required and names the SQL column to plot (`y.field` accepts a list for multiple series). Optional keys control rendering:
+
+- `type` — `number` | `date` | `category`. Picks the axis scale and format language (`date` → d3-time-format, otherwise d3-format).
+- `title` — human-readable axis label.
+- `format` — d3-format / d3-time-format string for tick labels: `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`.
+
+Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{ field: ... }`.
+
 #### Line / Bar / Area
 
 ```yaml
@@ -444,27 +455,33 @@ Reference top-level dimensions and metrics. SQL is auto-generated with GROUP BY,
   chart: line                   # line | bar | area
   sql: |
     SELECT month, revenue, target FROM monthly_data ORDER BY month
-  x: month                     # REQUIRED: column for X axis
-  y: [revenue, target]         # REQUIRED: column(s) for Y axis (array)
+  x: { field: month, type: date, format: "%b %Y" }    # REQUIRED: x encoding
+  y: { field: [revenue, target], format: "$,.0f" }    # REQUIRED: y encoding (field may be a list)
   col: 8
 ```
 
-#### Stacked Bar / Area
+#### Series by Category (color) / Stacked / Horizontal Bars
+
+`color` splits the single `y` series into one series per distinct value of a category column. The SQL returns **long format** — one row per x/category pair — no `CASE WHEN` pivoting:
 
 ```yaml
 - name: Sales by Region
   type: chart
   chart: bar
-  stacked: true                 # Stacks the Y series
+  stacked: true                 # bar only; REQUIRES color
+  color: { field: region }      # one stacked series per region
   sql: |
-    SELECT month,
-      SUM(CASE WHEN region='NA' THEN amount ELSE 0 END) AS "North America",
-      SUM(CASE WHEN region='EU' THEN amount ELSE 0 END) AS "Europe"
-    FROM sales GROUP BY 1 ORDER BY 1
-  x: month
-  y: ["North America", "Europe"]
+    SELECT month, region, SUM(amount) AS revenue
+    FROM sales GROUP BY 1, 2 ORDER BY 1, 2
+  x: { field: month }
+  y: { field: revenue }         # single column — color does the splitting
   col: 6
 ```
+
+- `color` works on `bar`, `line`, and `area` charts and requires a single `y` field.
+- `stacked: true` is bar-only and requires `color`. Multiple bare `y` columns render as **grouped** bars, never stacked.
+- `normalized: true` (with `stacked`) shows each bar as percentages of the row total; omit `y.format`, values display as `%` automatically.
+- `horizontal: true` (bar only) flips the chart: categories on the vertical axis, values on the horizontal.
 
 #### Pie
 
@@ -475,7 +492,7 @@ Reference top-level dimensions and metrics. SQL is auto-generated with GROUP BY,
   sql: |
     SELECT region, SUM(amount) as total FROM sales GROUP BY 1
   label: region                 # REQUIRED: category column
-  value: total                  # REQUIRED: numeric column
+  value: { field: total }                  # REQUIRED: numeric column
   col: 4
 ```
 
@@ -486,8 +503,8 @@ Reference top-level dimensions and metrics. SQL is auto-generated with GROUP BY,
   type: chart
   chart: scatter
   sql: SELECT price, quantity FROM orders
-  x: price
-  y: [quantity]
+  x: { field: price }
+  y: { field: [quantity] }
   col: 6
 ```
 
@@ -500,8 +517,8 @@ X axis auto-detects numeric vs category data.
   type: chart
   chart: bubble
   sql: SELECT region, revenue, profit, order_count FROM summary
-  x: region                     # X axis
-  y: [revenue]                  # Y axis
+  x: { field: region }                     # X axis
+  y: { field: [revenue] }                  # Y axis
   size: order_count             # REQUIRED: bubble size column
   col: 6
 ```
@@ -513,8 +530,8 @@ X axis auto-detects numeric vs category data.
   type: chart
   chart: combo
   sql: SELECT month, revenue, growth_pct FROM monthly
-  x: month
-  y: [revenue, growth_pct]
+  x: { field: month }
+  y: { field: [revenue, growth_pct] }
   lines: [growth_pct]           # Which y series render as lines (rest are bars)
   col: 8
 ```
@@ -526,7 +543,7 @@ X axis auto-detects numeric vs category data.
   type: chart
   chart: histogram
   sql: SELECT amount FROM orders
-  x: amount                     # REQUIRED: column to bin
+  x: { field: amount }                     # REQUIRED: column to bin
   bins: 20                      # Optional: number of bins (default: 10)
   col: 6
 ```
@@ -540,8 +557,8 @@ Client-side binning of raw data values.
   type: chart
   chart: boxplot
   sql: SELECT status, amount FROM orders
-  x: status                     # Category column
-  y: [amount]                   # Numeric column
+  x: { field: status }                     # Category column
+  y: { field: [amount] }                   # Numeric column
   col: 6
 ```
 
@@ -555,7 +572,7 @@ Client-side quartile computation from raw data rows.
   chart: funnel
   sql: SELECT stage, count FROM funnel_data ORDER BY count DESC
   label: stage                  # REQUIRED: category column
-  value: count                  # REQUIRED: numeric column
+  value: { field: count }                  # REQUIRED: numeric column
   col: 6
 ```
 
@@ -568,7 +585,7 @@ Client-side quartile computation from raw data rows.
   sql: SELECT source_stage, target_stage, flow_count FROM flows
   source: source_stage          # REQUIRED: source node column
   target: target_stage          # REQUIRED: target node column
-  value: flow_count             # REQUIRED: flow weight column
+  value: { field: flow_count }             # REQUIRED: flow weight column
   col: 8
 ```
 
@@ -579,9 +596,9 @@ Client-side quartile computation from raw data rows.
   type: chart
   chart: heatmap
   sql: SELECT day_of_week, hour, event_count FROM activity
-  x: hour                       # REQUIRED: X axis column
-  y: [day_of_week]              # REQUIRED: Y axis column (array with 1 element)
-  value: event_count            # REQUIRED: intensity column
+  x: { field: hour }                       # REQUIRED: X axis column
+  y: { field: [day_of_week] }              # REQUIRED: Y axis column (array with 1 element)
+  value: { field: event_count }            # REQUIRED: intensity column
   col: 8
 ```
 
@@ -594,8 +611,8 @@ Custom SVG rendering with hover tooltips.
   type: chart
   chart: calendar
   sql: SELECT date, revenue FROM daily_sales
-  x: date                       # REQUIRED: date column (YYYY-MM-DD)
-  value: revenue                # REQUIRED: intensity column
+  x: { field: date }                       # REQUIRED: date column (YYYY-MM-DD)
+  value: { field: revenue }                # REQUIRED: intensity column
   col: 12
 ```
 
@@ -608,8 +625,8 @@ GitHub-style calendar heatmap, custom SVG.
   type: chart
   chart: sparkline
   sql: SELECT month, revenue FROM monthly ORDER BY month
-  x: month
-  y: [revenue]
+  x: { field: month }
+  y: { field: [revenue] }
   col: 3
 ```
 
@@ -629,8 +646,8 @@ Compact line chart (60px height), no axes or labels. Great for KPI rows.
       WHEN 'OpEx' THEN 3
       WHEN 'Net' THEN 4
     END
-  x: category
-  y: [amount]
+  x: { field: category }
+  y: { field: [amount] }
   col: 8
 ```
 
@@ -643,8 +660,8 @@ Positive values shown in one color, negative in another. Bars float to show cumu
   type: chart
   chart: xmr
   sql: SELECT date, value, mean, ucl, lcl FROM process_data
-  x: date
-  y: [value, mean]              # First = data line, second = center line (dashed)
+  x: { field: date }
+  y: { field: [value, mean] }              # First = data line, second = center line (dashed)
   yMin: lcl                     # Lower control limit (dashed)
   yMax: ucl                     # Upper control limit (dashed)
   col: 8
@@ -657,8 +674,8 @@ Positive values shown in one color, negative in another. Bars float to show cumu
   type: chart
   chart: dumbbell
   sql: SELECT region, h1_revenue, h2_revenue FROM comparison
-  x: region                     # Category column (vertical axis)
-  y: [h1_revenue, h2_revenue]   # Two numeric columns (start and end points)
+  x: { field: region }                     # Category column (vertical axis)
+  y: { field: [h1_revenue, h2_revenue] }   # Two numeric columns (start and end points)
   col: 6
 ```
 
@@ -671,7 +688,7 @@ Horizontal chart showing range between two values per category.
   type: chart
   chart: gauge
   sql: SELECT current_revenue, revenue_target FROM kpi
-  value: current_revenue        # REQUIRED: current value column (first row)
+  value: { field: current_revenue }        # REQUIRED: current value column (first row)
   target: revenue_target        # Optional: target/max column (default 100)
   col: 3
 ```
@@ -686,7 +703,7 @@ Semi-circular progress gauge for KPI-vs-target. Reads the first row.
   chart: treemap
   sql: SELECT category, revenue FROM sales
   label: category               # REQUIRED: label column
-  value: revenue                # REQUIRED: size column
+  value: { field: revenue }                # REQUIRED: size column
   col: 6
 ```
 
@@ -699,8 +716,8 @@ Rectangular hierarchy showing part-to-whole proportions. Use instead of pie when
   type: chart
   chart: radar
   sql: SELECT attribute, product_a, product_b FROM scorecard
-  x: attribute                  # REQUIRED: axis category column
-  y: [product_a, product_b]     # REQUIRED: one or more series to compare
+  x: { field: attribute }                  # REQUIRED: axis category column
+  y: { field: [product_a, product_b] }     # REQUIRED: one or more series to compare
   col: 6
 ```
 
@@ -713,7 +730,7 @@ Multi-axis comparison across a small number of entities.
   type: chart
   chart: candlestick
   sql: SELECT date, open, high, low, close FROM ohlc ORDER BY date
-  x: date                       # REQUIRED: time column
+  x: { field: date }                       # REQUIRED: time column
   open: open                    # REQUIRED
   high: high                    # REQUIRED
   low: low                      # REQUIRED
@@ -730,7 +747,9 @@ Data table with optional column configuration.
 ```yaml
 - name: Recent Orders
   type: table
-  file: queries/recent_orders.sql
+  sql: |
+    SELECT id, customer_name, amount, status, created_at
+    FROM orders ORDER BY created_at DESC LIMIT 25
   columns:                      # Optional: customize column display
     - name: customer_name       # Must match SQL column name
       label: Customer           # Display header
@@ -880,10 +899,10 @@ export default (
     <Row>
       <Chart name="Trend" chart="area" col={8}
         sql="SELECT month, revenue FROM monthly ORDER BY 1"
-        x="month" y={["revenue"]} />
+        x={{ field: "month" }} y={{ field: ["revenue"] }} />
       <Chart name="By Region" chart="pie" col={4}
         sql="SELECT region, SUM(amount) as total FROM sales GROUP BY 1"
-        label="region" value="total" />
+        label="region" value={{ field: "total" }} />
     </Row>
 
     <Row>
@@ -906,7 +925,7 @@ Every YAML widget type has a corresponding JSX tag. Props map directly to YAML f
 | `<Query>` | (named query) | `name`, `sql`, `file`, `connection` |
 | `<Semantic>` | (semantic layer) | `source`, `metrics`, `dimensions` |
 | `<Metric>` | `metric` | `name`, `col`, `sql`, `query`, `value`, `metric` |
-| `<Chart>` | `chart` | `name`, `col`, `chart`, `sql`, `x`, `y`, `label`, `value`, `stacked`, `dimension`, `metrics`, `limit`, etc. |
+| `<Chart>` | `chart` | `name`, `col`, `chart`, `sql`, `x`, `y`, `label`, `value`, `color`, `stacked`, `normalized`, `horizontal`, `dimension`, `metrics`, `limit`, etc. |
 | `<Table>` | `table` | `name`, `col`, `sql`, `query`, `columns` |
 | `<Text>` | `text` | `name`, `col`, `content` |
 | `<Divider>` | `divider` | `name`, `col` |
@@ -982,18 +1001,16 @@ export default (
       ))}
     </Row>
 
-    {/* Data-driven SQL generation — each region becomes a CASE clause */}
+    {/* Long-format SQL + color — the engine splits revenue into one series per region */}
     <Row>
-      <Chart name="Revenue by Region" chart="bar" stacked={true} col={8}
+      <Chart name="Revenue by Region" chart="bar" stacked={true} color={{ field: "region" }} col={8}
         sql={`
           SELECT STRFTIME(DATE_TRUNC('month', created_at), '%Y-%m') AS month,
-            ${regions.rows.map(([r]) =>
-              `SUM(CASE WHEN region = '${r}' THEN amount ELSE 0 END) AS "${r}"`
-            ).join(",\n            ")}
-          FROM sales GROUP BY 1 ORDER BY 1
+            region, SUM(amount) AS revenue
+          FROM sales GROUP BY 1, 2 ORDER BY 1, 2
         `}
-        x="month"
-        y={regions.rows.map(([r]) => r)} />
+        x={{ field: "month" }}
+        y={{ field: "revenue" }} />
     </Row>
 
     {/* Auto-generated table preview for every table in the DB */}
@@ -1020,7 +1037,7 @@ TSX dashboards support both JS template literals (resolved at load time) and Jin
     WHERE region = '{{ filters.region }}'
     AND created_at >= '{{ filters.date_range.start }}'
     GROUP BY 1 ORDER BY 1`}
-  x="month" y={["rev"]} />
+  x={{ field: "month" }} y={{ field: ["rev"] }} />
 ```
 
 - **`${...}`** (JS template literal) — resolved when goja runs the script at load time
@@ -1378,6 +1395,13 @@ queries:
       {% if filters.region != 'All' %}
         AND region = '{{ filters.region }}'
       {% endif %}
+  revenue_by_month:
+    sql: |
+      SELECT DATE_TRUNC('month', created_at) AS month, SUM(amount) AS revenue
+      FROM sales
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at <= '{{ filters.date_range.end }}'
+      GROUP BY 1 ORDER BY 1
 
 rows:
   - widgets:
@@ -1410,9 +1434,9 @@ rows:
       - name: Revenue Trend
         type: chart
         chart: area
-        file: queries/revenue_by_month.sql
-        x: month
-        y: [revenue]
+        query: revenue_by_month
+        x: { field: month }
+        y: { field: [revenue] }
         col: 8
       - name: By Region
         type: chart
@@ -1422,7 +1446,7 @@ rows:
           SELECT region, SUM(amount) as total
           FROM sales GROUP BY 1
         label: region
-        value: total
+        value: { field: total }
 
   - widgets:
       - name: Recent Orders
@@ -1462,9 +1486,9 @@ rows:
 
 | Chart | Required | Optional | Description |
 |-------|----------|----------|-------------|
-| `line` | `x`, `y` | | Line chart |
-| `bar` | `x`, `y` | `stacked` | Bar chart |
-| `area` | `x`, `y` | `stacked` | Area chart |
+| `line` | `x`, `y` | `color` | Line chart |
+| `bar` | `x`, `y` | `color`, `stacked`, `normalized`, `horizontal` | Bar chart |
+| `area` | `x`, `y` | `color` | Area chart |
 | `pie` | `label`, `value` | | Pie/donut chart |
 | `scatter` | `x`, `y` | | Scatter plot |
 | `bubble` | `x`, `y`, `size` | | Bubble chart |

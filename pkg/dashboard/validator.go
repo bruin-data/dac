@@ -236,8 +236,8 @@ func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 		}
 		return errs
 	}
-	if w.QueryRef == "" && w.SQL == "" && w.File == "" {
-		errs = append(errs, fmt.Sprintf("%s: one of query, sql, or file is required", prefix))
+	if w.QueryRef == "" && w.SQL == "" {
+		errs = append(errs, fmt.Sprintf("%s: one of query or sql is required", prefix))
 	}
 	if w.QueryRef != "" {
 		if _, ok := d.Queries[w.QueryRef]; !ok {
@@ -465,6 +465,12 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if len(w.YFields()) > 1 {
 			errs = append(errs, fmt.Sprintf("%s: color with multiple y fields is not supported", prefix))
 		}
+	}
+	if w.Stacked && w.Chart != "bar" {
+		errs = append(errs, fmt.Sprintf("%s: stacked is only valid on bar charts", prefix))
+	}
+	if w.Stacked && w.Color == nil {
+		errs = append(errs, fmt.Sprintf("%s: stacked requires color — return one row per category (long format) and set color: { field: <category column> }", prefix))
 	}
 	if w.Normalized && !w.Stacked {
 		errs = append(errs, fmt.Sprintf("%s: normalized requires stacked: true", prefix))

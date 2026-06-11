@@ -52,11 +52,6 @@ func loadTSXFileWithContext(path string, paths ProjectPaths, semanticModels sema
 	d.SetProjectContext(paths.RootDir, semanticModels.models, semanticModels.invalid)
 
 	// Run the same post-processing as YAML loader.
-	dir := filepath.Dir(path)
-	if err := resolveQueryFiles(d, dir); err != nil {
-		return nil, err
-	}
-
 	postProcessDashboard(d)
 
 	return d, nil
@@ -444,7 +439,6 @@ func vnodeToDashboard(root *vnode) (*Dashboard, error) {
 			name := asString(child.Props["name"])
 			q := Query{
 				SQL:        asString(child.Props["sql"]),
-				File:       asString(child.Props["file"]),
 				Connection: asString(child.Props["connection"]),
 				Model:      asString(child.Props["model"]),
 				Dimensions: asSemanticDimensionRefs(child.Props["dimensions"]),
@@ -518,7 +512,6 @@ func vnodeToWidget(n *vnode) Widget {
 		// Query source
 		QueryRef:   asString(n.Props["query"]),
 		SQL:        asString(n.Props["sql"]),
-		File:       asString(n.Props["file"]),
 		MetricRef:  asString(n.Props["metric"]),
 		Model:      asString(n.Props["model"]),
 		Connection: asString(n.Props["connection"]),

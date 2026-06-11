@@ -105,7 +105,6 @@ func (dim *Dimension) IsDate() bool {
 // Query represents a named query definition.
 type Query struct {
 	SQL        string                 `yaml:"sql,omitempty" json:"sql,omitempty"`
-	File       string                 `yaml:"file,omitempty" json:"file,omitempty"`
 	Connection string                 `yaml:"connection,omitempty" json:"connection,omitempty"`
 	Model      string                 `yaml:"model,omitempty" json:"model,omitempty"`
 	Dimensions []SemanticDimensionRef `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
@@ -123,7 +122,7 @@ type Row struct {
 }
 
 // Widget represents a single dashboard widget.
-// Query resolution priority: query (named ref) > sql (inline) > file (external).
+// Query resolution priority: query (named ref) > sql (inline).
 type Widget struct {
 	ID          string `yaml:"id,omitempty" json:"id,omitempty"`
 	Name        string `yaml:"name" json:"name"`
@@ -134,7 +133,6 @@ type Widget struct {
 	// Query source (pick one)
 	QueryRef  string `yaml:"query,omitempty" json:"query,omitempty"` // reference to queries map key
 	SQL       string `yaml:"sql,omitempty" json:"sql,omitempty"`
-	File      string `yaml:"file,omitempty" json:"file,omitempty"`
 	MetricRef string `yaml:"metric,omitempty" json:"metric,omitempty"` // reference to metrics map key
 	Model     string `yaml:"model,omitempty" json:"model,omitempty"`
 
@@ -419,21 +417,9 @@ func (w *Widget) ResolvedQuery(dashboard *Dashboard) (sql, connection string, er
 		if conn == "" {
 			conn = dashboard.Connection
 		}
-		if q.SQL != "" {
-			return q.SQL, conn, nil
-		}
-		// File-based query — SQL should have been loaded by the loader.
 		return q.SQL, conn, nil
 
 	case w.SQL != "":
-		conn := w.Connection
-		if conn == "" {
-			conn = dashboard.Connection
-		}
-		return w.SQL, conn, nil
-
-	case w.File != "":
-		// File-based inline query — SQL should have been loaded by the loader.
 		conn := w.Connection
 		if conn == "" {
 			conn = dashboard.Connection
@@ -486,73 +472,53 @@ func (a *AxisEncoding) FieldList() []string {
 	return nil
 }
 
-func (a *AxisEncoding) hasMetadata() bool {
-	return a != nil && (a.Type != "" || a.Title != "" || a.Format != "")
-}
-
 func (w *Widget) XField() string { return w.X.FieldString() }
 
 func (w *Widget) YFields() []string { return w.Y.FieldList() }
 
+const axisEncodingHint = "axis encoding: must be an object with a field key, e.g. x: { field: month } or y: { field: [revenue, cost] }"
+
 func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
-	switch node.Kind {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("%s", axisEncodingHint)
+	}
+	type axisFields struct {
+		Field  yaml.Node `yaml:"field"`
+		Type   string    `yaml:"type,omitempty"`
+		Title  string    `yaml:"title,omitempty"`
+		Format string    `yaml:"format,omitempty"`
+	}
+	var tmp axisFields
+	if err := node.Decode(&tmp); err != nil {
+		return err
+	}
+	a.Type = tmp.Type
+	a.Title = tmp.Title
+	a.Format = tmp.Format
+	switch tmp.Field.Kind {
 	case yaml.ScalarNode:
 		var s string
-		if err := node.Decode(&s); err != nil {
+		if err := tmp.Field.Decode(&s); err != nil {
 			return err
 		}
 		a.Field = s
-		return nil
 	case yaml.SequenceNode:
 		var list []string
-		if err := node.Decode(&list); err != nil {
+		if err := tmp.Field.Decode(&list); err != nil {
 			return err
 		}
 		a.Field = list
-		return nil
-	case yaml.MappingNode:
-		type axisFields struct {
-			Field  yaml.Node `yaml:"field"`
-			Type   string    `yaml:"type,omitempty"`
-			Title  string    `yaml:"title,omitempty"`
-			Format string    `yaml:"format,omitempty"`
-		}
-		var tmp axisFields
-		if err := node.Decode(&tmp); err != nil {
-			return err
-		}
-		a.Type = tmp.Type
-		a.Title = tmp.Title
-		a.Format = tmp.Format
-		switch tmp.Field.Kind {
-		case yaml.ScalarNode:
-			var s string
-			if err := tmp.Field.Decode(&s); err != nil {
-				return err
-			}
-			a.Field = s
-		case yaml.SequenceNode:
-			var list []string
-			if err := tmp.Field.Decode(&list); err != nil {
-				return err
-			}
-			a.Field = list
-		case 0:
-		default:
-			return fmt.Errorf("axis encoding: field must be a string or list of strings")
-		}
-		return nil
+	case 0:
+		return fmt.Errorf("axis encoding: field is required")
 	default:
-		return fmt.Errorf("axis encoding: unsupported YAML node kind %d", node.Kind)
+		return fmt.Errorf("axis encoding: field must be a string or list of strings")
 	}
+	return nil
 }
 
 func (a *AxisEncoding) MarshalYAML() (any, error) {
 	if a == nil {
 		return nil, nil
-	}
-	if !a.hasMetadata() {
-		return a.Field, nil
 	}
 	return struct {
 		Field  any    `yaml:"field"`
@@ -567,63 +533,44 @@ func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
 	if trimmed == "" || trimmed == "null" {
 		return nil
 	}
-	switch trimmed[0] {
-	case '"':
-		var s string
-		if err := json.Unmarshal(data, &s); err != nil {
-			return err
-		}
-		a.Field = s
-		return nil
-	case '[':
+	if trimmed[0] != '{' {
+		return fmt.Errorf("%s", axisEncodingHint)
+	}
+	var raw struct {
+		Field  json.RawMessage `json:"field"`
+		Type   string          `json:"type,omitempty"`
+		Title  string          `json:"title,omitempty"`
+		Format string          `json:"format,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	a.Type = raw.Type
+	a.Title = raw.Title
+	a.Format = raw.Format
+	fieldStr := strings.TrimSpace(string(raw.Field))
+	if fieldStr == "" || fieldStr == "null" {
+		return fmt.Errorf("axis encoding: field is required")
+	}
+	if fieldStr[0] == '[' {
 		var list []string
-		if err := json.Unmarshal(data, &list); err != nil {
+		if err := json.Unmarshal(raw.Field, &list); err != nil {
 			return err
 		}
 		a.Field = list
 		return nil
-	case '{':
-		var raw struct {
-			Field  json.RawMessage `json:"field"`
-			Type   string          `json:"type,omitempty"`
-			Title  string          `json:"title,omitempty"`
-			Format string          `json:"format,omitempty"`
-		}
-		if err := json.Unmarshal(data, &raw); err != nil {
-			return err
-		}
-		a.Type = raw.Type
-		a.Title = raw.Title
-		a.Format = raw.Format
-		if len(raw.Field) == 0 || string(raw.Field) == "null" {
-			return nil
-		}
-		fieldStr := strings.TrimSpace(string(raw.Field))
-		if len(fieldStr) > 0 && fieldStr[0] == '[' {
-			var list []string
-			if err := json.Unmarshal(raw.Field, &list); err != nil {
-				return err
-			}
-			a.Field = list
-			return nil
-		}
-		var s string
-		if err := json.Unmarshal(raw.Field, &s); err != nil {
-			return fmt.Errorf("axis encoding: field must be a string or list of strings")
-		}
-		a.Field = s
-		return nil
-	default:
-		return fmt.Errorf("axis encoding: unsupported JSON value")
 	}
+	var s string
+	if err := json.Unmarshal(raw.Field, &s); err != nil {
+		return fmt.Errorf("axis encoding: field must be a string or list of strings")
+	}
+	a.Field = s
+	return nil
 }
 
 func (a *AxisEncoding) MarshalJSON() ([]byte, error) {
 	if a == nil {
 		return []byte("null"), nil
-	}
-	if !a.hasMetadata() {
-		return json.Marshal(a.Field)
 	}
 	return json.Marshal(struct {
 		Field  any    `json:"field"`
@@ -660,49 +607,35 @@ func (v *ValueEncoding) FieldString() string {
 	return v.Field
 }
 
-func (v *ValueEncoding) hasMetadata() bool {
-	return v != nil && (v.Type != "" || v.Format != "")
-}
-
 func (w *Widget) ValueField() string { return w.Value.FieldString() }
 
+const valueEncodingHint = "value encoding: must be an object with a field key, e.g. value: { field: revenue }"
+
 func (v *ValueEncoding) UnmarshalYAML(node *yaml.Node) error {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		var s string
-		if err := node.Decode(&s); err != nil {
-			return err
-		}
-		v.Field = s
-		return nil
-	case yaml.MappingNode:
-		type valueFields struct {
-			Field  string `yaml:"field"`
-			Type   string `yaml:"type,omitempty"`
-			Format string `yaml:"format,omitempty"`
-		}
-		var tmp valueFields
-		if err := node.Decode(&tmp); err != nil {
-			return err
-		}
-		if tmp.Field == "" {
-			return fmt.Errorf("value encoding: field is required when using object form")
-		}
-		v.Field = tmp.Field
-		v.Type = tmp.Type
-		v.Format = tmp.Format
-		return nil
-	default:
-		return fmt.Errorf("value encoding: unsupported YAML node kind %d", node.Kind)
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("%s", valueEncodingHint)
 	}
+	type valueFields struct {
+		Field  string `yaml:"field"`
+		Type   string `yaml:"type,omitempty"`
+		Format string `yaml:"format,omitempty"`
+	}
+	var tmp valueFields
+	if err := node.Decode(&tmp); err != nil {
+		return err
+	}
+	if tmp.Field == "" {
+		return fmt.Errorf("value encoding: field is required")
+	}
+	v.Field = tmp.Field
+	v.Type = tmp.Type
+	v.Format = tmp.Format
+	return nil
 }
 
 func (v *ValueEncoding) MarshalYAML() (any, error) {
 	if v == nil {
 		return nil, nil
-	}
-	if !v.hasMetadata() {
-		return v.Field, nil
 	}
 	return struct {
 		Field  string `yaml:"field"`
@@ -716,41 +649,29 @@ func (v *ValueEncoding) UnmarshalJSON(data []byte) error {
 	if trimmed == "" || trimmed == "null" {
 		return nil
 	}
-	switch trimmed[0] {
-	case '"':
-		var s string
-		if err := json.Unmarshal(data, &s); err != nil {
-			return err
-		}
-		v.Field = s
-		return nil
-	case '{':
-		var raw struct {
-			Field  string `json:"field"`
-			Type   string `json:"type,omitempty"`
-			Format string `json:"format,omitempty"`
-		}
-		if err := json.Unmarshal(data, &raw); err != nil {
-			return err
-		}
-		if raw.Field == "" {
-			return fmt.Errorf("value encoding: field is required when using object form")
-		}
-		v.Field = raw.Field
-		v.Type = raw.Type
-		v.Format = raw.Format
-		return nil
-	default:
-		return fmt.Errorf("value encoding: unsupported JSON value")
+	if trimmed[0] != '{' {
+		return fmt.Errorf("%s", valueEncodingHint)
 	}
+	var raw struct {
+		Field  string `json:"field"`
+		Type   string `json:"type,omitempty"`
+		Format string `json:"format,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Field == "" {
+		return fmt.Errorf("value encoding: field is required")
+	}
+	v.Field = raw.Field
+	v.Type = raw.Type
+	v.Format = raw.Format
+	return nil
 }
 
 func (v *ValueEncoding) MarshalJSON() ([]byte, error) {
 	if v == nil {
 		return []byte("null"), nil
-	}
-	if !v.hasMetadata() {
-		return json.Marshal(v.Field)
 	}
 	return json.Marshal(struct {
 		Field  string `json:"field"`
@@ -786,5 +707,5 @@ type NoQueryError struct {
 }
 
 func (e *NoQueryError) Error() string {
-	return "widget \"" + e.Widget + "\": no query, sql, or file specified"
+	return "widget \"" + e.Widget + "\": no query or sql specified"
 }

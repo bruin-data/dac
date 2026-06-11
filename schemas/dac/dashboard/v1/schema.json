@@ -125,9 +125,6 @@
         "sql": {
           "type": "string"
         },
-        "file": {
-          "type": "string"
-        },
         "connection": {
           "type": "string"
         },
@@ -215,9 +212,6 @@
           "type": "string"
         },
         "sql": {
-          "type": "string"
-        },
-        "file": {
           "type": "string"
         },
         "metric": {
@@ -543,62 +537,45 @@
       }
     },
     "axisEncoding": {
-      "oneOf": [
-        {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/$defs/stringList" }
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["date", "number", "category"]
+        },
+        "title": {
           "type": "string"
         },
-        {
-          "$ref": "#/$defs/stringList"
-        },
-        {
-          "type": "object",
-          "required": ["field"],
-          "properties": {
-            "field": {
-              "oneOf": [
-                { "type": "string" },
-                { "$ref": "#/$defs/stringList" }
-              ]
-            },
-            "type": {
-              "type": "string",
-              "enum": ["date", "number", "category"]
-            },
-            "title": {
-              "type": "string"
-            },
-            "format": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
+        "format": {
+          "type": "string"
         }
-      ]
+      },
+      "additionalProperties": false
     },
     "valueEncoding": {
-      "oneOf": [
-        {
-          "type": "string"
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
         },
-        {
-          "type": "object",
-          "required": ["field"],
-          "properties": {
-            "field": {
-              "type": "string",
-              "minLength": 1
-            },
-            "type": {
-              "type": "string",
-              "enum": ["date", "number", "category"]
-            },
-            "format": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
+        "type": {
+          "type": "string",
+          "enum": ["date", "number", "category"]
+        },
+        "format": {
+          "type": "string"
         }
-      ]
+      },
+      "additionalProperties": false
     },
     "colorEncoding": {
       "type": "object",

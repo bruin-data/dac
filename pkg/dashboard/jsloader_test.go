@@ -76,7 +76,7 @@ func TestLoadTSXFile_DataDrivenWithMockBackend(t *testing.T) {
 		t.Errorf("expected %q, got %q", "Completed Orders", d.Rows[1].Widgets[0].Name)
 	}
 
-	// Row 2: charts (bar with data-driven y series + pie)
+	// Row 2: charts (stacked bar split by color + pie)
 	if len(d.Rows[2].Widgets) != 2 {
 		t.Fatalf("expected 2 chart widgets, got %d", len(d.Rows[2].Widgets))
 	}
@@ -84,8 +84,14 @@ func TestLoadTSXFile_DataDrivenWithMockBackend(t *testing.T) {
 	if bar.Chart != "bar" {
 		t.Errorf("expected bar chart, got %q", bar.Chart)
 	}
-	if len(bar.YFields()) != 3 {
-		t.Errorf("expected 3 y series from regions, got %d", len(bar.YFields()))
+	if got := bar.YFields(); len(got) != 1 || got[0] != "revenue" {
+		t.Errorf("expected y = [revenue], got %v", got)
+	}
+	if !bar.Stacked {
+		t.Error("expected stacked bar")
+	}
+	if bar.ColorField() != "region" {
+		t.Errorf("expected color field %q, got %q", "region", bar.ColorField())
 	}
 
 	// Rows 3-4: auto-discovered table previews
