@@ -16,8 +16,8 @@ rows:
             SUM(amount) AS revenue
           FROM sales
           GROUP BY 1 ORDER BY 1
-        x: month
-        y: [revenue]
+        x: { field: month }
+        y: { field: [revenue] }
       - name: Order Volume
         type: chart
         chart: sparkline
@@ -28,8 +28,8 @@ rows:
             COUNT(*) AS orders
           FROM orders
           GROUP BY 1 ORDER BY 1
-        x: month
-        y: [orders]
+        x: { field: month }
+        y: { field: [orders] }
       - name: Avg Order Size
         type: chart
         chart: sparkline
@@ -40,8 +40,8 @@ rows:
             ROUND(AVG(amount), 2) AS avg_amount
           FROM orders
           GROUP BY 1 ORDER BY 1
-        x: month
-        y: [avg_amount]
+        x: { field: month }
+        y: { field: [avg_amount] }
 
   # Scatter + Histogram
   - widgets:
@@ -55,8 +55,8 @@ rows:
             amount
           FROM orders
           ORDER BY created_at
-        x: date
-        y: [amount]
+        x: { field: date }
+        y: { field: [amount] }
       - name: Order Size Histogram
         type: chart
         chart: histogram
@@ -64,7 +64,7 @@ rows:
         bins: 15
         sql: |
           SELECT amount FROM orders
-        x: amount
+        x: { field: amount }
 
   # Combo + Waterfall
   - widgets:
@@ -80,8 +80,8 @@ rows:
             COUNT(*) AS orders
           FROM sales
           GROUP BY 1 ORDER BY 1
-        x: month
-        y: [revenue, orders]
+        x: { field: month }
+        y: { field: [revenue, orders] }
       - name: Monthly Revenue Changes
         type: chart
         chart: waterfall
@@ -92,8 +92,8 @@ rows:
             SUM(amount)::INTEGER AS revenue
           FROM sales
           GROUP BY 1 ORDER BY 1
-        x: month
-        y: [revenue]
+        x: { field: month }
+        y: { field: [revenue] }
 
   # Funnel + Sankey
   - widgets:
@@ -109,7 +109,7 @@ rows:
           GROUP BY 1
           ORDER BY count DESC
         label: status
-        value: count
+        value: { field: count }
       - name: Region to Status Flow
         type: chart
         chart: sankey
@@ -125,7 +125,7 @@ rows:
           ORDER BY 1, 2
         source: source
         target: target
-        value: value
+        value: { field: value }
 
   # Heatmap + Calendar
   - widgets:
@@ -141,9 +141,9 @@ rows:
           FROM sales
           GROUP BY 1, 2
           ORDER BY 1, 2
-        x: month
-        y: [region]
-        value: revenue
+        x: { field: month }
+        y: { field: [region] }
+        value: { field: revenue }
       - name: Daily Sales Calendar
         type: chart
         chart: calendar
@@ -155,8 +155,8 @@ rows:
           FROM sales
           GROUP BY 1
           ORDER BY 1
-        x: date
-        value: revenue
+        x: { field: date }
+        value: { field: revenue }
 
   # Bubble + Dumbbell
   - widgets:
@@ -172,8 +172,8 @@ rows:
             ROUND(AVG(amount), 0)::INTEGER AS avg_amount
           FROM sales
           GROUP BY 1 ORDER BY 1
-        x: month
-        y: [revenue]
+        x: { field: month }
+        y: { field: [revenue] }
         size: num_sales
       - name: H1 vs H2 Revenue by Region
         type: chart
@@ -187,8 +187,8 @@ rows:
           FROM sales
           GROUP BY 1
           ORDER BY 1
-        x: region
-        y: [h1_revenue, h2_revenue]
+        x: { field: region }
+        y: { field: [h1_revenue, h2_revenue] }
 
   # Boxplot
   - widgets:
@@ -200,5 +200,5 @@ rows:
           SELECT status, amount
           FROM orders
           ORDER BY status
-        x: status
-        y: [amount]
+        x: { field: status }
+        y: { field: [amount] }

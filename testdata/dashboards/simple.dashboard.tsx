@@ -9,8 +9,6 @@ const statuses = query("local_duckdb", "SELECT DISTINCT status FROM orders ORDER
 const tables = query("local_duckdb",
   "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY 1"
 )
-const regionSeries = regions.rows.length ? regions.rows.map(([r]) => r) : ["placeholder"]
-
 // Reusable KPI component
 function KPI({ name, sql, format = ",.0f", ...rest }) {
   return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format }} {...rest} />
@@ -56,18 +54,18 @@ export default (
         name="Revenue by Region"
         chart="bar"
         stacked={true}
+        color={{ field: "region" }}
         col={8}
         sql={`
           SELECT
             STRFTIME(DATE_TRUNC('month', created_at), '%Y-%m') AS month,
-            ${regions.rows.map(([r]) =>
-              `SUM(CASE WHEN region = '${r}' THEN amount ELSE 0 END) AS "${r}"`
-            ).join(",\n            ")}
+            region,
+            SUM(amount) AS revenue
           FROM sales
-          GROUP BY 1 ORDER BY 1
+          GROUP BY 1, 2 ORDER BY 1, 2
         `}
-        x="month"
-        y={regionSeries}
+        x={{ field: "month", type: "date", format: "%b %Y" }}
+        y={{ field: "revenue", type: "number", format: "$,.0f" }}
       />
       <Chart
         name="Orders by Status"
@@ -75,7 +73,7 @@ export default (
         col={4}
         sql="SELECT status, COUNT(*) as count FROM orders GROUP BY 1"
         label="status"
-        value="count"
+        value={{ field: "count" }}
       />
     </Row>
 

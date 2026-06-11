@@ -15,7 +15,7 @@ rows:
             SUM(amount)::INTEGER AS current,
             15000000 AS target
           FROM sales
-        value: current
+        value: { field: current }
         target: target
 
       - name: Revenue by Region (Treemap)
@@ -28,7 +28,7 @@ rows:
           GROUP BY region
           ORDER BY revenue DESC
         label: region
-        value: revenue
+        value: { field: revenue }
 
   # Radar
   - widgets:
@@ -45,8 +45,8 @@ rows:
           WHERE status IS NOT NULL
           GROUP BY status
           ORDER BY status
-        x: status
-        y: [h1, h2]
+        x: { field: status }
+        y: { field: [h1, h2] }
 
       - name: Channel Mix by Region
         type: chart
@@ -61,8 +61,8 @@ rows:
           FROM sales
           GROUP BY region
           ORDER BY region
-        x: region
-        y: [direct, retail, partner]
+        x: { field: region }
+        y: { field: [direct, retail, partner] }
 
   # Candlestick
   - widgets:
@@ -82,7 +82,7 @@ rows:
           GROUP BY 1
           ORDER BY 1
           LIMIT 30
-        x: date
+        x: { field: date }
         open: open
         high: high
         low: low

@@ -23,7 +23,18 @@ queries:
         AND region = '{{ filters.region }}'
       {% endif %}
   revenue_by_month:
-    file: queries/revenue_by_month.sql
+    sql: |
+      SELECT
+          DATE_TRUNC('month', created_at) AS month,
+          SUM(amount) AS revenue
+      FROM sales
+      WHERE created_at >= '{{ filters.date_range.start }}'
+        AND created_at <= '{{ filters.date_range.end }}'
+      {% if filters.region != 'All' %}
+        AND region = '{{ filters.region }}'
+      {% endif %}
+      GROUP BY 1
+      ORDER BY 1
 
 rows:
   # KPI row
@@ -76,8 +87,8 @@ rows:
         type: chart
         chart: area
         query: revenue_by_month
-        x: month
-        y: [revenue]
+        x: { field: month, type: date, title: Month, format: "%b %Y" }
+        y: { field: [revenue], type: number, title: Revenue, format: "$,.0f" }
         col: 8
       - name: Revenue by Region
         type: chart
@@ -92,7 +103,7 @@ rows:
           {% endif %}
           GROUP BY 1
         label: region
-        value: total
+        value: { field: total }
 
   # Orders by month + status breakdown
   - widgets:
@@ -100,23 +111,23 @@ rows:
         type: chart
         chart: bar
         stacked: true
+        color: { field: region }
         col: 6
         sql: |
           SELECT
             STRFTIME(DATE_TRUNC('month', created_at), '%Y-%m') AS month,
-            SUM(CASE WHEN region = 'North America' THEN amount ELSE 0 END) AS "North America",
-            SUM(CASE WHEN region = 'Europe' THEN amount ELSE 0 END) AS "Europe",
-            SUM(CASE WHEN region = 'APAC' THEN amount ELSE 0 END) AS "APAC"
+            region,
+            SUM(amount) AS revenue
           FROM sales
           WHERE created_at >= '{{ filters.date_range.start }}'
             AND created_at <= '{{ filters.date_range.end }}'
           {% if filters.region != 'All' %}
             AND region = '{{ filters.region }}'
           {% endif %}
-          GROUP BY 1
-          ORDER BY 1
-        x: month
-        y: ["North America", "Europe", "APAC"]
+          GROUP BY 1, 2
+          ORDER BY 1, 2
+        x: { field: month, type: date, title: Month, format: "%b %y" }
+        y: { field: revenue, type: number, title: Revenue, format: "$,.0f" }
       - name: Order Status
         type: chart
         chart: pie
@@ -128,7 +139,7 @@ rows:
           GROUP BY 1
           ORDER BY 2 DESC
         label: status
-        value: count
+        value: { field: count }
 
   # Top customers + region revenue table
   - widgets:
@@ -192,7 +203,13 @@ rows:
   - widgets:
       - name: Recent Orders
         type: table
-        file: queries/recent_orders.sql
+        sql: |
+          SELECT id, customer_name, amount, status, created_at
+          FROM orders
+          WHERE created_at >= '{{ filters.date_range.start }}'
+            AND created_at <= '{{ filters.date_range.end }}'
+          ORDER BY created_at DESC
+          LIMIT 25
         columns:
           - name: id
             label: Order ID

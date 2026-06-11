@@ -413,8 +413,8 @@ __INIT_CTE_WIDGET__
           {% endif %}
           GROUP BY 1
           ORDER BY 1
-        x: month
-        y: [revenue]
+        x: { field: month }
+        y: { field: [revenue] }
 
       - name: Revenue by Region
         type: chart
@@ -428,8 +428,8 @@ __INIT_CTE_WIDGET__
             AND created_at <= '{{ filters.date_range.end }}'
           GROUP BY 1
           ORDER BY 2 DESC
-        x: region
-        y: [revenue]
+        x: { field: region }
+        y: { field: [revenue] }
 
   - widgets:
       - name: Recent Sales
