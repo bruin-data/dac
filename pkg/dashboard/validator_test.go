@@ -113,6 +113,52 @@ func TestValidate_ChartWidgetMissingChartType(t *testing.T) {
 	assertValidationContains(t, err, "chart type is required")
 }
 
+func TestValidate_StackedRequiresColor(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "bar", SQL: "SELECT 1",
+				X: &AxisEncoding{Field: "month"}, Y: &AxisEncoding{Field: "revenue"},
+				Stacked: true,
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "stacked requires color")
+}
+
+func TestValidate_StackedOnlyOnBarCharts(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "area", SQL: "SELECT 1",
+				X: &AxisEncoding{Field: "month"}, Y: &AxisEncoding{Field: "revenue"},
+				Stacked: true, Color: &ColorEncoding{Field: "region"},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "stacked is only valid on bar charts")
+}
+
+func TestValidate_StackedBarWithColor(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "bar", SQL: "SELECT 1",
+				X: &AxisEncoding{Field: "month"}, Y: &AxisEncoding{Field: "revenue"},
+				Stacked: true, Color: &ColorEncoding{Field: "region"},
+			}}},
+		},
+	}
+	assertNoErr(t, Validate(d))
+}
+
 func TestValidate_FilterTypes(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",
