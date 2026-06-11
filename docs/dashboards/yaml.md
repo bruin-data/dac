@@ -145,9 +145,8 @@ Widgets can get their data from:
 
 1. `query`: reference a named query
 2. `sql`: inline SQL
-3. `file`: external `.sql` file relative to the dashboard
-4. `metric`: semantic metric reference with a model context
-5. semantic widget fields: `dimension`, `dimensions`, `metrics`, `filters`, `segments`, `sort`, `limit`
+3. `metric`: semantic metric reference with a model context
+4. semantic widget fields: `dimension`, `dimensions`, `metrics`, `filters`, `segments`, `sort`, `limit`
 
 ### Named Query Reference
 

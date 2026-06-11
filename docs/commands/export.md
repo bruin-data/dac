@@ -70,7 +70,7 @@ Created presentation: https://docs.google.com/presentation/d/1abc.../edit
 
 | Widget | Rendering |
 |--------|-----------|
-| Metric | Formatted text box with value, prefix/suffix |
+| Metric | Formatted text box with the rendered metric value |
 | Chart (line, area, bar, pie) | PNG image via go-chart |
 | Table | Native Slides table |
 | Text | Not currently exported |

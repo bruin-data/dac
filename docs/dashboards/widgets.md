@@ -11,7 +11,7 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 | `col` | integer | No | Column span from 1 to 12 |
 | `description` | string | No | Optional tooltip or subtitle |
 
-Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), `file` (external `.sql` path), or a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
+Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), or a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
 
 ## Metric
 
