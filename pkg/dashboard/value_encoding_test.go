@@ -2,28 +2,21 @@ package dashboard
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
-func TestValueEncoding_YAML_ScalarField(t *testing.T) {
+func TestValueEncoding_YAML_BareScalarRejected(t *testing.T) {
 	yamlBody := `value: amount`
 	var w Widget
-	if err := yaml.Unmarshal([]byte(yamlBody), &w); err != nil {
-		t.Fatalf("unmarshal: %v", err)
+	err := yaml.Unmarshal([]byte(yamlBody), &w)
+	if err == nil {
+		t.Fatal("expected error for bare scalar value, got nil")
 	}
-	if w.Value == nil {
-		t.Fatal("expected Value to be populated")
-	}
-	if w.Value.Field != "amount" {
-		t.Errorf("expected Field = %q, got %q", "amount", w.Value.Field)
-	}
-	if w.Value.Type != "" || w.Value.Format != "" {
-		t.Errorf("expected no metadata, got %+v", w.Value)
-	}
-	if w.ValueField() != "amount" {
-		t.Errorf("ValueField() = %q, want %q", w.ValueField(), "amount")
+	if !strings.Contains(err.Error(), "field key") {
+		t.Errorf("expected guidance toward object form, got: %v", err)
 	}
 }
 
@@ -50,16 +43,16 @@ value:
 	if w.Value.Format != "$,.2f" {
 		t.Errorf("expected Format = %q, got %q", "$,.2f", w.Value.Format)
 	}
+	if w.ValueField() != "total_revenue" {
+		t.Errorf("ValueField() = %q, want %q", w.ValueField(), "total_revenue")
+	}
 }
 
-func TestValueEncoding_JSON_ScalarField(t *testing.T) {
+func TestValueEncoding_JSON_BareScalarRejected(t *testing.T) {
 	body := []byte(`{"value": "amount"}`)
 	var w Widget
-	if err := json.Unmarshal(body, &w); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if w.ValueField() != "amount" {
-		t.Errorf("expected amount, got %q", w.ValueField())
+	if err := json.Unmarshal(body, &w); err == nil {
+		t.Fatal("expected error for bare scalar value, got nil")
 	}
 }
 
@@ -80,7 +73,7 @@ func TestValueEncoding_JSON_ObjectForm(t *testing.T) {
 	}
 }
 
-func TestValueEncoding_JSON_MarshalBareWhenNoMetadata(t *testing.T) {
+func TestValueEncoding_JSON_MarshalAlwaysObject(t *testing.T) {
 	w := Widget{Value: &ValueEncoding{Field: "amount"}}
 	out, err := json.Marshal(struct {
 		Value *ValueEncoding `json:"value"`
@@ -88,13 +81,13 @@ func TestValueEncoding_JSON_MarshalBareWhenNoMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	want := `{"value":"amount"}`
+	want := `{"value":{"field":"amount"}}`
 	if string(out) != want {
 		t.Errorf("expected %s, got %s", want, string(out))
 	}
 }
 
-func TestValueEncoding_JSON_MarshalObjectWhenMetadataPresent(t *testing.T) {
+func TestValueEncoding_JSON_MarshalIncludesMetadata(t *testing.T) {
 	v := &ValueEncoding{Field: "amount", Type: "number", Format: "$,.2f"}
 	out, err := json.Marshal(v)
 	if err != nil {
@@ -109,8 +102,8 @@ func TestValueEncoding_JSON_MarshalObjectWhenMetadataPresent(t *testing.T) {
 	}
 }
 
-func TestValueEncoding_YAML_RoundTripBare(t *testing.T) {
-	yamlIn := "value: amount\n"
+func TestValueEncoding_YAML_RoundTripObject(t *testing.T) {
+	yamlIn := "value:\n    field: amount\n"
 	var w struct {
 		Value *ValueEncoding `yaml:"value"`
 	}
