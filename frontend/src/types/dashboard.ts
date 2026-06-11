@@ -34,7 +34,6 @@ export interface Filter {
 
 export interface Query {
   sql?: string;
-  file?: string;
   connection?: string;
   model?: string;
   dimensions?: SemanticDimensionRef[];
@@ -60,7 +59,6 @@ export interface Widget {
   // Query source
   query?: string;
   sql?: string;
-  file?: string;
   connection?: string;
   model?: string;
 
@@ -76,12 +74,16 @@ export interface Widget {
 
   // Chart
   chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick";
-  x?: string;
-  y?: string[];
+  x?: AxisEncoding;
+  y?: AxisEncoding;
   label?: string;
   // metric: the value + formatting; pie/funnel/heatmap/calendar/treemap/gauge: value column
-  value?: string | ValueEncoding;
-  stacked?: boolean;
+  value?: ValueEncoding;
+  // bar/line/area: split the single y series by a category column (long-format SQL)
+  color?: ColorEncoding;
+  stacked?: boolean;    // bar only; requires color
+  normalized?: boolean; // stacked bars as percentages
+  horizontal?: boolean; // bar only
   size?: string;       // bubble: size dimension
   source?: string;     // sankey: source column
   target?: string;     // sankey: target column / gauge: target (max) column
@@ -109,6 +111,19 @@ export interface TableColumn {
   name: string;
   label?: string;
   format?: string;
+}
+
+/** Structured encoding for a chart axis. `y.field` may list several series columns. */
+export interface AxisEncoding {
+  field: string | string[];
+  type?: "number" | "date" | "category";
+  title?: string;  // human-readable axis label
+  format?: string; // d3-format / d3-time-format string for tick labels
+}
+
+/** Encoding for the color channel: the category column that splits y into series. */
+export interface ColorEncoding {
+  field: string;
 }
 
 /** Structured encoding for a widget's value channel (metric value, pie/funnel/gauge value column). */
