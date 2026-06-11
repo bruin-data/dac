@@ -70,7 +70,7 @@ export function TableWidget({ data }: Props) {
                   numericCols[idx] ? "text-right" : ""
                 }`}
               >
-                {col.name}
+                {col.name.replace(/_/g, " ")}
                 {sort?.col === idx && (
                   <span className="ml-1">{sort.dir === "asc" ? "↑" : "↓"}</span>
                 )}
