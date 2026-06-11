@@ -171,21 +171,12 @@ type Widget struct {
 	Low        string         `yaml:"low,omitempty" json:"low,omitempty"`       // candlestick: low price column
 	Close      string         `yaml:"close,omitempty" json:"close,omitempty"`   // candlestick: close price column
 
-	// Table fields
-	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
-
 	// Text fields
 	Content string `yaml:"content,omitempty" json:"content,omitempty"`
 
 	// Image fields
 	Src string `yaml:"src,omitempty" json:"src,omitempty"`
 	Alt string `yaml:"alt,omitempty" json:"alt,omitempty"`
-}
-
-type TableColumn struct {
-	Name   string `yaml:"name" json:"name"`
-	Label  string `yaml:"label,omitempty" json:"label,omitempty"`
-	Format string `yaml:"format,omitempty" json:"format,omitempty"`
 }
 
 type SemanticDimensionRef struct {
