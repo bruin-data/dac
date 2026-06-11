@@ -30,9 +30,8 @@ string for display.
   col: 3
 ```
 
-`value` also accepts a bare string as shorthand for the field name (`value: revenue`
-is the same as `value: { field: revenue }`), in which case the number is rendered
-with an auto-compact fallback (e.g. `1.2M`).
+`field` is required; bare column names (`value: revenue`) are not valid. When
+`format` is omitted the number is rendered with an auto-compact fallback (e.g. `1.2M`).
 
 Metric widgets can also use semantic models:
 
@@ -60,7 +59,7 @@ Metric-specific fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `value` | string \| object | Value encoding. String form is the field name; object form takes `field`, `type`, and `format` |
+| `value` | object | Value encoding: `field` (required), `type`, and `format` |
 | `value.field` | string | Result column to display |
 | `value.type` | string | `number`, `date`, or `category` |
 | `value.format` | string | [d3-format](https://d3js.org/d3-format) string (numbers, e.g. `"$,.2f"`, `".0%"`) or d3-time-format string (dates, e.g. `"%b %Y"`) |
@@ -78,9 +77,9 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 
 | Chart | Required | Optional | Description |
 |-------|----------|----------|-------------|
-| `line` | `x`, `y` | | Line chart |
-| `bar` | `x`, `y` | `stacked` | Bar chart |
-| `area` | `x`, `y` | `stacked` | Area chart |
+| `line` | `x`, `y` | `color` | Line chart |
+| `bar` | `x`, `y` | `color`, `stacked`, `normalized`, `horizontal` | Bar chart |
+| `area` | `x`, `y` | `color` | Area chart |
 | `pie` | `label`, `value` | | Pie/donut chart |
 | `scatter` | `x`, `y` | | Scatter plot |
 | `bubble` | `x`, `y`, `size` | | Bubble chart |
@@ -110,10 +109,50 @@ SQL-backed example:
     SELECT month, revenue
     FROM monthly_revenue
     ORDER BY month
-  x: month
-  y: [revenue]
+  x: { field: month, type: date, format: "%b %Y" }
+  y: { field: [revenue], type: number, title: Revenue, format: "$,.0f" }
   col: 8
 ```
+
+### Axis encoding
+
+`x` and `y` are encoding objects. `field` names the SQL column to plot (`y.field` accepts a list for multiple series); the remaining keys control how the axis renders:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `field` | string \| string[] | SQL column(s) to plot. Required. |
+| `type` | string | `number`, `date`, or `category`. Selects the axis scale and the format language (`date` uses d3-time-format, otherwise d3-format). |
+| `title` | string | Human-readable axis label rendered next to the axis. |
+| `format` | string | d3-format / d3-time-format string for tick labels, e.g. `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`. |
+
+Without `format`, ticks fall back to automatic compact formatting. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
+
+### Series by category (color)
+
+`color` names a category column that splits the single `y` series into one series
+per distinct category value. The SQL returns long format — one row per x/category
+pair — instead of pivoting with `CASE WHEN`:
+
+```yaml
+- name: Sales by Region
+  type: chart
+  chart: bar
+  stacked: true                  # bar only; requires color
+  color: { field: region }
+  sql: |
+    SELECT month, region, SUM(amount) AS revenue
+    FROM sales GROUP BY 1, 2 ORDER BY 1, 2
+  x: { field: month }
+  y: { field: revenue }
+  col: 6
+```
+
+Rules:
+
+- `color` works on `bar`, `line`, and `area` charts and requires a single `y` field.
+- `stacked: true` is bar-only and requires `color`. Listing multiple `y` columns renders **grouped** bars (or multiple lines/areas), never stacked.
+- `normalized: true` shows each stacked bar as percentages of the row total; the y axis renders `%` automatically, so omit `y.format`.
+- `horizontal: true` flips a bar chart: categories run down the vertical axis.
 
 Semantic example:
 
@@ -136,17 +175,20 @@ Common chart fields:
 | Field | Type | Description |
 |-------|------|-------------|
 | `chart` | string | Chart type |
-| `x` | string | X-axis column for SQL-backed charts |
-| `y` | string[] | Y-axis columns for SQL-backed charts |
+| `x` | object | X-axis encoding (`field`, `type`, `title`, `format`) |
+| `y` | object | Y-axis encoding (`field` may list several series columns) |
 | `label` | string | Label column for pie, funnel, and treemap charts |
-| `value` | string | Value column for pie, funnel, heatmap, calendar, treemap, and gauge charts |
+| `value` | object | Value encoding (`{ field: ... }`) for pie, funnel, sankey, heatmap, calendar, treemap, and gauge charts |
 | `source` | string | Source node column for sankey charts |
 | `target` | string | Target/max column for gauge charts (also sankey target node) |
 | `open` | string | Open column for candlestick charts |
 | `high` | string | High column for candlestick charts |
 | `low` | string | Low column for candlestick charts |
 | `close` | string | Close column for candlestick charts |
-| `stacked` | boolean | Stack series for bar and area charts |
+| `color` | object | Category column (`{ field: ... }`) that splits the single `y` series into one series per category — bar, line, and area charts |
+| `stacked` | boolean | Stack the color series (bar charts only; requires `color`) |
+| `normalized` | boolean | Render stacked bars as percentages of the row total (requires `stacked`) |
+| `horizontal` | boolean | Horizontal bars: categories on the vertical axis (bar charts only) |
 | `size` | string | Bubble size column for bubble charts |
 | `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
 | `bins` | integer | Number of bins for histogram charts (default 10) |
