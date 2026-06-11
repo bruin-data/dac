@@ -466,6 +466,12 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 			errs = append(errs, fmt.Sprintf("%s: color with multiple y fields is not supported", prefix))
 		}
 	}
+	if w.Stacked && w.Chart != "bar" {
+		errs = append(errs, fmt.Sprintf("%s: stacked is only valid on bar charts", prefix))
+	}
+	if w.Stacked && w.Color == nil {
+		errs = append(errs, fmt.Sprintf("%s: stacked requires color — return one row per category (long format) and set color: { field: <category column> }", prefix))
+	}
 	if w.Normalized && !w.Stacked {
 		errs = append(errs, fmt.Sprintf("%s: normalized requires stacked: true", prefix))
 	}
