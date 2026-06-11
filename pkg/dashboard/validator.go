@@ -236,8 +236,8 @@ func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 		}
 		return errs
 	}
-	if w.QueryRef == "" && w.SQL == "" && w.File == "" {
-		errs = append(errs, fmt.Sprintf("%s: one of query, sql, or file is required", prefix))
+	if w.QueryRef == "" && w.SQL == "" {
+		errs = append(errs, fmt.Sprintf("%s: one of query or sql is required", prefix))
 	}
 	if w.QueryRef != "" {
 		if _, ok := d.Queries[w.QueryRef]; !ok {

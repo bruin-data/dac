@@ -105,7 +105,6 @@ func (dim *Dimension) IsDate() bool {
 // Query represents a named query definition.
 type Query struct {
 	SQL        string                 `yaml:"sql,omitempty" json:"sql,omitempty"`
-	File       string                 `yaml:"file,omitempty" json:"file,omitempty"`
 	Connection string                 `yaml:"connection,omitempty" json:"connection,omitempty"`
 	Model      string                 `yaml:"model,omitempty" json:"model,omitempty"`
 	Dimensions []SemanticDimensionRef `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
@@ -123,7 +122,7 @@ type Row struct {
 }
 
 // Widget represents a single dashboard widget.
-// Query resolution priority: query (named ref) > sql (inline) > file (external).
+// Query resolution priority: query (named ref) > sql (inline).
 type Widget struct {
 	ID          string `yaml:"id,omitempty" json:"id,omitempty"`
 	Name        string `yaml:"name" json:"name"`
@@ -134,7 +133,6 @@ type Widget struct {
 	// Query source (pick one)
 	QueryRef  string `yaml:"query,omitempty" json:"query,omitempty"` // reference to queries map key
 	SQL       string `yaml:"sql,omitempty" json:"sql,omitempty"`
-	File      string `yaml:"file,omitempty" json:"file,omitempty"`
 	MetricRef string `yaml:"metric,omitempty" json:"metric,omitempty"` // reference to metrics map key
 	Model     string `yaml:"model,omitempty" json:"model,omitempty"`
 
@@ -419,21 +417,9 @@ func (w *Widget) ResolvedQuery(dashboard *Dashboard) (sql, connection string, er
 		if conn == "" {
 			conn = dashboard.Connection
 		}
-		if q.SQL != "" {
-			return q.SQL, conn, nil
-		}
-		// File-based query — SQL should have been loaded by the loader.
 		return q.SQL, conn, nil
 
 	case w.SQL != "":
-		conn := w.Connection
-		if conn == "" {
-			conn = dashboard.Connection
-		}
-		return w.SQL, conn, nil
-
-	case w.File != "":
-		// File-based inline query — SQL should have been loaded by the loader.
 		conn := w.Connection
 		if conn == "" {
 			conn = dashboard.Connection
@@ -721,5 +707,5 @@ type NoQueryError struct {
 }
 
 func (e *NoQueryError) Error() string {
-	return "widget \"" + e.Widget + "\": no query, sql, or file specified"
+	return "widget \"" + e.Widget + "\": no query or sql specified"
 }

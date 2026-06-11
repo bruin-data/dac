@@ -125,9 +125,6 @@
         "sql": {
           "type": "string"
         },
-        "file": {
-          "type": "string"
-        },
         "connection": {
           "type": "string"
         },
@@ -215,9 +212,6 @@
           "type": "string"
         },
         "sql": {
-          "type": "string"
-        },
-        "file": {
           "type": "string"
         },
         "metric": {
