@@ -96,21 +96,12 @@ export interface Widget {
   low?: string;        // candlestick: low column
   close?: string;      // candlestick: close column
 
-  // Table
-  columns?: TableColumn[];
-
   // Text
   content?: string;
 
   // Image
   src?: string;
   alt?: string;
-}
-
-export interface TableColumn {
-  name: string;
-  label?: string;
-  format?: string;
 }
 
 /** Structured encoding for a chart axis. `y.field` may list several series columns. */

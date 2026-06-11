@@ -58,7 +58,6 @@ Named semantic queries use the same model resolution rules as widgets. If `model
 | Field | Type | Description |
 |-------|------|-------------|
 | `sql` | string | Inline SQL |
-| `file` | string | Path to a `.sql` file, relative to the dashboard |
 | `connection` | string | Connection override |
 
 ### Semantic Fields
@@ -78,13 +77,12 @@ Semantic query fields are compiled to SQL by the backend REST API when the widge
 
 ## Widget Query Sources
 
-Every data widget needs a query. You can provide one in five ways:
+Every data widget needs a query. You can provide one in four ways:
 
 1. `query`: reference a named query
 2. `sql`: inline SQL
-3. `file`: external `.sql` file
-4. `metric`: semantic metric reference with a model context
-5. semantic widget fields such as `dimension`, `dimensions`, `metrics`, `filters`, `segments`, `sort`, and `limit`
+3. `metric`: semantic metric reference with a model context
+4. semantic widget fields such as `dimension`, `dimensions`, `metrics`, `filters`, `segments`, `sort`, and `limit`
 
 Examples:
 

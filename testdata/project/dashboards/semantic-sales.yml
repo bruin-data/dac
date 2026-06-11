@@ -83,10 +83,3 @@ rows:
           - name: revenue
             direction: desc
         limit: 10
-        columns:
-          - name: country
-            label: Country
-          - name: revenue
-            label: Revenue
-          - name: order_count
-            label: Orders

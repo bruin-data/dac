@@ -89,15 +89,3 @@ rows:
             AND amount >= {{ filters.min_order_value }}
           ORDER BY created_at DESC
           LIMIT 20
-        columns:
-          - name: id
-            label: Order ID
-          - name: customer_name
-            label: Customer
-          - name: amount
-            label: Amount
-            format: currency
-          - name: status
-            label: Status
-          - name: created_at
-            label: Date
