@@ -50,7 +50,7 @@ my-project/
     lib/
       kpi.tsx                   # Shared TSX helpers (not auto-discovered)
     queries/
-      my_query.sql              # SQL files for TSX include() and dac query -f
+      my_query.sql              # SQL files for ad-hoc runs with dac query -f
   themes/
     corporate.yml               # Optional custom themes (token overrides)
 ```
@@ -59,7 +59,7 @@ my-project/
 - Any `*.dashboard.tsx` file is auto-discovered as a TSX dashboard.
 - Files in `lib/` or without the `.dashboard.tsx` suffix are NOT auto-discovered (use `require()` to import them).
 - Files starting with `.` are ignored (e.g. `.bruin.yml`).
-- SQL files in `queries/` are for TSX `include()` and `dac query -f` — YAML widgets always inline their SQL (or reference a named query).
+- SQL files in `queries/` are only for ad-hoc runs with `dac query -f` — widgets always inline their SQL (or reference a named query).
 
 ---
 
@@ -345,8 +345,6 @@ rows:
 Every widget (except `text`, `divider`, and `image`) needs a query source. **Priority order:**
 1. `query: <name>` — reference a named query from the `queries:` map
 2. `sql: |` — inline SQL
-
-(In TSX, `include("path/to/query.sql")` reads a .sql file into an inline `sql` string at load time.)
 
 ### Metric Widget
 
@@ -1042,20 +1040,6 @@ TSX dashboards support both JS template literals (resolved at load time) and Jin
 
 - **`${...}`** (JS template literal) — resolved when goja runs the script at load time
 - **`{{ ... }}`** (Jinja) — preserved in the SQL string, resolved per request with filter values
-
-### `include()` — Read SQL Files
-
-```tsx
-const sql = include("queries/recent_orders.sql")
-
-export default (
-  <Dashboard name="Orders" connection="duckdb">
-    <Row>
-      <Table name="Recent" sql={sql} col={12} />
-    </Row>
-  </Dashboard>
-)
-```
 
 ### `require()` — Import Shared Modules
 

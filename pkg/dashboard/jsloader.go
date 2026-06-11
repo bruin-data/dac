@@ -132,16 +132,7 @@ func evalTSX(source, filePath string, cfg *tsxConfig) (*Dashboard, error) {
 	})
 	_ = vm.Set("console", console)
 
-	// Register include() for reading .sql files.
 	baseDir := filepath.Dir(filePath)
-	_ = vm.Set("include", func(call goja.FunctionCall) goja.Value {
-		relPath := call.Argument(0).String()
-		content, err := readQueryFile(baseDir, relPath)
-		if err != nil {
-			panic(vm.ToValue(err.Error()))
-		}
-		return vm.ToValue(content)
-	})
 
 	// Register require() for importing modules.
 	moduleCache := make(map[string]goja.Value)
