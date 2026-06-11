@@ -703,48 +703,6 @@ export default (
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Include SQL files
-// ---------------------------------------------------------------------------
-
-func TestEvalTSX_IncludeSQLFile(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	sqlDir := filepath.Join(tmpDir, "queries")
-	if err := os.MkdirAll(sqlDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	sqlContent := "SELECT * FROM orders ORDER BY created_at DESC LIMIT 20"
-	if err := os.WriteFile(filepath.Join(sqlDir, "recent.sql"), []byte(sqlContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	dashCode := `
-const sql = include("queries/recent.sql")
-
-export default (
-  <Dashboard name="Include Test" connection="db">
-    <Row>
-      <Table name="Recent" sql={sql} col={12} />
-    </Row>
-  </Dashboard>
-)
-`
-	dashPath := filepath.Join(tmpDir, "test.dashboard.tsx")
-	if err := os.WriteFile(dashPath, []byte(dashCode), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	d, err := LoadTSXFile(dashPath)
-	assertNoErr(t, err)
-
-	w := d.Rows[0].Widgets[0]
-	if w.SQL != sqlContent {
-		t.Errorf("expected SQL from file, got: %s", w.SQL)
-	}
-}
-
 func TestLoadTSXFile_ProjectSemanticDashboard(t *testing.T) {
 	d, err := LoadTSXFile("../../testdata/project/dashboards/semantic.dashboard.tsx")
 	assertNoErr(t, err)

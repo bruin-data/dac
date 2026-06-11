@@ -48,14 +48,13 @@ TSX is useful when you need:
 - loops and conditionals
 - shared variables and helpers
 - load-time queries to shape the dashboard
-- reusable modules and includes
+- reusable modules
 
 ## Global Functions
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `query` | `query(connection: string, sql: string): QueryResult` | Execute SQL at dashboard load time |
-| `include` | `include(path: string): string` | Read a file relative to the dashboard |
 | `require` | `require(path: string): any` | Import another module |
 
 ### QueryResult

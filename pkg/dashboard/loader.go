@@ -126,16 +126,6 @@ func loadFileWithContext(path string, paths ProjectPaths, semanticModels semanti
 	return &d, nil
 }
 
-// readQueryFile reads a .sql file relative to the dashboard; used by the TSX include() helper.
-func readQueryFile(baseDir, relPath string) (string, error) {
-	path := filepath.Join(baseDir, relPath)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("reading query file %s: %w", relPath, err)
-	}
-	return string(data), nil
-}
-
 func isYAMLFile(name string) bool {
 	ext := strings.ToLower(filepath.Ext(name))
 	return ext == ".yml" || ext == ".yaml"
