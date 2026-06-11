@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import type { Widget, WidgetData } from "../../types/dashboard";
-import { buildFormatter, valueEncoding } from "../../lib/format";
+import { buildFormatter } from "../../lib/format";
 
 interface Props {
   widget: Widget;
@@ -37,7 +37,7 @@ function useAutoFit(text: string) {
 export function MetricWidget({ widget, data }: Props) {
   const hasData = !!data?.rows?.length && !!data.columns?.length;
 
-  const enc = valueEncoding(widget.value);
+  const enc = widget.value;
   const colIdx = hasData && enc?.field ? data.columns.findIndex((c) => c.name === enc.field) : -1;
   const rawValue = hasData ? (colIdx >= 0 ? data.rows[0][colIdx] : data.rows[0][0]) : null;
   const formatted = hasData ? buildFormatter(enc)(rawValue) : "";
