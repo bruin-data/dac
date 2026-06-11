@@ -436,16 +436,6 @@ __INIT_CTE_WIDGET__
         type: table
         col: 12
         query: filtered_sales
-        columns:
-          - name: created_at
-            label: Date
-          - name: region
-            label: Region
-          - name: channel
-            label: Channel
-          - name: amount
-            label: Amount
-            format: currency
 `)
 
 const initSemanticModel = `name: sales
@@ -632,17 +622,6 @@ rows:
         sort:
           - name: revenue
             direction: desc
-        columns:
-          - name: region
-            label: Region
-          - name: channel
-            label: Channel
-          - name: revenue
-            label: Revenue
-            format: currency
-          - name: sales_count
-            label: Sales
-            format: number
         col: 12
 `
 
@@ -740,12 +719,6 @@ const initSemanticTSXDashboard = `export default (
         dimensions={[{ name: "region" }, { name: "channel" }]}
         metrics={["revenue", "sales_count"]}
         sort={[{ name: "revenue", direction: "desc" }]}
-        columns={[
-          { name: "region", label: "Region" },
-          { name: "channel", label: "Channel" },
-          { name: "revenue", label: "Revenue", format: "currency" },
-          { name: "sales_count", label: "Sales", format: "number" },
-        ]}
         col={12}
       />
     </Row>

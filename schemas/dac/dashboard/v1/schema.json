@@ -340,12 +340,6 @@
         "close": {
           "type": "string"
         },
-        "columns": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/tableColumn"
-          }
-        },
         "content": {
           "type": "string"
         },
@@ -415,26 +409,6 @@
         },
         "direction": {
           "enum": ["asc", "desc"]
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
-    "tableColumn": {
-      "type": "object",
-      "required": ["name"],
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "label": {
-          "type": "string"
-        },
-        "format": {
-          "type": "string"
         }
       },
       "patternProperties": {

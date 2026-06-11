@@ -740,26 +740,16 @@ OHLC chart for financial/pricing data. Green when close ≥ open, red otherwise.
 
 ### Table Widget
 
-Data table with optional column configuration.
+Renders every column and row the query returns — no column configuration. Headers come from the result column names, numeric columns are auto-detected (right-aligned, locale-formatted), `id`/`*_id` columns stay plain, and headers are click-sortable. Shape the table in SQL: pick, order, and alias columns in the `SELECT`.
 
 ```yaml
 - name: Recent Orders
   type: table
   sql: |
-    SELECT id, customer_name, amount, status, created_at
+    SELECT id, customer_name AS customer, amount, status, created_at
     FROM orders ORDER BY created_at DESC LIMIT 25
-  columns:                      # Optional: customize column display
-    - name: customer_name       # Must match SQL column name
-      label: Customer           # Display header
-    - name: amount
-      label: Amount
-      format: currency          # "currency" adds $ prefix, "number" for locale formatting
-    - name: created_at
-      label: Date               # ISO dates auto-format to readable strings
   col: 12
 ```
-
-If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
 ### Text Widget
 
@@ -917,14 +907,14 @@ Every YAML widget type has a corresponding JSX tag. Props map directly to YAML f
 
 | JSX Tag | YAML `type:` | Props |
 |---------|-------------|-------|
-| `<Dashboard>` | (root) | `name`, `connection`, `description`, `theme`, `refresh` |
+| `<Dashboard>` | (root) | `name`, `connection`, `description` |
 | `<Row>` | (row) | `height` |
 | `<Filter>` | (filter) | `name`, `type`, `default`, `multiple`, `options` |
-| `<Query>` | (named query) | `name`, `sql`, `file`, `connection` |
+| `<Query>` | (named query) | `name`, `sql`, `connection` |
 | `<Semantic>` | (semantic layer) | `source`, `metrics`, `dimensions` |
 | `<Metric>` | `metric` | `name`, `col`, `sql`, `query`, `value`, `metric` |
 | `<Chart>` | `chart` | `name`, `col`, `chart`, `sql`, `x`, `y`, `label`, `value`, `color`, `stacked`, `normalized`, `horizontal`, `dimension`, `metrics`, `limit`, etc. |
-| `<Table>` | `table` | `name`, `col`, `sql`, `query`, `columns` |
+| `<Table>` | `table` | `name`, `col`, `sql`, `query` |
 | `<Text>` | `text` | `name`, `col`, `content` |
 | `<Divider>` | `divider` | `name`, `col` |
 | `<Image>` | `image` | `name`, `col`, `src`, `alt` |
@@ -1343,12 +1333,6 @@ rows:
           WHERE event_name = 'page_view'
             AND event_date >= '{{ filters.date_range.start }}'
           GROUP BY 1 ORDER BY 2 DESC LIMIT 10
-        columns:
-          - name: page
-            label: Page
-          - name: views
-            label: Views
-            format: number
 ```
 
 ### Query-Based Dashboard (SQL mode)
@@ -1437,20 +1421,8 @@ rows:
         type: table
         col: 12
         sql: |
-          SELECT id, customer_name, amount, status, created_at
+          SELECT id, customer_name AS customer, amount, status, created_at
           FROM orders ORDER BY created_at DESC LIMIT 20
-        columns:
-          - name: id
-            label: Order ID
-          - name: customer_name
-            label: Customer
-          - name: amount
-            label: Amount
-            format: currency
-          - name: status
-            label: Status
-          - name: created_at
-            label: Date
 ```
 
 ---
@@ -1461,7 +1433,7 @@ rows:
 |------|----------------|--------------|-------------|
 | `metric` | `metric:` ref OR `value` + query | Declarative or SQL | Single KPI number card |
 | `chart` | `dimension` + `metrics` OR `chart` + x/y + query | Declarative or SQL | Visualization (21 chart types) |
-| `table` | — | SQL | Data table with optional column config |
+| `table` | — | SQL | Data table showing all query columns |
 | `text` | `content` | None | Markdown/text content |
 | `divider` | — | None | Horizontal separator line |
 | `image` | `src` | None | Image from URL |

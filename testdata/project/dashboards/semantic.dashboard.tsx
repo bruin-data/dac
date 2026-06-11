@@ -62,11 +62,6 @@ export default (
         filters={[{ dimension: "country", operator: "equals", value: "{{ filters.country }}" }]}
         sort={[{ name: "revenue", direction: "desc" }]}
         limit={10}
-        columns={[
-          { name: "country", label: "Country" },
-          { name: "revenue", label: "Revenue" },
-          { name: "order_count", label: "Orders" },
-        ]}
         col={12}
       />
     </Row>

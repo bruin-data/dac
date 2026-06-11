@@ -207,17 +207,3 @@ rows:
         type: table
         query: recent_orders
         col: 12
-        columns:
-          - name: id
-            label: Order ID
-          - name: customer_name
-            label: Customer
-          - name: status
-            label: Status
-          - name: payment_method
-            label: Payment Method
-          - name: amount
-            label: Amount
-            format: currency
-          - name: created_at
-            label: Order Date

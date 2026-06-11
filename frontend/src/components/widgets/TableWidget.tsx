@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import type { Widget, WidgetData } from "../../types/dashboard";
 
 interface Props {
@@ -5,60 +6,93 @@ interface Props {
   data?: WidgetData;
 }
 
-export function TableWidget({ widget, data }: Props) {
-  if (!data?.rows?.length) {
+export function TableWidget({ data }: Props) {
+  const [sort, setSort] = useState<{ col: number; dir: "asc" | "desc" } | null>(null);
+
+  useEffect(() => {
+    setSort(null);
+  }, [data]);
+
+  const rows = data?.rows ?? [];
+  const columns = data?.columns ?? [];
+
+  const numericCols = useMemo(
+    () =>
+      columns.map((col, idx) => {
+        if (isIdColumn(col.name)) return false;
+        let sawNumber = false;
+        for (const row of rows) {
+          const val = row[idx];
+          if (val === null || val === undefined || val === "") continue;
+          if (!Number.isFinite(Number(val))) return false;
+          sawNumber = true;
+        }
+        return sawNumber;
+      }),
+    [columns, rows],
+  );
+
+  const sortedRows = useMemo(() => {
+    if (!sort) return rows;
+    const { col, dir } = sort;
+    const sign = dir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const av = a?.[col] ?? "";
+      const bv = b?.[col] ?? "";
+      const an = Number(av);
+      const bn = Number(bv);
+      if (Number.isFinite(an) && Number.isFinite(bn)) return (an - bn) * sign;
+      return String(av).localeCompare(String(bv)) * sign;
+    });
+  }, [rows, sort]);
+
+  if (!rows.length) {
     return <div className="text-[var(--dac-text-muted)] text-xs py-4 text-center">No data</div>;
   }
 
-  const columns = widget.columns?.length
-    ? widget.columns.map((col) => ({
-        name: col.name,
-        label: col.label || col.name,
-        format: col.format,
-        idx: data.columns.findIndex((c) => c.name === col.name),
-      }))
-    : data.columns.map((col, idx) => ({
-        name: col.name,
-        label: col.name,
-        format: undefined as string | undefined,
-        idx,
-      }));
-
-  const isNumeric = (format?: string) =>
-    format === "currency" || format === "number";
+  const toggleSort = (col: number) =>
+    setSort((prev) =>
+      prev?.col === col
+        ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { col, dir: "asc" },
+    );
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[13px] min-w-[400px]">
         <thead>
           <tr className="bg-[var(--dac-surface)]">
-            {columns.map((col) => (
+            {columns.map((col, idx) => (
               <th
                 key={col.name}
-                className={`text-left py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] border-b border-[var(--dac-border)] whitespace-nowrap ${
-                  isNumeric(col.format) ? "text-right" : ""
+                onClick={() => toggleSort(idx)}
+                className={`text-left py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] border-b border-[var(--dac-border)] whitespace-nowrap cursor-pointer select-none hover:text-[var(--dac-text)] transition-colors ${
+                  numericCols[idx] ? "text-right" : ""
                 }`}
               >
-                {col.label}
+                {col.name.replace(/_/g, " ")}
+                {sort?.col === idx && (
+                  <span className="ml-1">{sort.dir === "asc" ? "↑" : "↓"}</span>
+                )}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {data.rows.map((row, i) => (
+          {sortedRows.map((row, i) => (
             <tr
               key={i}
               className="border-b border-[var(--dac-border)] border-opacity-40 last:border-0 hover:bg-[var(--dac-surface)] transition-colors duration-75"
             >
-              {columns.map((col) => (
+              {columns.map((col, idx) => (
                 <td
                   key={col.name}
                   className={`py-1.5 px-4 whitespace-nowrap ${
-                    isNumeric(col.format) ? "text-right tabular-nums text-[12px]" : ""
+                    numericCols[idx] ? "text-right tabular-nums text-[12px]" : ""
                   }`}
-                  style={isNumeric(col.format) ? { fontFamily: '"Geist Mono", monospace' } : undefined}
+                  style={numericCols[idx] ? { fontFamily: '"Geist Mono", monospace' } : undefined}
                 >
-                  {formatCell(col.idx >= 0 ? row[col.idx] : null, col.format)}
+                  {formatCell(row[idx], col.name)}
                 </td>
               ))}
             </tr>
@@ -69,17 +103,23 @@ export function TableWidget({ widget, data }: Props) {
   );
 }
 
-function formatCell(value: unknown, format?: string): string {
-  if (value === null || value === undefined) return "—";
-  if (format === "currency") {
-    const num = Number(value);
-    return isNaN(num) ? String(value) : `$${num.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-  }
-  if (format === "number") {
-    const num = Number(value);
-    return isNaN(num) ? String(value) : num.toLocaleString();
-  }
+// id-like columns hold identifiers, not quantities — never format or right-align them.
+function isIdColumn(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower === "id" || lower.endsWith("_id");
+}
+
+function formatCell(value: unknown, colName: string): string {
+  if (value === null || value === undefined || value === "") return "—";
   const s = String(value);
+  if (isIdColumn(colName)) return s;
+  const num = Number(value);
+  if (Number.isFinite(num)) {
+    if (!Number.isInteger(num)) {
+      return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+    }
+    return num.toLocaleString("en-US");
+  }
   const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})T/);
   if (isoMatch) {
     return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;

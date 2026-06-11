@@ -422,17 +422,12 @@ export default (
 	}
 }
 
-func TestEvalTSX_TableWithColumns(t *testing.T) {
+func TestEvalTSX_TableWidget(t *testing.T) {
 	source := `
 export default (
-  <Dashboard name="Table Cols" connection="db">
+  <Dashboard name="Table" connection="db">
     <Row>
-      <Table name="Orders" col={12}
-        sql="SELECT * FROM orders"
-        columns={[
-          { name: "id", label: "Order ID" },
-          { name: "amount", label: "Amount", format: "currency" },
-        ]} />
+      <Table name="Orders" col={12} sql="SELECT * FROM orders" />
     </Row>
   </Dashboard>
 )
@@ -441,14 +436,11 @@ export default (
 	assertNoErr(t, err)
 
 	w := d.Rows[0].Widgets[0]
-	if len(w.Columns) != 2 {
-		t.Fatalf("expected 2 columns, got %d", len(w.Columns))
+	if w.Type != WidgetTypeTable {
+		t.Errorf("expected table, got %q", w.Type)
 	}
-	if w.Columns[0].Name != "id" || w.Columns[0].Label != "Order ID" {
-		t.Errorf("unexpected column 0: %+v", w.Columns[0])
-	}
-	if w.Columns[1].Format != "currency" {
-		t.Errorf("expected format %q, got %q", "currency", w.Columns[1].Format)
+	if w.SQL != "SELECT * FROM orders" {
+		t.Errorf("unexpected sql: %q", w.SQL)
 	}
 }
 
