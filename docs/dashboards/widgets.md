@@ -206,7 +206,9 @@ Charts using `dimension`, `metrics`, `segments`, or semantic `filters` are compi
 
 ## Table
 
-Tables display query results in a scrollable grid.
+Tables render every column and row the query returns — there is no column configuration. Headers come from the result column names, numeric columns are detected automatically (right-aligned, locale-formatted), columns named `id` or `*_id` stay plain, and headers are click-sortable.
+
+Control what the table shows in SQL: pick the columns, order them in the `SELECT`, and alias them for readable headers.
 
 SQL-backed example:
 
@@ -214,16 +216,10 @@ SQL-backed example:
 - name: Recent Orders
   type: table
   sql: |
-    SELECT id, customer_name, amount, status, created_at
+    SELECT id, customer_name AS customer, amount, status, created_at
     FROM orders
     ORDER BY created_at DESC
     LIMIT 20
-  columns:
-    - name: id
-      label: Order ID
-    - name: amount
-      label: Amount
-      format: currency
 ```
 
 Semantic example:
@@ -239,23 +235,7 @@ Semantic example:
   sort:
     - name: revenue
       direction: desc
-  columns:
-    - name: region
-      label: Region
-    - name: revenue
-      label: Revenue
-      format: currency
 ```
-
-Tables can mix semantic dimensions and metrics with explicit `columns` metadata for display labels and formatting.
-
-Table column fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Result column name (must match the SQL output) |
-| `label` | string | Display header (defaults to `name`) |
-| `format` | string | `number` or `currency` |
 
 ## Text
 
