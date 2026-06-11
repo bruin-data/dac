@@ -356,17 +356,10 @@ func tableReqs(prefix, slideID string, w *dashboard.Widget, data *server.WidgetQ
 
 	// Header row.
 	for c, col := range data.Columns {
-		label := col.Name
-		for _, wc := range w.Columns {
-			if wc.Name == col.Name && wc.Label != "" {
-				label = wc.Label
-				break
-			}
-		}
 		reqs = append(reqs, &slidesapi.Request{
 			InsertText: &slidesapi.InsertTextRequest{
 				ObjectId:     tableID,
-				Text:         label,
+				Text:         col.Name,
 				CellLocation: &slidesapi.TableCellLocation{RowIndex: 0, ColumnIndex: int64(c)},
 			},
 		})

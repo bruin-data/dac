@@ -544,9 +544,6 @@ func vnodeToWidget(n *vnode) Widget {
 		YMin:       asString(n.Props["yMin"]),
 		YMax:       asString(n.Props["yMax"]),
 
-		// Table fields
-		Columns: asTableColumns(n.Props["columns"]),
-
 		// Text fields
 		Content: asString(n.Props["content"]),
 
@@ -881,26 +878,6 @@ func asMap(v interface{}) map[string]interface{} {
 	return map[string]interface{}{}
 }
 
-func asTableColumns(v interface{}) []TableColumn {
-	if v == nil {
-		return nil
-	}
-	arr, ok := v.([]interface{})
-	if !ok {
-		return nil
-	}
-	var cols []TableColumn
-	for _, item := range arr {
-		if m, ok := item.(map[string]interface{}); ok {
-			cols = append(cols, TableColumn{
-				Name:   asString(m["name"]),
-				Label:  asString(m["label"]),
-				Format: asString(m["format"]),
-			})
-		}
-	}
-	return cols
-}
 
 // IsTSXFile checks if a filename matches the .dashboard.tsx convention.
 func IsTSXFile(name string) bool {
