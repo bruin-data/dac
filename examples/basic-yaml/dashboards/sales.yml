@@ -158,18 +158,6 @@ rows:
           GROUP BY 1
           ORDER BY 3 DESC
           LIMIT 10
-        columns:
-          - name: customer_name
-            label: Customer
-          - name: orders
-            label: Orders
-            format: number
-          - name: total_spent
-            label: Total Spent
-            format: currency
-          - name: avg_order
-            label: Average Order
-            format: currency
       - name: Revenue by Region & Month
         type: table
         col: 6
@@ -187,17 +175,6 @@ rows:
           {% endif %}
           GROUP BY 1, 2
           ORDER BY 1, 2
-        columns:
-          - name: region
-            label: Region
-          - name: month
-            label: Month
-          - name: sales_count
-            label: Sales
-            format: number
-          - name: revenue
-            label: Revenue
-            format: currency
 
   # Recent orders
   - widgets:
@@ -210,16 +187,4 @@ rows:
             AND created_at <= '{{ filters.date_range.end }}'
           ORDER BY created_at DESC
           LIMIT 25
-        columns:
-          - name: id
-            label: Order ID
-          - name: customer_name
-            label: Customer
-          - name: amount
-            label: Amount
-            format: currency
-          - name: status
-            label: Status
-          - name: created_at
-            label: Date
         col: 12

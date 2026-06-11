@@ -99,12 +99,6 @@ export default (
         ]}
         sort={[{ name: "revenue", direction: "desc" }]}
         limit={20}
-        columns={[
-          { name: "region", label: "Region" },
-          { name: "channel", label: "Channel" },
-          { name: "revenue", label: "Revenue", format: "currency" },
-          { name: "sales_count", label: "Sales", format: "number" },
-        ]}
         col={12}
       />
     </Row>
