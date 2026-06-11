@@ -34,8 +34,8 @@ export default (
           GROUP BY 1
           ORDER BY 1
         `}
-        x="month"
-        y={["revenue"]}
+        x={{ field: "month" }}
+        y={{ field: ["revenue"] }}
       />
     </Row>
   </Dashboard>
