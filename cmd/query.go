@@ -167,11 +167,6 @@ func resolveWidgetQuery(dir, dashboardName, widgetName string) (string, string, 
 		if job.ID == widgetID {
 			return job.SQL, job.Connection, nil
 		}
-		if job.MetricFanout != nil {
-			if _, ok := job.MetricFanout[widgetID]; ok {
-				return job.SQL, job.Connection, nil
-			}
-		}
 	}
 
 	return "", "", fmt.Errorf("widget %q did not produce a query", widgetName)

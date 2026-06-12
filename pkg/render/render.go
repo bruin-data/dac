@@ -115,11 +115,7 @@ func Build(ctx context.Context, cfg Config) error {
 			wr := server.ExecuteWidgetQuery(ctx, backend, j)
 			<-sem
 			mu.Lock()
-			if j.MetricFanout != nil {
-				server.FanoutMetricResults(results, wr, j, d)
-			} else {
-				results[j.ID] = wr
-			}
+			results[j.ID] = wr
 			mu.Unlock()
 		}(j)
 	}

@@ -102,58 +102,6 @@ func Validate(d *Dashboard) error {
 		}
 	}
 
-	// Validate semantic layer.
-	metrics := d.SemanticMetrics()
-	source := d.SemanticSource()
-	dims := d.SemanticDimensions()
-
-	if len(metrics) > 0 && source == nil {
-		errs = append(errs, "semantic.source is required when metrics are defined")
-	}
-	if source != nil && source.Table == "" {
-		errs = append(errs, "semantic.source: table is required")
-	}
-	for name, m := range metrics {
-		prefix := fmt.Sprintf("semantic.metrics %q", name)
-		if m.Expression != "" {
-			if m.Aggregate != "" {
-				errs = append(errs, fmt.Sprintf("%s: cannot specify both aggregate and expression", prefix))
-			}
-		} else {
-			if m.Aggregate == "" {
-				errs = append(errs, fmt.Sprintf("%s: one of aggregate or expression is required", prefix))
-			} else if !ValidAggregates[m.Aggregate] {
-				errs = append(errs, fmt.Sprintf("%s: unknown aggregate %q", prefix, m.Aggregate))
-			}
-			if m.Aggregate != "count" && m.Column == "" {
-				errs = append(errs, fmt.Sprintf("%s: column is required for %s", prefix, m.Aggregate))
-			}
-		}
-	}
-	// Validate expression references.
-	for name, m := range metrics {
-		if m.Expression == "" {
-			continue
-		}
-		if err := validateExpressionRefs(m.Expression, metrics); err != nil {
-			errs = append(errs, fmt.Sprintf("semantic.metrics %q: %s", name, err.Error()))
-		}
-	}
-
-	// Validate dimensions.
-	if len(dims) > 0 && source == nil {
-		errs = append(errs, "semantic.source is required when dimensions are defined")
-	}
-	for name, dim := range dims {
-		prefix := fmt.Sprintf("semantic.dimensions %q", name)
-		if dim.Column == "" {
-			errs = append(errs, fmt.Sprintf("%s: column is required", prefix))
-		}
-		if dim.Type != "" && dim.Type != "date" {
-			errs = append(errs, fmt.Sprintf("%s: unknown type %q (expected \"date\" or empty)", prefix, dim.Type))
-		}
-	}
-
 	// Validate filters.
 	for i, f := range d.Filters {
 		prefix := fmt.Sprintf("filter %d (%q)", i+1, f.Name)
@@ -223,10 +171,6 @@ func ValidateAll(dashboards []*Dashboard) error {
 
 func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 	var errs []string
-	if w.MetricRef != "" {
-		// Metric-ref widgets get their query from the metrics system.
-		return errs
-	}
 	if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
 		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 		return errs
@@ -247,51 +191,8 @@ func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 	return errs
 }
 
-func validateExpressionRefs(expr string, metrics map[string]Metric) error {
-	// Extract identifiers from the expression and check they exist in metrics.
-	pos := 0
-	for pos < len(expr) {
-		ch := rune(expr[pos])
-		if ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
-			start := pos
-			for pos < len(expr) {
-				c := rune(expr[pos])
-				if c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-					pos++
-				} else {
-					break
-				}
-			}
-			name := expr[start:pos]
-			if _, ok := metrics[name]; !ok {
-				return fmt.Errorf("references unknown metric %q", name)
-			}
-		} else {
-			pos++
-		}
-	}
-	return nil
-}
-
 func validateMetricWidget(prefix string, w *Widget, d *Dashboard) []string {
 	var errs []string
-	if w.MetricRef != "" {
-		if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
-			return errs
-		} else if handled {
-			if err := validateSemanticJob(job); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
-			}
-			return errs
-		}
-		if m := d.SemanticMetrics(); m == nil {
-			errs = append(errs, fmt.Sprintf("%s: metric %q referenced but no semantic.metrics defined", prefix, w.MetricRef))
-		} else if _, ok := m[w.MetricRef]; !ok {
-			errs = append(errs, fmt.Sprintf("%s: metric %q not found in semantic.metrics", prefix, w.MetricRef))
-		}
-		return errs
-	}
 	if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
 		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 		return errs
@@ -299,6 +200,10 @@ func validateMetricWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if err := validateSemanticJob(job); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 		}
+		return errs
+	}
+	if w.MetricRef != "" {
+		errs = append(errs, fmt.Sprintf("%s: metric %q requires a semantic model; set model on the widget or dashboard", prefix, w.MetricRef))
 		return errs
 	}
 	if w.ValueField() == "" {
@@ -327,7 +232,8 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		return errs
 	}
 
-	// Dimensional chart: uses dimension + metrics instead of x/y/sql.
+	// Dimensional chart: uses dimension + metrics from a semantic model
+	// instead of x/y/sql.
 	if w.Dimension != "" || len(w.MetricRefs) > 0 || len(w.Dimensions) > 0 || len(w.Filters) > 0 || len(w.Segments) > 0 || len(w.Sort) > 0 || w.Model != "" {
 		if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
@@ -339,23 +245,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 			return errs
 		}
 
-		if w.Dimension == "" {
-			errs = append(errs, fmt.Sprintf("%s: dimension is required when metrics are specified", prefix))
-		} else if dims := d.SemanticDimensions(); dims == nil {
-			errs = append(errs, fmt.Sprintf("%s: dimension %q referenced but no semantic.dimensions defined", prefix, w.Dimension))
-		} else if _, ok := dims[w.Dimension]; !ok {
-			errs = append(errs, fmt.Sprintf("%s: dimension %q not found in semantic.dimensions", prefix, w.Dimension))
-		}
-		if len(w.MetricRefs) == 0 {
-			errs = append(errs, fmt.Sprintf("%s: metrics are required when dimension is specified", prefix))
-		}
-		for _, ref := range w.MetricRefs {
-			if m := d.SemanticMetrics(); m == nil {
-				errs = append(errs, fmt.Sprintf("%s: metric %q referenced but no semantic.metrics defined", prefix, ref))
-			} else if _, ok := m[ref]; !ok {
-				errs = append(errs, fmt.Sprintf("%s: metric %q not found in semantic.metrics", prefix, ref))
-			}
-		}
+		errs = append(errs, fmt.Sprintf("%s: dimensional charts require a semantic model; set model on the widget or dashboard", prefix))
 		return errs
 	}
 

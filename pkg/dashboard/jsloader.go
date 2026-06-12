@@ -15,7 +15,7 @@ import (
 // esbuild converts <Tag> to h(Tag, ...) where Tag is a variable reference;
 // we define each as a string constant so h() receives a string.
 var jsxTags = []string{
-	"Dashboard", "Row", "Filter", "Query", "Semantic",
+	"Dashboard", "Row", "Filter", "Query",
 	"Metric", "Chart", "Table", "Text", "Divider", "Image",
 	"Tabs", "Tab",
 }
@@ -428,10 +428,6 @@ func vnodeToDashboard(root *vnode) (*Dashboard, error) {
 				}
 			}
 
-		case "Semantic":
-			sem := vnodeToSemantic(child)
-			d.Semantic = sem
-
 		case "Query":
 			if d.Queries == nil {
 				d.Queries = make(map[string]Query)
@@ -556,68 +552,6 @@ func vnodeToWidget(n *vnode) Widget {
 	}
 
 	return w
-}
-
-func vnodeToSemantic(n *vnode) *SemanticLayer {
-	sem := &SemanticLayer{}
-
-	if src, ok := n.Props["source"]; ok {
-		if m, ok := src.(map[string]interface{}); ok {
-			sem.Source = &Source{
-				Table:      asString(m["table"]),
-				DateColumn: asString(m["dateColumn"]),
-				DateFormat: asString(m["dateFormat"]),
-				Connection: asString(m["connection"]),
-			}
-			// Also check snake_case variants.
-			if sem.Source.DateColumn == "" {
-				sem.Source.DateColumn = asString(m["date_column"])
-			}
-			if sem.Source.DateFormat == "" {
-				sem.Source.DateFormat = asString(m["date_format"])
-			}
-		}
-	}
-
-	if metrics, ok := n.Props["metrics"]; ok {
-		if m, ok := metrics.(map[string]interface{}); ok {
-			sem.Metrics = make(map[string]Metric, len(m))
-			for name, v := range m {
-				if mm, ok := v.(map[string]interface{}); ok {
-					metric := Metric{
-						Aggregate:  asString(mm["aggregate"]),
-						Column:     asString(mm["column"]),
-						Expression: asString(mm["expression"]),
-					}
-					if f, ok := mm["filter"]; ok {
-						if fm, ok := f.(map[string]interface{}); ok {
-							metric.Filter = make(map[string]string, len(fm))
-							for k, v := range fm {
-								metric.Filter[k] = asString(v)
-							}
-						}
-					}
-					sem.Metrics[name] = metric
-				}
-			}
-		}
-	}
-
-	if dims, ok := n.Props["dimensions"]; ok {
-		if m, ok := dims.(map[string]interface{}); ok {
-			sem.Dimensions = make(map[string]Dimension, len(m))
-			for name, v := range m {
-				if dm, ok := v.(map[string]interface{}); ok {
-					sem.Dimensions[name] = Dimension{
-						Column: asString(dm["column"]),
-						Type:   asString(dm["type"]),
-					}
-				}
-			}
-		}
-	}
-
-	return sem
 }
 
 // widgetType maps a JSX tag name to a widget type string.

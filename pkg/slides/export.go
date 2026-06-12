@@ -73,7 +73,7 @@ func Export(ctx context.Context, cfg Config) (string, error) {
 		return "", fmt.Errorf("resolving queries: %w", err)
 	}
 
-	widgetData := executeJobs(ctx, backend, jobs, d)
+	widgetData := executeJobs(ctx, backend, jobs)
 
 	// Authenticate with Google.
 	creds, err := authorize(ctx, cfg.Credentials)
@@ -146,7 +146,7 @@ func Export(ctx context.Context, cfg Config) (string, error) {
 	return fmt.Sprintf("https://docs.google.com/presentation/d/%s/edit", presID), nil
 }
 
-func executeJobs(ctx context.Context, backend query.Backend, jobs []server.WidgetJob, d *dashboard.Dashboard) map[string]*server.WidgetQueryResult {
+func executeJobs(ctx context.Context, backend query.Backend, jobs []server.WidgetJob) map[string]*server.WidgetQueryResult {
 	results := make(map[string]*server.WidgetQueryResult)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -160,11 +160,7 @@ func executeJobs(ctx context.Context, backend query.Backend, jobs []server.Widge
 			wr := server.ExecuteWidgetQuery(ctx, backend, j)
 			<-sem
 			mu.Lock()
-			if j.MetricFanout != nil {
-				server.FanoutMetricResults(results, wr, j, d)
-			} else {
-				results[j.ID] = wr
-			}
+			results[j.ID] = wr
 			mu.Unlock()
 		}(j)
 	}

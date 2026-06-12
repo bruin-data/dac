@@ -220,78 +220,6 @@ export default (
 	}
 }
 
-func TestEvalTSX_SemanticLayer(t *testing.T) {
-	source := `
-export default (
-  <Dashboard name="Semantic Test" connection="gcp">
-    <Semantic
-      source={{ table: "events", dateColumn: "event_date", dateFormat: "%Y%m%d" }}
-      metrics={{
-        page_views: { aggregate: "count", filter: { event_name: "page_view" } },
-        users: { aggregate: "count_distinct", column: "user_id" },
-      }}
-      dimensions={{
-        daily: { column: "event_date", type: "date" },
-        country: { column: "geo.country" },
-      }}
-    />
-    <Row>
-      <Metric name="Page Views" metric="page_views" col={3} />
-    </Row>
-  </Dashboard>
-)
-`
-	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
-	assertNoErr(t, err)
-
-	if d.Semantic == nil {
-		t.Fatal("expected semantic layer")
-	}
-	if d.Semantic.Source == nil {
-		t.Fatal("expected semantic source")
-	}
-	if d.Semantic.Source.Table != "events" {
-		t.Errorf("expected table %q, got %q", "events", d.Semantic.Source.Table)
-	}
-	if d.Semantic.Source.DateColumn != "event_date" {
-		t.Errorf("expected dateColumn %q, got %q", "event_date", d.Semantic.Source.DateColumn)
-	}
-	if d.Semantic.Source.DateFormat != "%Y%m%d" {
-		t.Errorf("expected dateFormat %q, got %q", "%Y%m%d", d.Semantic.Source.DateFormat)
-	}
-
-	if len(d.Semantic.Metrics) != 2 {
-		t.Fatalf("expected 2 metrics, got %d", len(d.Semantic.Metrics))
-	}
-	pv := d.Semantic.Metrics["page_views"]
-	if pv.Aggregate != "count" {
-		t.Errorf("expected count aggregate, got %q", pv.Aggregate)
-	}
-	if pv.Filter["event_name"] != "page_view" {
-		t.Errorf("expected filter event_name=page_view, got %v", pv.Filter)
-	}
-
-	users := d.Semantic.Metrics["users"]
-	if users.Aggregate != "count_distinct" {
-		t.Errorf("expected count_distinct aggregate, got %q", users.Aggregate)
-	}
-	if users.Column != "user_id" {
-		t.Errorf("expected column %q, got %q", "user_id", users.Column)
-	}
-
-	if len(d.Semantic.Dimensions) != 2 {
-		t.Fatalf("expected 2 dimensions, got %d", len(d.Semantic.Dimensions))
-	}
-	daily := d.Semantic.Dimensions["daily"]
-	if daily.Type != "date" {
-		t.Errorf("expected date type, got %q", daily.Type)
-	}
-	country := d.Semantic.Dimensions["country"]
-	if country.Column != "geo.country" {
-		t.Errorf("expected column %q, got %q", "geo.country", country.Column)
-	}
-}
-
 func TestEvalTSX_QueryAtLoadTime(t *testing.T) {
 	source := `
 const result = query("duckdb", "SELECT table_name FROM information_schema.tables")
@@ -537,13 +465,13 @@ func TestLoadDir_MixedYAMLAndTSX(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/dashboards")
 	assertNoErr(t, err)
 
-	// Should find 6 YAML + 2 TSX = 8 dashboards.
-	if len(dashboards) != 8 {
+	// Should find 5 YAML + 2 TSX = 7 dashboards.
+	if len(dashboards) != 7 {
 		names := make([]string, len(dashboards))
 		for i, d := range dashboards {
 			names[i] = d.Name
 		}
-		t.Fatalf("expected 8 dashboards, got %d: %v", len(dashboards), names)
+		t.Fatalf("expected 7 dashboards, got %d: %v", len(dashboards), names)
 	}
 
 	// Verify TSX dashboard was loaded.

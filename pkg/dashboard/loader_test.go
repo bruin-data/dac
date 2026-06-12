@@ -15,9 +15,9 @@ func TestLoadDir_LoadsAllDashboards(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/dashboards")
 	assertNoErr(t, err)
 
-	// 6 YAML + 2 TSX = 8
-	if len(dashboards) != 8 {
-		t.Fatalf("expected 8 dashboards, got %d", len(dashboards))
+	// 5 YAML + 2 TSX = 7
+	if len(dashboards) != 7 {
+		t.Fatalf("expected 7 dashboards, got %d", len(dashboards))
 	}
 }
 
@@ -79,74 +79,6 @@ rows:
 	assertNoErr(t, err)
 	if d.Schema != "https://getbruin.com/schemas/dac/dashboard/v1" {
 		t.Fatalf("expected default schema v1, got %q", d.Schema)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Auto-set tests for declarative widgets
-// ---------------------------------------------------------------------------
-
-func TestLoadFile_AutoSetsXYForDimensionalChart(t *testing.T) {
-	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
-	assertNoErr(t, err)
-
-	// Row 1 has "Daily Traffic" (dimension: daily -> event_date, metrics: [page_views, users]).
-	w := d.Rows[1].Widgets[0]
-	if w.Name != "Daily Traffic" {
-		t.Fatalf("expected 'Daily Traffic', got %q", w.Name)
-	}
-	if w.XField() != "event_date" {
-		t.Errorf("expected X = 'event_date', got %q", w.XField())
-	}
-	if ys := w.YFields(); len(ys) != 2 || ys[0] != "page_views" || ys[1] != "users" {
-		t.Errorf("expected Y = [page_views, users], got %v", ys)
-	}
-}
-
-func TestLoadFile_AutoSetsXYForNonDateDimension(t *testing.T) {
-	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
-	assertNoErr(t, err)
-
-	// Row 2, widget 1: "Top Countries" (dimension: country -> geo.country).
-	w := d.Rows[2].Widgets[1]
-	if w.Name != "Top Countries" {
-		t.Fatalf("expected 'Top Countries', got %q", w.Name)
-	}
-	// DimensionAlias("geo.country") = "country"
-	if w.XField() != "country" {
-		t.Errorf("expected X = 'country', got %q", w.XField())
-	}
-	if ys := w.YFields(); len(ys) != 1 || ys[0] != "users" {
-		t.Errorf("expected Y = [users], got %v", ys)
-	}
-}
-
-func TestLoadFile_DoesNotOverrideExplicitXY(t *testing.T) {
-	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
-	assertNoErr(t, err)
-
-	// Row 2, widget 0: "Traffic Sources" — has explicit x/y, no dimension.
-	w := d.Rows[2].Widgets[0]
-	if w.Name != "Traffic Sources" {
-		t.Fatalf("expected 'Traffic Sources', got %q", w.Name)
-	}
-	if w.XField() != "source" {
-		t.Errorf("expected explicit X = 'source', got %q", w.XField())
-	}
-}
-
-func TestLoadFile_MetricRefValueNotForced(t *testing.T) {
-	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
-	assertNoErr(t, err)
-
-	// Row 0, widget 3: "Pages / Session" — metric ref with no value encoding;
-	// the loader must not synthesize one (MetricWidget falls back to first column).
-	w := d.Rows[0].Widgets[3]
-	if w.Name != "Pages / Session" {
-		t.Fatalf("expected 'Pages / Session', got %q", w.Name)
-	}
-	if w.ValueField() != "" {
-		t.Errorf("expected empty value field for metric-ref widget, got %q", w.ValueField())
 	}
 }
 

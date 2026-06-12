@@ -39,9 +39,6 @@
         "$ref": "#/$defs/query"
       }
     },
-    "semantic": {
-      "$ref": "#/$defs/inlineSemanticLayer"
-    },
     "rows": {
       "type": "array",
       "minItems": 1,
@@ -435,94 +432,6 @@
         },
         "format": {
           "type": "string"
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
-    "inlineSemanticLayer": {
-      "type": "object",
-      "properties": {
-        "source": {
-          "$ref": "#/$defs/inlineSource"
-        },
-        "metrics": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/inlineMetric"
-          }
-        },
-        "dimensions": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/inlineDimension"
-          }
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
-    "inlineSource": {
-      "type": "object",
-      "required": ["table"],
-      "properties": {
-        "table": {
-          "type": "string",
-          "minLength": 1
-        },
-        "date_column": {
-          "type": "string"
-        },
-        "date_format": {
-          "type": "string"
-        },
-        "connection": {
-          "type": "string"
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
-    "inlineMetric": {
-      "type": "object",
-      "properties": {
-        "aggregate": {
-          "enum": ["count", "count_distinct", "sum", "avg", "min", "max"]
-        },
-        "column": {
-          "type": "string"
-        },
-        "filter": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "expression": {
-          "type": "string"
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
-    "inlineDimension": {
-      "type": "object",
-      "required": ["column"],
-      "properties": {
-        "column": {
-          "type": "string",
-          "minLength": 1
-        },
-        "type": {
-          "enum": ["date"]
         }
       },
       "patternProperties": {
