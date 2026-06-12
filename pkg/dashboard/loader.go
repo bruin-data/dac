@@ -174,10 +174,5 @@ func defaultSemanticDimensionAlias(d *Dashboard, w *Widget) string {
 	if w.Model != "" || d.Model != "" {
 		return w.Dimension
 	}
-	if dims := d.SemanticDimensions(); dims != nil {
-		if dim, ok := dims[w.Dimension]; ok {
-			return DimensionAlias(dim.Column)
-		}
-	}
 	return ""
 }

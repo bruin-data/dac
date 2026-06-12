@@ -227,7 +227,7 @@ func TestValidateCommandAcceptsPositionalDirectory(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(output, "8 dashboard(s) validated successfully") {
+	if !strings.Contains(output, "7 dashboard(s) validated successfully") {
 		t.Fatalf("expected testdata dashboards to validate, got %q", output)
 	}
 	if strings.Contains(output, "No dashboard files found in .") {

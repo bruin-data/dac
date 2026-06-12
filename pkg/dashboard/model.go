@@ -32,7 +32,6 @@ type Dashboard struct {
 	Models      map[string]string `yaml:"models,omitempty" json:"models,omitempty"`
 	Filters     []Filter          `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Queries     map[string]Query  `yaml:"queries,omitempty" json:"queries,omitempty"`
-	Semantic    *SemanticLayer    `yaml:"semantic,omitempty" json:"semantic,omitempty"`
 	Rows        []Row             `yaml:"rows" json:"rows"`
 
 	// FilePath is the source file path, not serialized to JSON for API consumers.
@@ -44,13 +43,6 @@ type Dashboard struct {
 	projectRoot     string                `yaml:"-" json:"-"`
 	semanticModels  map[string]*sem.Model `yaml:"-" json:"-"`
 	semanticInvalid map[string]error      `yaml:"-" json:"-"`
-}
-
-// SemanticLayer groups the declarative source, metrics, and dimensions.
-type SemanticLayer struct {
-	Source     *Source              `yaml:"source,omitempty" json:"source,omitempty"`
-	Metrics    map[string]Metric    `yaml:"metrics,omitempty" json:"metrics,omitempty"`
-	Dimensions map[string]Dimension `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 }
 
 type Filter struct {
@@ -66,40 +58,6 @@ type FilterOptions struct {
 	Query      string   `yaml:"query,omitempty" json:"query,omitempty"`
 	Connection string   `yaml:"connection,omitempty" json:"connection,omitempty"`
 	Presets    []string `yaml:"presets,omitempty" json:"presets,omitempty"` // date-range: which presets to show
-}
-
-// Source defines the base table for declarative metrics.
-type Source struct {
-	Table      string `yaml:"table" json:"table"`
-	DateColumn string `yaml:"date_column,omitempty" json:"date_column,omitempty"`
-	DateFormat string `yaml:"date_format,omitempty" json:"date_format,omitempty"`
-	Connection string `yaml:"connection,omitempty" json:"connection,omitempty"`
-}
-
-// Metric defines a named scalar value computed from the source table.
-// Use Aggregate for database-computed metrics, or Expression for
-// client-side arithmetic over other metrics.
-type Metric struct {
-	Aggregate  string            `yaml:"aggregate,omitempty" json:"aggregate,omitempty"` // count, count_distinct, sum, avg, min, max
-	Column     string            `yaml:"column,omitempty" json:"column,omitempty"`
-	Filter     map[string]string `yaml:"filter,omitempty" json:"filter,omitempty"`
-	Expression string            `yaml:"expression,omitempty" json:"expression,omitempty"`
-}
-
-// IsExpression returns true if this metric is computed from other metrics.
-func (m *Metric) IsExpression() bool {
-	return m.Expression != ""
-}
-
-// Dimension defines a named grouping column for dimensional queries.
-type Dimension struct {
-	Column string `yaml:"column" json:"column"`                 // the SQL column expression (e.g. "geo.country")
-	Type   string `yaml:"type,omitempty" json:"type,omitempty"` // "date" for chronological ordering, empty for top-N
-}
-
-// IsDate returns true if this dimension represents a date/time column.
-func (dim *Dimension) IsDate() bool {
-	return dim.Type == "date"
 }
 
 // Query represents a named query definition.
@@ -307,39 +265,6 @@ func (d *Dashboard) DateRangeFilterName() string {
 		}
 	}
 	return ""
-}
-
-// SourceConnection returns the connection for the semantic source, falling
-// back to the dashboard default.
-func (d *Dashboard) SourceConnection() string {
-	if d.Semantic != nil && d.Semantic.Source != nil && d.Semantic.Source.Connection != "" {
-		return d.Semantic.Source.Connection
-	}
-	return d.Connection
-}
-
-// SemanticSource returns the semantic layer's source, or nil.
-func (d *Dashboard) SemanticSource() *Source {
-	if d.Semantic != nil {
-		return d.Semantic.Source
-	}
-	return nil
-}
-
-// SemanticMetrics returns the semantic layer's metrics, or nil.
-func (d *Dashboard) SemanticMetrics() map[string]Metric {
-	if d.Semantic != nil {
-		return d.Semantic.Metrics
-	}
-	return nil
-}
-
-// SemanticDimensions returns the semantic layer's dimensions, or nil.
-func (d *Dashboard) SemanticDimensions() map[string]Dimension {
-	if d.Semantic != nil {
-		return d.Semantic.Dimensions
-	}
-	return nil
 }
 
 func (d *Dashboard) SetProjectContext(projectRoot string, semanticModels map[string]*sem.Model, semanticInvalid map[string]error) {
