@@ -1,12 +1,21 @@
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   ScatterChart, Scatter, ZAxis,
   ComposedChart, FunnelChart, Funnel, LabelList, Sankey,
+  Treemap,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import type { TreemapNode } from "recharts";
 import type { Widget, WidgetData } from "../../types/dashboard";
+import { axisField, axisFields, buildAxisFormatter, valueField } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
+import { RowHeightContext } from "../../themes/RowContext";
+
+const DEFAULT_CHART_HEIGHT = 240;
+// Approx pixels consumed by the widget frame's title/padding above the chart.
+const FRAME_OVERHEAD = 60;
 
 interface Props {
   widget: Widget;
@@ -76,24 +85,81 @@ interface TooltipPayloadEntry {
   value?: unknown;
 }
 
-function CustomTooltip({ active, payload, label }: {
+function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
   label?: unknown;
+  labelFormatter?: (val: unknown) => string;
+  valueFormatter?: (val: unknown) => string;
 }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="dac-tooltip">
-      <div className="dac-tooltip-label">{formatAxisTick(label)}</div>
+      <div className="dac-tooltip-label">{labelFormatter(label)}</div>
       {payload.map((p, i) => (
         <div key={i} className="dac-tooltip-row">
           <span className="dac-tooltip-dot" style={{ background: p.color ?? p.fill }} />
           <span className="dac-tooltip-name">{p.name ?? p.dataKey}</span>
-          <span className="dac-tooltip-value">{formatTooltipValue(p.value)}</span>
+          <span className="dac-tooltip-value">{valueFormatter(p.value)}</span>
         </div>
       ))}
     </div>
   );
+}
+
+// --- Color (long-format) pivot ---
+
+/**
+ * Pivot long-format rows (one row per x/category pair) into wide rows
+ * (one row per x, one column per category) so Recharts can render one
+ * series per category.
+ */
+function pivotByColor(
+  rawData: Record<string, unknown>[],
+  xKey: string,
+  yKey: string,
+  colorKey: string,
+): { rows: Record<string, unknown>[]; series: string[] } {
+  const series: string[] = [];
+  const seen = new Set<string>();
+  const byX = new Map<string, Record<string, unknown>>();
+  for (const d of rawData) {
+    const x = String(d[xKey]);
+    const cat = String(d[colorKey]);
+    if (!seen.has(cat)) {
+      seen.add(cat);
+      series.push(cat);
+    }
+    let row = byX.get(x);
+    if (!row) {
+      row = { [xKey]: d[xKey] };
+      byX.set(x, row);
+    }
+    row[cat] = d[yKey];
+  }
+  return { rows: Array.from(byX.values()), series };
+}
+
+/** Convert each row's series values to percentages of the row total (0–100). */
+function normalizeRows(
+  rows: Record<string, unknown>[],
+  series: string[],
+): Record<string, unknown>[] {
+  return rows.map((row) => {
+    const total = series.reduce((sum, s) => sum + (Number(row[s]) || 0), 0);
+    if (total === 0) return row;
+    const out = { ...row };
+    for (const s of series) {
+      out[s] = ((Number(row[s]) || 0) / total) * 100;
+    }
+    return out;
+  });
+}
+
+function formatPercentTick(value: unknown): string {
+  const num = Number(value);
+  if (isNaN(num)) return String(value);
+  return `${Math.round(num)}%`;
 }
 
 // --- Histogram data transformation ---
@@ -494,10 +560,283 @@ function DumbbellChart({
   );
 }
 
+// --- Treemap rendering ---
+
+function getHexLuminance(hex: string): number | null {
+  const match = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+  if (!match) return null;
+
+  const [, r, g, b] = match;
+  const channels = [r, g, b].map((part) => {
+    const value = parseInt(part, 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function getTreemapTextColor(fill: string): string {
+  const luminance = getHexLuminance(fill);
+  if (luminance === null) return "var(--dac-text-primary)";
+  return luminance > 0.32 ? "#0A0D14" : "#FFFFFF";
+}
+
+function truncateTreemapLabel(label: string, width: number, fontSize: number): string {
+  const maxChars = Math.floor((width - 16) / (fontSize * 0.58));
+  if (maxChars <= 1) return "";
+  if (label.length <= maxChars) return label;
+  return `${label.slice(0, Math.max(1, maxChars - 3))}...`;
+}
+
+function TreemapCell(node: TreemapNode) {
+  const fill = typeof node.fill === "string" ? node.fill : "var(--dac-accent)";
+  const textColor = getTreemapTextColor(fill);
+  const canShowLabel = node.width >= 42 && node.height >= 24;
+  const fontSize = node.width >= 150 && node.height >= 56 ? 12 : 11;
+  const label = canShowLabel ? truncateTreemapLabel(node.name, node.width, fontSize) : "";
+
+  return (
+    <g>
+      <rect
+        x={node.x}
+        y={node.y}
+        width={node.width}
+        height={node.height}
+        fill={fill}
+        stroke="var(--dac-surface)"
+        strokeWidth={1}
+      />
+      {label && (
+        <text
+          x={node.x + 8}
+          y={node.y + 16}
+          fill={textColor}
+          stroke="none"
+          fontFamily='"Geist", system-ui'
+          fontSize={fontSize}
+          fontWeight={500}
+          dominantBaseline="middle"
+          opacity={0.92}
+          style={{ pointerEvents: "none" }}
+        >
+          {label}
+        </text>
+      )}
+    </g>
+  );
+}
+
+// --- Gauge rendering ---
+
+function GaugeChart({
+  current,
+  target,
+  colors,
+  axisColor,
+  gridColor,
+}: {
+  current: number;
+  target: number;
+  colors: string[];
+  axisColor: string;
+  gridColor: string;
+}) {
+  const safeTarget = target > 0 ? target : 1;
+  const ratio = Math.max(0, Math.min(1, current / safeTarget));
+
+  const width = 240;
+  const height = 150;
+  const cx = width / 2;
+  const cy = height - 16;
+  const r = 90;
+  const stroke = 14;
+
+  // Semi-circle from 180° (left) to 0° (right)
+  const polarToCart = (deg: number) => {
+    const rad = (deg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+  };
+
+  const bgPath = (() => {
+    const a = polarToCart(180);
+    const b = polarToCart(0);
+    return `M ${a.x} ${a.y} A ${r} ${r} 0 0 1 ${b.x} ${b.y}`;
+  })();
+
+  const fgPath = (() => {
+    const endDeg = 180 - ratio * 180;
+    const a = polarToCart(180);
+    const b = polarToCart(endDeg);
+    return `M ${a.x} ${a.y} A ${r} ${r} 0 0 1 ${b.x} ${b.y}`;
+  })();
+
+  const pct = Math.round(ratio * 100);
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 240 }}>
+      <path d={bgPath} stroke={gridColor} strokeWidth={stroke} strokeLinecap="round" fill="none" opacity={0.4} />
+      {ratio > 0 && (
+        <path d={fgPath} stroke={colors[0]} strokeWidth={stroke} strokeLinecap="round" fill="none" />
+      )}
+      <text x={cx} y={cy - 18} textAnchor="middle"
+        fill="var(--dac-text-primary)" fontSize={26} fontWeight={600} fontFamily='"Geist", system-ui'>
+        {formatTooltipValue(current)}
+      </text>
+      <text x={cx} y={cy + 2} textAnchor="middle"
+        fill={axisColor} fontSize={11} fontFamily='"Geist", system-ui'>
+        {pct}% of {formatTooltipValue(safeTarget)}
+      </text>
+    </svg>
+  );
+}
+
+// --- Candlestick rendering ---
+
+function CandlestickChart({
+  data,
+  xKey,
+  openKey,
+  highKey,
+  lowKey,
+  closeKey,
+  colors,
+  axisColor,
+  gridColor,
+}: {
+  data: Record<string, unknown>[];
+  xKey: string;
+  openKey: string;
+  highKey: string;
+  lowKey: string;
+  closeKey: string;
+  colors: string[];
+  axisColor: string;
+  gridColor: string;
+}) {
+  const [hover, setHover] = useState<{
+    x: number; y: number; label: string;
+    open: number; high: number; low: number; close: number;
+  } | null>(null);
+
+  const items = useMemo(() => data.map((d) => ({
+    label: String(d[xKey]),
+    open: Number(d[openKey]) || 0,
+    high: Number(d[highKey]) || 0,
+    low: Number(d[lowKey]) || 0,
+    close: Number(d[closeKey]) || 0,
+  })), [data, xKey, openKey, highKey, lowKey, closeKey]);
+
+  if (items.length === 0) return null;
+
+  const allVals = items.flatMap((i) => [i.high, i.low, i.open, i.close]);
+  const dataMin = Math.min(...allVals);
+  const dataMax = Math.max(...allVals);
+  const pad = (dataMax - dataMin) * 0.05 || 1;
+  const yMin = dataMin - pad;
+  const yMax = dataMax + pad;
+
+  const width = 600;
+  const height = 240;
+  const padL = 44;
+  const padR = 8;
+  const padT = 8;
+  const padB = 28;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+
+  const yToPx = (v: number) => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+  const step = plotW / items.length;
+  const bodyW = Math.max(2, Math.min(16, step * 0.6));
+
+  const upColor = colors[0];
+  const downColor = colors[3] ?? "#DC2626";
+
+  const tickCount = 4;
+  const yTicks = Array.from({ length: tickCount + 1 }, (_, i) => yMin + (i / tickCount) * (yMax - yMin));
+
+  const labelStride = Math.max(1, Math.ceil(items.length / 8));
+
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 240 }}
+      onMouseLeave={() => setHover(null)}>
+      {yTicks.map((v, i) => {
+        const y = yToPx(v);
+        return (
+          <g key={i}>
+            <line x1={padL} x2={width - padR} y1={y} y2={y}
+              stroke={gridColor} strokeOpacity={0.5} strokeDasharray="3 3" />
+            <text x={padL - 6} y={y + 3} textAnchor="end"
+              fill={axisColor} fontSize={11} fontFamily='"Geist", system-ui'>
+              {formatYTick(v)}
+            </text>
+          </g>
+        );
+      })}
+      {items.map((item, i) => {
+        const cx = padL + i * step + step / 2;
+        const yH = yToPx(item.high);
+        const yL = yToPx(item.low);
+        const yO = yToPx(item.open);
+        const yC = yToPx(item.close);
+        const up = item.close >= item.open;
+        const color = up ? upColor : downColor;
+        const top = Math.min(yO, yC);
+        const h = Math.max(1, Math.abs(yC - yO));
+        return (
+          <g key={i}
+            onMouseEnter={() => setHover({ x: cx, y: (yH + yL) / 2, ...item })}
+            onMouseLeave={() => setHover(null)}>
+            <line x1={cx} x2={cx} y1={yH} y2={yL} stroke={color} strokeWidth={1} />
+            <rect x={cx - bodyW / 2} y={top} width={bodyW} height={h}
+              fill={color} stroke={color} />
+            {i % labelStride === 0 && (
+              <text x={cx} y={height - padB + 14} textAnchor="middle"
+                fill={axisColor} fontSize={10} fontFamily='"Geist", system-ui'>
+                {formatAxisTick(item.label)}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {hover && (
+        <SvgTooltip x={hover.x + bodyW / 2} y={hover.y}
+          lines={[
+            formatAxisTick(hover.label),
+            `O ${formatTooltipValue(hover.open)}  H ${formatTooltipValue(hover.high)}`,
+            `L ${formatTooltipValue(hover.low)}  C ${formatTooltipValue(hover.close)}`,
+          ]} />
+      )}
+    </svg>
+  );
+}
+
 // --- Main chart component ---
+
+// Height consumed by the y-axis title line rendered above the plot.
+const Y_TITLE_OFFSET = 18;
 
 export function ChartWidget({ widget, data }: Props) {
   const tokens = useTokens();
+  const yTitle = widget.y?.title;
+  if (!yTitle) {
+    return <ChartBody widget={widget} data={data} />;
+  }
+  // Like cloud: the y-axis title sits under the widget title, not rotated
+  // alongside the axis.
+  return (
+    <div>
+      <div style={{ ...AXIS_STYLE, color: tokens["text-muted"], marginBottom: 4 }}>{yTitle}</div>
+      <ChartBody widget={widget} data={data} titleOffset={Y_TITLE_OFFSET} />
+    </div>
+  );
+}
+
+function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: number }) {
+  const tokens = useTokens();
+  const rowHeight = useContext(RowHeightContext);
+  const chartHeight = (rowHeight !== undefined
+    ? Math.max(80, rowHeight - FRAME_OVERHEAD)
+    : DEFAULT_CHART_HEIGHT) - titleOffset;
 
   if (!data?.rows?.length) {
     return <div className="text-[var(--dac-text-muted)] text-xs py-6 text-center">No data</div>;
@@ -508,6 +847,20 @@ export function ChartWidget({ widget, data }: Props) {
   const gridColor = tokens["border"];
   const axisColor = tokens["text-muted"];
 
+  const xKey = axisField(widget.x);
+  const yKeys = axisFields(widget.y);
+  const xTick = buildAxisFormatter(widget.x, formatAxisTick);
+  const yTick = buildAxisFormatter(widget.y, formatYTick);
+  const yTooltipValue = buildAxisFormatter(widget.y, formatTooltipValue);
+  // The title renders at the bottom edge of a taller x-axis band so it never
+  // collides with a legend rendered below the plot.
+  const xLabelProps = widget.x?.title
+    ? {
+        label: { value: widget.x.title, position: "insideBottom" as const, offset: 0, style: { ...AXIS_STYLE, fill: axisColor } },
+        height: 44,
+      }
+    : {};
+
   const commonAxisProps = {
     tick: { ...AXIS_STYLE, fill: axisColor },
     axisLine: false,
@@ -516,17 +869,23 @@ export function ChartWidget({ widget, data }: Props) {
 
   const cartesianMargin = { top: 4, right: 8, bottom: 4, left: -4 };
   const gridProps = { vertical: false, stroke: gridColor, strokeOpacity: 0.5, strokeDasharray: "3 3" };
+  const cartesianTooltip = <CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} />;
 
   switch (widget.chart) {
-    case "line":
+    case "line": {
+      const colorKey = widget.color?.field;
+      const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
+      const rows = pivoted ? pivoted.rows : chartData;
+      const series = pivoted ? pivoted.series : yKeys;
       return (
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={chartData} margin={cartesianMargin}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <LineChart data={rows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={formatYTick} />
-            <Tooltip content={<CustomTooltip />} />
-            {widget.y?.map((field, i) => (
+            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <Tooltip content={cartesianTooltip} />
+            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {series.map((field, i) => (
               <Line
                 key={field}
                 type="monotone"
@@ -541,25 +900,44 @@ export function ChartWidget({ widget, data }: Props) {
           </LineChart>
         </ResponsiveContainer>
       );
+    }
 
     case "bar": {
-      const yFields = widget.y ?? [];
-      const isStacked = widget.stacked && yFields.length > 1;
+      const colorKey = widget.color?.field;
+      const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
+      const series = pivoted ? pivoted.series : yKeys;
+      const isStacked = widget.stacked && !!colorKey;
+      const rows = pivoted
+        ? (widget.normalized ? normalizeRows(pivoted.rows, pivoted.series) : pivoted.rows)
+        : chartData;
+      const horizontal = widget.horizontal;
+      const valueTick = widget.normalized ? formatPercentTick : yTick;
+      const valueTooltip = widget.normalized ? formatPercentTick : yTooltipValue;
+      const lastRadius: [number, number, number, number] = horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0];
       return (
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={chartData} margin={cartesianMargin}>
-            <CartesianGrid {...gridProps} />
-            <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={formatYTick} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
-            {isStacked && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
-            {yFields.map((field, i) => (
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <BarChart data={rows} layout={horizontal ? "vertical" : "horizontal"} margin={cartesianMargin}>
+            <CartesianGrid {...gridProps} vertical={horizontal} horizontal={!horizontal} />
+            {horizontal ? (
+              <>
+                <XAxis type="number" {...commonAxisProps} dy={6} tickFormatter={valueTick} />
+                <YAxis type="category" dataKey={xKey} {...commonAxisProps} dx={-4} width={80} tickFormatter={xTick} />
+              </>
+            ) : (
+              <>
+                <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+                <YAxis {...commonAxisProps} dx={-4} tickFormatter={valueTick} />
+              </>
+            )}
+            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
+            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {series.map((field, i) => (
               <Bar
                 key={field}
                 dataKey={field}
                 fill={colors[i % colors.length]}
                 stackId={isStacked ? "stack" : undefined}
-                radius={isStacked && i < yFields.length - 1 ? undefined : [2, 2, 0, 0]}
+                radius={isStacked && i < series.length - 1 ? undefined : lastRadius}
                 isAnimationActive={false}
               />
             ))}
@@ -569,16 +947,19 @@ export function ChartWidget({ widget, data }: Props) {
     }
 
     case "area": {
-      const yFields = widget.y ?? [];
-      const isStacked = widget.stacked && yFields.length > 1;
+      const colorKey = widget.color?.field;
+      const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
+      const rows = pivoted ? pivoted.rows : chartData;
+      const series = pivoted ? pivoted.series : yKeys;
       return (
-        <ResponsiveContainer width="100%" height={240}>
-          <AreaChart data={chartData} margin={cartesianMargin}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <AreaChart data={rows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={formatYTick} />
-            <Tooltip content={<CustomTooltip />} />
-            {yFields.map((field, i) => (
+            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <Tooltip content={cartesianTooltip} />
+            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {series.map((field, i) => (
               <Area
                 key={field}
                 type="monotone"
@@ -587,7 +968,6 @@ export function ChartWidget({ widget, data }: Props) {
                 fill={colors[i % colors.length]}
                 fillOpacity={0.06}
                 strokeWidth={1.5}
-                stackId={isStacked ? "stack" : undefined}
                 isAnimationActive={false}
               />
             ))}
@@ -598,11 +978,11 @@ export function ChartWidget({ widget, data }: Props) {
 
     case "pie": {
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <PieChart>
             <Pie
               data={chartData}
-              dataKey={widget.value || "value"}
+              dataKey={valueField(widget.value) || "value"}
               nameKey={widget.label || "label"}
               cx="50%"
               cy="45%"
@@ -628,18 +1008,22 @@ export function ChartWidget({ widget, data }: Props) {
     }
 
     case "scatter": {
-      const xIsNumeric = chartData.length > 0 && typeof chartData[0][widget.x!] === "number";
-      const yIsNumeric = chartData.length > 0 && typeof chartData[0][widget.y?.[0] ?? ""] === "number";
+      const xIsNumeric = widget.x?.type
+        ? widget.x.type === "number"
+        : chartData.length > 0 && typeof chartData[0][xKey!] === "number";
+      const yIsNumeric = widget.y?.type
+        ? widget.y.type === "number"
+        : chartData.length > 0 && typeof chartData[0][yKeys[0] ?? ""] === "number";
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <ScatterChart margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={widget.x} name={widget.x} {...commonAxisProps} dy={6}
-              tickFormatter={formatAxisTick}
+            <XAxis dataKey={xKey} name={widget.x?.title ?? xKey} {...commonAxisProps} dy={6}
+              tickFormatter={xTick} {...xLabelProps}
               type={xIsNumeric ? "number" : "category"} allowDuplicatedCategory={false} />
-            <YAxis dataKey={widget.y?.[0]} name={widget.y?.[0]} {...commonAxisProps} dx={-4}
-              tickFormatter={formatYTick} type={yIsNumeric ? "number" : "category"} />
-            <Tooltip content={<CustomTooltip />} />
+            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]} {...commonAxisProps} dx={-4}
+              tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
+            <Tooltip content={cartesianTooltip} />
             <Scatter data={chartData} fill={colors[0]} r={3} isAnimationActive={false} />
           </ScatterChart>
         </ResponsiveContainer>
@@ -647,19 +1031,23 @@ export function ChartWidget({ widget, data }: Props) {
     }
 
     case "bubble": {
-      const xIsNumeric = chartData.length > 0 && typeof chartData[0][widget.x!] === "number";
-      const yIsNumeric = chartData.length > 0 && typeof chartData[0][widget.y?.[0] ?? ""] === "number";
+      const xIsNumeric = widget.x?.type
+        ? widget.x.type === "number"
+        : chartData.length > 0 && typeof chartData[0][xKey!] === "number";
+      const yIsNumeric = widget.y?.type
+        ? widget.y.type === "number"
+        : chartData.length > 0 && typeof chartData[0][yKeys[0] ?? ""] === "number";
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <ScatterChart margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={widget.x} name={widget.x} {...commonAxisProps} dy={6}
+            <XAxis dataKey={xKey} name={widget.x?.title ?? xKey} {...commonAxisProps} dy={6}
               type={xIsNumeric ? "number" : "category"} allowDuplicatedCategory={false}
-              tickFormatter={formatAxisTick} />
-            <YAxis dataKey={widget.y?.[0]} name={widget.y?.[0]} {...commonAxisProps} dx={-4}
-              tickFormatter={formatYTick} type={yIsNumeric ? "number" : "category"} />
+              tickFormatter={xTick} {...xLabelProps} />
+            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]} {...commonAxisProps} dx={-4}
+              tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
             <ZAxis dataKey={widget.size} range={[40, 500]} name={widget.size} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={cartesianTooltip} />
             <Scatter data={chartData} fill={colors[0]} fillOpacity={0.6} isAnimationActive={false} />
           </ScatterChart>
         </ResponsiveContainer>
@@ -667,15 +1055,15 @@ export function ChartWidget({ widget, data }: Props) {
     }
 
     case "combo": {
-      const yFields = widget.y ?? [];
+      const yFields = yKeys;
       const lineSet = new Set(widget.lines ?? []);
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <ComposedChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={formatYTick} />
-            <Tooltip content={<CustomTooltip />} />
+            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <Tooltip content={cartesianTooltip} />
             <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
             {yFields.map((field, i) =>
               lineSet.has(field) ? (
@@ -704,9 +1092,9 @@ export function ChartWidget({ widget, data }: Props) {
     }
 
     case "histogram": {
-      const histData = buildHistogramData(chartData, widget.x!, widget.bins || 10);
+      const histData = buildHistogramData(chartData, xKey!, widget.bins || 10);
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={histData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="bin" {...commonAxisProps} dy={6} angle={-30} textAnchor="end" height={50} />
@@ -719,14 +1107,14 @@ export function ChartWidget({ widget, data }: Props) {
     }
 
     case "boxplot": {
-      const yField = widget.y?.[0] ?? "value";
-      const boxData = buildBoxplotData(chartData, widget.x!, yField);
+      const yField = yKeys[0] ?? "value";
+      const boxData = buildBoxplotData(chartData, xKey!, yField);
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <ComposedChart data={boxData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey="category" {...commonAxisProps} dy={6} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={formatYTick} />
+            <XAxis dataKey="category" {...commonAxisProps} dy={6} {...xLabelProps} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
             <Tooltip content={<CustomTooltip />} />
             {/* Invisible base to offset */}
             <Bar dataKey="min" fill="transparent" stackId="box" isAnimationActive={false} />
@@ -741,7 +1129,7 @@ export function ChartWidget({ widget, data }: Props) {
 
     case "funnel":
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <FunnelChart>
             <Tooltip content={<CustomTooltip />} />
             <Funnel
@@ -749,7 +1137,7 @@ export function ChartWidget({ widget, data }: Props) {
                 ...d,
                 fill: colors[i % colors.length],
               }))}
-              dataKey={widget.value || "value"}
+              dataKey={valueField(widget.value) || "value"}
               nameKey={widget.label || "label"}
               isAnimationActive={false}
             >
@@ -769,10 +1157,10 @@ export function ChartWidget({ widget, data }: Props) {
         chartData,
         widget.source || "source",
         widget.target || "target",
-        widget.value || "value",
+        valueField(widget.value) || "value",
       );
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <Sankey
             data={sankeyData}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -792,9 +1180,9 @@ export function ChartWidget({ widget, data }: Props) {
       return (
         <HeatmapChart
           data={chartData}
-          xKey={widget.x!}
-          yKey={widget.y?.[0] ?? "y"}
-          valueKey={widget.value || "value"}
+          xKey={xKey!}
+          yKey={yKeys[0] ?? "y"}
+          valueKey={valueField(widget.value) || "value"}
           colors={colors}
           axisColor={axisColor}
         />
@@ -804,8 +1192,8 @@ export function ChartWidget({ widget, data }: Props) {
       return (
         <CalendarHeatmap
           data={chartData}
-          dateKey={widget.x!}
-          valueKey={widget.value || "value"}
+          dateKey={xKey!}
+          valueKey={valueField(widget.value) || "value"}
           colors={colors}
           axisColor={axisColor}
         />
@@ -815,7 +1203,7 @@ export function ChartWidget({ widget, data }: Props) {
       return (
         <ResponsiveContainer width="100%" height={60}>
           <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-            {widget.y?.map((field, i) => (
+            {yKeys.map((field, i) => (
               <Line
                 key={field}
                 type="monotone"
@@ -832,14 +1220,14 @@ export function ChartWidget({ widget, data }: Props) {
       );
 
     case "waterfall": {
-      const wfData = buildWaterfallData(chartData, widget.x!, widget.y?.[0] ?? "value");
+      const wfData = buildWaterfallData(chartData, xKey!, yKeys[0] ?? "value");
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={wfData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey="name" {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={formatYTick} />
-            <Tooltip content={<CustomTooltip />} />
+            <XAxis dataKey="name" {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <Tooltip content={cartesianTooltip} />
             <Bar dataKey="base" fill="transparent" stackId="wf" isAnimationActive={false} />
             <Bar dataKey="value" stackId="wf" radius={[2, 2, 0, 0]} isAnimationActive={false}>
               {wfData.map((entry, i) => (
@@ -852,14 +1240,14 @@ export function ChartWidget({ widget, data }: Props) {
     }
 
     case "xmr": {
-      const yField = widget.y?.[0] ?? "value";
+      const yField = yKeys[0] ?? "value";
       return (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={chartHeight}>
           <LineChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={widget.x} {...commonAxisProps} dy={6} tickFormatter={formatAxisTick} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={formatYTick} />
-            <Tooltip content={<CustomTooltip />} />
+            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <Tooltip content={cartesianTooltip} />
             <Line type="monotone" dataKey={yField} stroke={colors[0]} strokeWidth={1.5} dot={{ r: 2, strokeWidth: 0, fill: colors[0] }} isAnimationActive={false} />
             {widget.yMin && (
               <Line type="monotone" dataKey={widget.yMin} stroke={colors[3] ?? "#DC2626"} strokeWidth={1} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
@@ -867,8 +1255,8 @@ export function ChartWidget({ widget, data }: Props) {
             {widget.yMax && (
               <Line type="monotone" dataKey={widget.yMax} stroke={colors[3] ?? "#DC2626"} strokeWidth={1} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
             )}
-            {widget.y && widget.y.length > 1 && (
-              <Line type="monotone" dataKey={widget.y[1]} stroke={colors[1]} strokeWidth={1} strokeDasharray="6 3" dot={false} isAnimationActive={false} />
+            {yKeys.length > 1 && (
+              <Line type="monotone" dataKey={yKeys[1]} stroke={colors[1]} strokeWidth={1} strokeDasharray="6 3" dot={false} isAnimationActive={false} />
             )}
           </LineChart>
         </ResponsiveContainer>
@@ -879,8 +1267,91 @@ export function ChartWidget({ widget, data }: Props) {
       return (
         <DumbbellChart
           data={chartData}
-          xKey={widget.x!}
-          yFields={widget.y ?? []}
+          xKey={xKey!}
+          yFields={yKeys}
+          colors={colors}
+          axisColor={axisColor}
+          gridColor={gridColor}
+        />
+      );
+
+    case "gauge": {
+      const valueKey = valueField(widget.value) || "value";
+      const targetKey = widget.target;
+      const first = chartData[0] ?? {};
+      const current = Number(first[valueKey]) || 0;
+      const target = targetKey ? Number(first[targetKey]) || 0 : 100;
+      return (
+        <GaugeChart
+          current={current}
+          target={target}
+          colors={colors}
+          axisColor={axisColor}
+          gridColor={gridColor}
+        />
+      );
+    }
+
+    case "treemap": {
+      const labelKey = widget.label || "label";
+      const valueKey = valueField(widget.value) || "value";
+      const tmData = chartData.map((d, i) => ({
+        name: String(d[labelKey]),
+        size: Number(d[valueKey]) || 0,
+        fill: colors[i % colors.length],
+      }));
+      return (
+        <ResponsiveContainer width="100%" height={240}>
+          <Treemap
+            data={tmData}
+            dataKey="size"
+            nameKey="name"
+            stroke="var(--dac-surface)"
+            content={TreemapCell}
+            isAnimationActive={false}
+          >
+            <Tooltip content={<CustomTooltip />} />
+          </Treemap>
+        </ResponsiveContainer>
+      );
+    }
+
+    case "radar": {
+      const yFields = yKeys;
+      return (
+        <ResponsiveContainer width="100%" height={240}>
+          <RadarChart data={chartData} margin={{ top: 8, right: 24, bottom: 8, left: 24 }}>
+            <PolarGrid stroke={gridColor} strokeOpacity={0.5} />
+            <PolarAngleAxis dataKey={xKey} tick={{ ...AXIS_STYLE, fill: axisColor }} />
+            <PolarRadiusAxis tick={{ ...AXIS_STYLE, fill: axisColor }} axisLine={false} tickFormatter={yTick} />
+            <Tooltip content={<CustomTooltip />} />
+            {yFields.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {yFields.map((field, i) => (
+              <Radar
+                key={field}
+                name={field}
+                dataKey={field}
+                stroke={colors[i % colors.length]}
+                fill={colors[i % colors.length]}
+                fillOpacity={0.15}
+                strokeWidth={1.5}
+                isAnimationActive={false}
+              />
+            ))}
+          </RadarChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    case "candlestick":
+      return (
+        <CandlestickChart
+          data={chartData}
+          xKey={xKey!}
+          openKey={widget.open || "open"}
+          highKey={widget.high || "high"}
+          lowKey={widget.low || "low"}
+          closeKey={widget.close || "close"}
           colors={colors}
           axisColor={axisColor}
           gridColor={gridColor}

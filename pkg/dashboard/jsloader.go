@@ -15,7 +15,7 @@ import (
 // esbuild converts <Tag> to h(Tag, ...) where Tag is a variable reference;
 // we define each as a string constant so h() receives a string.
 var jsxTags = []string{
-	"Dashboard", "Row", "Filter", "Query", "Semantic",
+	"Dashboard", "Row", "Filter", "Query",
 	"Metric", "Chart", "Table", "Text", "Divider", "Image",
 	"Tabs", "Tab",
 }
@@ -52,11 +52,6 @@ func loadTSXFileWithContext(path string, paths ProjectPaths, semanticModels sema
 	d.SetProjectContext(paths.RootDir, semanticModels.models, semanticModels.invalid)
 
 	// Run the same post-processing as YAML loader.
-	dir := filepath.Dir(path)
-	if err := resolveQueryFiles(d, dir); err != nil {
-		return nil, err
-	}
-
 	postProcessDashboard(d)
 
 	return d, nil
@@ -397,15 +392,6 @@ func vnodeToDashboard(root *vnode) (*Dashboard, error) {
 		Connection:  asString(root.Props["connection"]),
 		Model:       asString(root.Props["model"]),
 		Models:      asStringMap(root.Props["models"]),
-		Theme:       asString(root.Props["theme"]),
-	}
-
-	if v := root.Props["refresh"]; v != nil {
-		if m, ok := v.(map[string]interface{}); ok {
-			d.Refresh = &RefreshConfig{
-				Interval: asString(m["interval"]),
-			}
-		}
 	}
 
 	for _, child := range root.Children {
@@ -442,10 +428,6 @@ func vnodeToDashboard(root *vnode) (*Dashboard, error) {
 				}
 			}
 
-		case "Semantic":
-			sem := vnodeToSemantic(child)
-			d.Semantic = sem
-
 		case "Query":
 			if d.Queries == nil {
 				d.Queries = make(map[string]Query)
@@ -453,7 +435,6 @@ func vnodeToDashboard(root *vnode) (*Dashboard, error) {
 			name := asString(child.Props["name"])
 			q := Query{
 				SQL:        asString(child.Props["sql"]),
-				File:       asString(child.Props["file"]),
 				Connection: asString(child.Props["connection"]),
 				Model:      asString(child.Props["model"]),
 				Dimensions: asSemanticDimensionRefs(child.Props["dimensions"]),
@@ -518,6 +499,7 @@ func vnodeToRow(n *vnode) Row {
 
 func vnodeToWidget(n *vnode) Widget {
 	w := Widget{
+		ID:          asString(n.Props["id"]),
 		Name:        asString(n.Props["name"]),
 		Description: asString(n.Props["description"]),
 		Type:        widgetType(n.Tag),
@@ -526,16 +508,9 @@ func vnodeToWidget(n *vnode) Widget {
 		// Query source
 		QueryRef:   asString(n.Props["query"]),
 		SQL:        asString(n.Props["sql"]),
-		File:       asString(n.Props["file"]),
 		MetricRef:  asString(n.Props["metric"]),
 		Model:      asString(n.Props["model"]),
 		Connection: asString(n.Props["connection"]),
-
-		// Metric fields
-		Column: asString(n.Props["column"]),
-		Prefix: asString(n.Props["prefix"]),
-		Suffix: asString(n.Props["suffix"]),
-		Format: asString(n.Props["format"]),
 
 		// Declarative chart fields
 		Dimension:   asString(n.Props["dimension"]),
@@ -548,19 +523,22 @@ func vnodeToWidget(n *vnode) Widget {
 		Limit:       asInt(n.Props["limit"]),
 
 		// Chart fields
-		Chart:   asString(n.Props["chart"]),
-		X:       asString(n.Props["x"]),
-		Y:       asStringSlice(n.Props["y"]),
-		Label:   asString(n.Props["label"]),
-		Value:   asString(n.Props["value"]),
-		Stacked: asBool(n.Props["stacked"]),
-		Size:    asString(n.Props["size"]),
-		Source:  asString(n.Props["source"]),
-		Target:  asString(n.Props["target"]),
-		Bins:    asInt(n.Props["bins"]),
-		Lines:   asStringSlice(n.Props["lines"]),
-		YMin:    asString(n.Props["yMin"]),
-		YMax:    asString(n.Props["yMax"]),
+		Chart:      asString(n.Props["chart"]),
+		X:          asAxisEncoding(n.Props["x"]),
+		Y:          asAxisEncoding(n.Props["y"]),
+		Label:      asString(n.Props["label"]),
+		Value:      asValueEncoding(n.Props["value"]),
+		Color:      asColorEncoding(n.Props["color"]),
+		Stacked:    asBool(n.Props["stacked"]),
+		Normalized: asBool(n.Props["normalized"]),
+		Horizontal: asBool(n.Props["horizontal"]),
+		Size:       asString(n.Props["size"]),
+		Source:     asString(n.Props["source"]),
+		Target:     asString(n.Props["target"]),
+		Bins:       asInt(n.Props["bins"]),
+		Lines:      asStringSlice(n.Props["lines"]),
+		YMin:       asString(n.Props["yMin"]),
+		YMax:       asString(n.Props["yMax"]),
 
 		// Table fields
 		Columns: asTableColumns(n.Props["columns"]),
@@ -574,68 +552,6 @@ func vnodeToWidget(n *vnode) Widget {
 	}
 
 	return w
-}
-
-func vnodeToSemantic(n *vnode) *SemanticLayer {
-	sem := &SemanticLayer{}
-
-	if src, ok := n.Props["source"]; ok {
-		if m, ok := src.(map[string]interface{}); ok {
-			sem.Source = &Source{
-				Table:      asString(m["table"]),
-				DateColumn: asString(m["dateColumn"]),
-				DateFormat: asString(m["dateFormat"]),
-				Connection: asString(m["connection"]),
-			}
-			// Also check snake_case variants.
-			if sem.Source.DateColumn == "" {
-				sem.Source.DateColumn = asString(m["date_column"])
-			}
-			if sem.Source.DateFormat == "" {
-				sem.Source.DateFormat = asString(m["date_format"])
-			}
-		}
-	}
-
-	if metrics, ok := n.Props["metrics"]; ok {
-		if m, ok := metrics.(map[string]interface{}); ok {
-			sem.Metrics = make(map[string]Metric, len(m))
-			for name, v := range m {
-				if mm, ok := v.(map[string]interface{}); ok {
-					metric := Metric{
-						Aggregate:  asString(mm["aggregate"]),
-						Column:     asString(mm["column"]),
-						Expression: asString(mm["expression"]),
-					}
-					if f, ok := mm["filter"]; ok {
-						if fm, ok := f.(map[string]interface{}); ok {
-							metric.Filter = make(map[string]string, len(fm))
-							for k, v := range fm {
-								metric.Filter[k] = asString(v)
-							}
-						}
-					}
-					sem.Metrics[name] = metric
-				}
-			}
-		}
-	}
-
-	if dims, ok := n.Props["dimensions"]; ok {
-		if m, ok := dims.(map[string]interface{}); ok {
-			sem.Dimensions = make(map[string]Dimension, len(m))
-			for name, v := range m {
-				if dm, ok := v.(map[string]interface{}); ok {
-					sem.Dimensions[name] = Dimension{
-						Column: asString(dm["column"]),
-						Type:   asString(dm["type"]),
-					}
-				}
-			}
-		}
-	}
-
-	return sem
 }
 
 // widgetType maps a JSX tag name to a widget type string.
@@ -712,6 +628,97 @@ func asStringSlice(v interface{}) []string {
 	default:
 		return nil
 	}
+}
+
+func asAxisEncoding(v interface{}) *AxisEncoding {
+	if v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case string:
+		if val == "" {
+			return nil
+		}
+		return &AxisEncoding{Field: val}
+	case []interface{}:
+		list := asStringSlice(val)
+		if len(list) == 0 {
+			return nil
+		}
+		return &AxisEncoding{Field: list}
+	case []string:
+		if len(val) == 0 {
+			return nil
+		}
+		return &AxisEncoding{Field: val}
+	case map[string]interface{}:
+		a := &AxisEncoding{
+			Type:   asString(val["type"]),
+			Title:  asString(val["title"]),
+			Format: asString(val["format"]),
+		}
+		switch f := val["field"].(type) {
+		case string:
+			if f != "" {
+				a.Field = f
+			}
+		case []interface{}:
+			list := asStringSlice(f)
+			if len(list) > 0 {
+				a.Field = list
+			}
+		case []string:
+			if len(f) > 0 {
+				a.Field = f
+			}
+		}
+		if a.Field == nil && a.Type == "" && a.Title == "" && a.Format == "" {
+			return nil
+		}
+		return a
+	default:
+		return nil
+	}
+}
+
+func asValueEncoding(v interface{}) *ValueEncoding {
+	if v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case string:
+		if val == "" {
+			return nil
+		}
+		return &ValueEncoding{Field: val}
+	case map[string]interface{}:
+		field := asString(val["field"])
+		if field == "" {
+			return nil
+		}
+		return &ValueEncoding{
+			Field:  field,
+			Type:   asString(val["type"]),
+			Format: asString(val["format"]),
+		}
+	default:
+		return nil
+	}
+}
+
+func asColorEncoding(v interface{}) *ColorEncoding {
+	if v == nil {
+		return nil
+	}
+	val, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	field := asString(val["field"])
+	if field == "" {
+		return nil
+	}
+	return &ColorEncoding{Field: field}
 }
 
 func asStringMap(v interface{}) map[string]string {

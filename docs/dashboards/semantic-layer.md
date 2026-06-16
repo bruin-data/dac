@@ -186,8 +186,10 @@ In this example, dashboard widgets can use `model: sales_model`, and DAC resolve
     - dimension: region
       operator: equals
       value: "{{ filters.region }}"
-  prefix: "$"
-  format: number
+  value:
+    field: revenue
+    type: number
+    format: "$,.0f"
   col: 3
 ```
 
@@ -252,7 +254,7 @@ rows:
 
 DAC has two related filter concepts:
 
-- Dashboard filters define UI controls, such as `select`, `date-range`, and `text`.
+- Dashboard filters define UI controls, such as `select`, `date-range`, `date`, `number`, and `text`.
 - Semantic query filters define predicates applied to semantic dimensions before SQL execution.
 
 Dashboard filter values can be referenced in semantic filters with the same Jinja-style syntax used by SQL queries:

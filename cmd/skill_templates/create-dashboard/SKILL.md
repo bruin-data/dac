@@ -10,6 +10,19 @@ Use this skill to create or modify DAC dashboard projects.
 
 DAC projects define dashboards as code and run queries through Bruin connections. Dashboards can use direct SQL or the semantic layer. Semantic widgets reference models, dimensions, metrics, and segments; DAC compiles them to SQL in the backend.
 
+## Validation Workflow — Read Before Editing
+
+`dac check` runs every widget's query against the live database and scales with total widget count. Pick the cheapest tool that proves the change is correct:
+
+| Change you just made | Run this | Why |
+|---|---|---|
+| UI-only — `chart` type, `col`, labels, `value` formatting, colors, text/markdown, divider/image, theme, row order | nothing | No query changed. `dac serve` live-reloads instantly in the browser. |
+| One widget's SQL, `query:` ref, or column mapping | `dac query --dir ./dashboards --dashboard "X" --widget "Y"` | Executes only that one query. |
+| Filters, named queries, metrics/dimensions wiring, `col` sums, new widget skeletons | `dac validate --dir ./dashboards` | Structural check, no SQL executed. |
+| End-of-task sweep, or many widgets changed at once | `dac check --dir ./dashboards` | Full execution. Slow — only run once when you think you're done. |
+
+Default to no command for UI tweaks, `dac query --widget` for per-widget SQL checks, and `dac check` for final sweeps.
+
 ## Workflow
 
 Follow this order unless the user asks for something narrower:
@@ -17,11 +30,9 @@ Follow this order unless the user asks for something narrower:
 1. Inspect the data before charting — row counts, nulls, distributions, duplicates, outliers, join behavior.
 2. Choose YAML by default; use TSX only when the dashboard needs loops, variables, reusable components, or generated layouts.
 3. Build the smallest dashboard that answers the question well.
-4. Validate the schema with `dac validate`.
-5. Execute queries with `dac check`.
-6. Debug failed widgets with `dac query`.
-7. Serve locally with `dac serve --port 8321` and always give the user `http://localhost:8321`.
-8. Visually review the rendered dashboard before calling it done.
+4. Use the validation workflow above to choose the cheapest correct check: no command for UI-only edits, `dac validate` for structure, `dac query` for one widget, and `dac check` only for final sweeps or broad changes.
+5. Serve locally with `dac serve --port 8321` and always give the user `http://localhost:8321`.
+6. Visually review the rendered dashboard before calling it done.
 
 ## Core Dashboard Rules
 
@@ -114,7 +125,7 @@ dac serve --dir my-dashboards --open
 dac query --dir my-dashboards --dashboard "Sales" --widget "Revenue"
 ```
 
-Use `dac validate` after editing structure and `dac check` when query execution should be verified. Always surface `http://localhost:8321` to the user after starting the server.
+Use the validation workflow above when deciding between no command, `dac validate`, `dac query`, and `dac check`. Always surface `http://localhost:8321` to the user after starting the server.
 
 ## Connection Config
 
@@ -163,9 +174,10 @@ rows:
           {% if filters.region != 'All' %}
             AND region = '{{ filters.region }}'
           {% endif %}
-        column: value
-        prefix: "$"
-        format: number
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 3
 ```
 
@@ -179,9 +191,19 @@ Supported filter types:
 
 - `select`
 - `date-range`
+- `date`
+- `number`
 - `text`
 
 Date range presets include `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, and `all_time`.
+
+Select filters support `multiple: true` for multi-select. The value is a list — render with `join` in Jinja and guard the empty case:
+
+```sql
+{% if filters.status and filters.status | length > 0 %}
+  AND status IN ('{{ filters.status | join("','") }}')
+{% endif %}
+```
 
 ## Named Queries
 
@@ -270,8 +292,10 @@ rows:
           - dimension: region
             operator: equals
             value: "{{ filters.region }}"
-        prefix: "$"
-        format: number
+        value:
+          field: revenue
+          type: number
+          format: "$,.0f"
         col: 3
 
       - name: Revenue by Month
@@ -311,8 +335,7 @@ export default (
         filters={[
           { dimension: "region", operator: "equals", value: "{{ filters.region }}" },
         ]}
-        prefix="$"
-        format="number"
+        value={{ field: "revenue", type: "number", format: "$,.0f" }}
         col={3}
       />
       <Chart

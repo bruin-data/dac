@@ -121,47 +121,12 @@ func loadFileWithContext(path string, paths ProjectPaths, semanticModels semanti
 	d.FileType = "yaml"
 	d.SetProjectContext(paths.RootDir, semanticModels.models, semanticModels.invalid)
 
-	// Resolve file-based queries (both named and inline on widgets).
-	dir := filepath.Dir(path)
-	if err := resolveQueryFiles(&d, dir); err != nil {
-		return nil, err
-	}
-
 	postProcessDashboard(&d)
 
 	return &d, nil
 }
 
-// resolveQueryFiles reads external .sql files referenced by queries and widgets.
-func resolveQueryFiles(d *Dashboard, baseDir string) error {
-	// Resolve named queries with file references.
-	for name, q := range d.Queries {
-		if q.File != "" {
-			sql, err := readQueryFile(baseDir, q.File)
-			if err != nil {
-				return fmt.Errorf("query %q: %w", name, err)
-			}
-			q.SQL = sql
-			d.Queries[name] = q
-		}
-	}
-
-	// Resolve inline file references on widgets.
-	for i, row := range d.Rows {
-		for j, w := range row.Widgets {
-			if w.File != "" && w.QueryRef == "" {
-				sql, err := readQueryFile(baseDir, w.File)
-				if err != nil {
-					return fmt.Errorf("widget %q: %w", w.Name, err)
-				}
-				d.Rows[i].Widgets[j].SQL = sql
-			}
-		}
-	}
-
-	return nil
-}
-
+// readQueryFile reads a .sql file relative to the dashboard; used by the TSX include() helper.
 func readQueryFile(baseDir, relPath string) (string, error) {
 	path := filepath.Join(baseDir, relPath)
 	data, err := os.ReadFile(path)
@@ -180,15 +145,15 @@ func postProcessDashboard(d *Dashboard) {
 	for i, row := range d.Rows {
 		for j, w := range row.Widgets {
 			if w.Dimension != "" && len(w.MetricRefs) > 0 {
-				if x := defaultSemanticDimensionAlias(d, &w); x != "" && w.X == "" {
-					d.Rows[i].Widgets[j].X = x
+				if x := defaultSemanticDimensionAlias(d, &w); x != "" && w.XField() == "" {
+					d.Rows[i].Widgets[j].X = newAxisField(x)
 				}
-				if len(w.Y) == 0 {
-					d.Rows[i].Widgets[j].Y = w.MetricRefs
+				if len(w.YFields()) == 0 {
+					d.Rows[i].Widgets[j].Y = newAxisFields(w.MetricRefs)
 				}
 			}
 
-			if w.QueryRef == "" || w.X != "" || len(w.Y) > 0 {
+			if w.QueryRef == "" || w.XField() != "" || len(w.YFields()) > 0 {
 				continue
 			}
 			q, ok := d.Queries[w.QueryRef]
@@ -196,10 +161,10 @@ func postProcessDashboard(d *Dashboard) {
 				continue
 			}
 			if len(q.Dimensions) == 1 {
-				d.Rows[i].Widgets[j].X = q.Dimensions[0].Name
+				d.Rows[i].Widgets[j].X = newAxisField(q.Dimensions[0].Name)
 			}
 			if len(q.Metrics) > 0 {
-				d.Rows[i].Widgets[j].Y = append([]string(nil), q.Metrics...)
+				d.Rows[i].Widgets[j].Y = newAxisFields(append([]string(nil), q.Metrics...))
 			}
 		}
 	}
@@ -208,11 +173,6 @@ func postProcessDashboard(d *Dashboard) {
 func defaultSemanticDimensionAlias(d *Dashboard, w *Widget) string {
 	if w.Model != "" || d.Model != "" {
 		return w.Dimension
-	}
-	if dims := d.SemanticDimensions(); dims != nil {
-		if dim, ok := dims[w.Dimension]; ok {
-			return DimensionAlias(dim.Column)
-		}
 	}
 	return ""
 }

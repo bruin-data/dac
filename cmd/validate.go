@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -172,24 +171,10 @@ func widgetLabelsByID(d *dashboard.Dashboard) map[string]string {
 }
 
 func labelForWidgetJob(job server.WidgetJob, labels map[string]string) string {
-	if job.MetricFanout == nil {
-		if label := labels[job.ID]; label != "" {
-			return label
-		}
-		return job.ID
+	if label := labels[job.ID]; label != "" {
+		return label
 	}
-
-	widgetNames := make([]string, 0, len(job.MetricFanout))
-	for widgetID := range job.MetricFanout {
-		if label := labels[widgetID]; label != "" {
-			widgetNames = append(widgetNames, label)
-		}
-	}
-	sort.Strings(widgetNames)
-	if len(widgetNames) == 0 {
-		return "merged metric widgets"
-	}
-	return "merged metrics: " + strings.Join(widgetNames, ", ")
+	return job.ID
 }
 
 func dryRunQuery(ctx context.Context, backend query.Backend, connection string, sql string) error {

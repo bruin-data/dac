@@ -3,6 +3,7 @@ package dashboard
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	sem "github.com/bruin-data/dac/pkg/semantic"
 )
@@ -101,58 +102,6 @@ func Validate(d *Dashboard) error {
 		}
 	}
 
-	// Validate semantic layer.
-	metrics := d.SemanticMetrics()
-	source := d.SemanticSource()
-	dims := d.SemanticDimensions()
-
-	if len(metrics) > 0 && source == nil {
-		errs = append(errs, "semantic.source is required when metrics are defined")
-	}
-	if source != nil && source.Table == "" {
-		errs = append(errs, "semantic.source: table is required")
-	}
-	for name, m := range metrics {
-		prefix := fmt.Sprintf("semantic.metrics %q", name)
-		if m.Expression != "" {
-			if m.Aggregate != "" {
-				errs = append(errs, fmt.Sprintf("%s: cannot specify both aggregate and expression", prefix))
-			}
-		} else {
-			if m.Aggregate == "" {
-				errs = append(errs, fmt.Sprintf("%s: one of aggregate or expression is required", prefix))
-			} else if !ValidAggregates[m.Aggregate] {
-				errs = append(errs, fmt.Sprintf("%s: unknown aggregate %q", prefix, m.Aggregate))
-			}
-			if m.Aggregate != "count" && m.Column == "" {
-				errs = append(errs, fmt.Sprintf("%s: column is required for %s", prefix, m.Aggregate))
-			}
-		}
-	}
-	// Validate expression references.
-	for name, m := range metrics {
-		if m.Expression == "" {
-			continue
-		}
-		if err := validateExpressionRefs(m.Expression, metrics); err != nil {
-			errs = append(errs, fmt.Sprintf("semantic.metrics %q: %s", name, err.Error()))
-		}
-	}
-
-	// Validate dimensions.
-	if len(dims) > 0 && source == nil {
-		errs = append(errs, "semantic.source is required when dimensions are defined")
-	}
-	for name, dim := range dims {
-		prefix := fmt.Sprintf("semantic.dimensions %q", name)
-		if dim.Column == "" {
-			errs = append(errs, fmt.Sprintf("%s: column is required", prefix))
-		}
-		if dim.Type != "" && dim.Type != "date" {
-			errs = append(errs, fmt.Sprintf("%s: unknown type %q (expected \"date\" or empty)", prefix, dim.Type))
-		}
-	}
-
 	// Validate filters.
 	for i, f := range d.Filters {
 		prefix := fmt.Sprintf("filter %d (%q)", i+1, f.Name)
@@ -162,9 +111,20 @@ func Validate(d *Dashboard) error {
 		if f.Type == "" {
 			errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
 		}
-		validTypes := map[string]bool{"date-range": true, "select": true, "text": true}
+		validTypes := map[string]bool{"date": true, "date-range": true, "number": true, "select": true, "text": true}
 		if f.Type != "" && !validTypes[f.Type] {
 			errs = append(errs, fmt.Sprintf("%s: unknown filter type %q", prefix, f.Type))
+		}
+		if f.Type == "date" && f.Default != nil {
+			switch v := f.Default.(type) {
+			case string:
+				if ResolveDateExpression(v) == "" {
+					errs = append(errs, fmt.Sprintf("%s: invalid date default %q (must be TODAY, TODAY+/-N, or YYYY-MM-DD)", prefix, v))
+				}
+			case time.Time:
+			default:
+				errs = append(errs, fmt.Sprintf("%s: invalid date default %v (must be TODAY, TODAY+/-N, or YYYY-MM-DD)", prefix, f.Default))
+			}
 		}
 	}
 
@@ -211,10 +171,6 @@ func ValidateAll(dashboards []*Dashboard) error {
 
 func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 	var errs []string
-	if w.MetricRef != "" {
-		// Metric-ref widgets get their query from the metrics system.
-		return errs
-	}
 	if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
 		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 		return errs
@@ -224,8 +180,8 @@ func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 		}
 		return errs
 	}
-	if w.QueryRef == "" && w.SQL == "" && w.File == "" {
-		errs = append(errs, fmt.Sprintf("%s: one of query, sql, or file is required", prefix))
+	if w.QueryRef == "" && w.SQL == "" {
+		errs = append(errs, fmt.Sprintf("%s: one of query or sql is required", prefix))
 	}
 	if w.QueryRef != "" {
 		if _, ok := d.Queries[w.QueryRef]; !ok {
@@ -235,51 +191,8 @@ func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 	return errs
 }
 
-func validateExpressionRefs(expr string, metrics map[string]Metric) error {
-	// Extract identifiers from the expression and check they exist in metrics.
-	pos := 0
-	for pos < len(expr) {
-		ch := rune(expr[pos])
-		if ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
-			start := pos
-			for pos < len(expr) {
-				c := rune(expr[pos])
-				if c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-					pos++
-				} else {
-					break
-				}
-			}
-			name := expr[start:pos]
-			if _, ok := metrics[name]; !ok {
-				return fmt.Errorf("references unknown metric %q", name)
-			}
-		} else {
-			pos++
-		}
-	}
-	return nil
-}
-
 func validateMetricWidget(prefix string, w *Widget, d *Dashboard) []string {
 	var errs []string
-	if w.MetricRef != "" {
-		if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
-			return errs
-		} else if handled {
-			if err := validateSemanticJob(job); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
-			}
-			return errs
-		}
-		if m := d.SemanticMetrics(); m == nil {
-			errs = append(errs, fmt.Sprintf("%s: metric %q referenced but no semantic.metrics defined", prefix, w.MetricRef))
-		} else if _, ok := m[w.MetricRef]; !ok {
-			errs = append(errs, fmt.Sprintf("%s: metric %q not found in semantic.metrics", prefix, w.MetricRef))
-		}
-		return errs
-	}
 	if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
 		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 		return errs
@@ -289,8 +202,12 @@ func validateMetricWidget(prefix string, w *Widget, d *Dashboard) []string {
 		}
 		return errs
 	}
-	if w.Column == "" {
-		errs = append(errs, fmt.Sprintf("%s: column is required for metric widgets", prefix))
+	if w.MetricRef != "" {
+		errs = append(errs, fmt.Sprintf("%s: metric %q requires a semantic model; set model on the widget or dashboard", prefix, w.MetricRef))
+		return errs
+	}
+	if w.ValueField() == "" {
+		errs = append(errs, fmt.Sprintf("%s: value is required for metric widgets", prefix))
 	}
 	return errs
 }
@@ -300,7 +217,8 @@ var validChartTypes = map[string]bool{
 	"scatter": true, "bubble": true, "combo": true, "histogram": true,
 	"boxplot": true, "funnel": true, "sankey": true, "heatmap": true,
 	"calendar": true, "sparkline": true, "waterfall": true, "xmr": true,
-	"dumbbell": true,
+	"dumbbell": true, "gauge": true, "treemap": true, "radar": true,
+	"candlestick": true,
 }
 
 func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
@@ -314,7 +232,8 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		return errs
 	}
 
-	// Dimensional chart: uses dimension + metrics instead of x/y/sql.
+	// Dimensional chart: uses dimension + metrics from a semantic model
+	// instead of x/y/sql.
 	if w.Dimension != "" || len(w.MetricRefs) > 0 || len(w.Dimensions) > 0 || len(w.Filters) > 0 || len(w.Segments) > 0 || len(w.Sort) > 0 || w.Model != "" {
 		if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
@@ -326,34 +245,42 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 			return errs
 		}
 
-		if w.Dimension == "" {
-			errs = append(errs, fmt.Sprintf("%s: dimension is required when metrics are specified", prefix))
-		} else if dims := d.SemanticDimensions(); dims == nil {
-			errs = append(errs, fmt.Sprintf("%s: dimension %q referenced but no semantic.dimensions defined", prefix, w.Dimension))
-		} else if _, ok := dims[w.Dimension]; !ok {
-			errs = append(errs, fmt.Sprintf("%s: dimension %q not found in semantic.dimensions", prefix, w.Dimension))
-		}
-		if len(w.MetricRefs) == 0 {
-			errs = append(errs, fmt.Sprintf("%s: metrics are required when dimension is specified", prefix))
-		}
-		for _, ref := range w.MetricRefs {
-			if m := d.SemanticMetrics(); m == nil {
-				errs = append(errs, fmt.Sprintf("%s: metric %q referenced but no semantic.metrics defined", prefix, ref))
-			} else if _, ok := m[ref]; !ok {
-				errs = append(errs, fmt.Sprintf("%s: metric %q not found in semantic.metrics", prefix, ref))
-			}
-		}
+		errs = append(errs, fmt.Sprintf("%s: dimensional charts require a semantic model; set model on the widget or dashboard", prefix))
 		return errs
 	}
 
 	switch w.Chart {
-	case "pie", "funnel":
+	case "pie", "funnel", "treemap":
 		// label + value columns
 		if w.Label == "" {
 			errs = append(errs, fmt.Sprintf("%s: label is required for %s charts", prefix, w.Chart))
 		}
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for %s charts", prefix, w.Chart))
+		}
+
+	case "gauge":
+		// value column (current); target is optional
+		if w.ValueField() == "" {
+			errs = append(errs, fmt.Sprintf("%s: value is required for gauge charts", prefix))
+		}
+
+	case "candlestick":
+		// x + open/high/low/close
+		if w.XField() == "" {
+			errs = append(errs, fmt.Sprintf("%s: x is required for candlestick charts", prefix))
+		}
+		if w.Open == "" {
+			errs = append(errs, fmt.Sprintf("%s: open is required for candlestick charts", prefix))
+		}
+		if w.High == "" {
+			errs = append(errs, fmt.Sprintf("%s: high is required for candlestick charts", prefix))
+		}
+		if w.Low == "" {
+			errs = append(errs, fmt.Sprintf("%s: low is required for candlestick charts", prefix))
+		}
+		if w.Close == "" {
+			errs = append(errs, fmt.Sprintf("%s: close is required for candlestick charts", prefix))
 		}
 
 	case "sankey":
@@ -364,43 +291,43 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if w.Target == "" {
 			errs = append(errs, fmt.Sprintf("%s: target is required for sankey charts", prefix))
 		}
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for sankey charts", prefix))
 		}
 
 	case "heatmap":
 		// x + y + value
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for heatmap charts", prefix))
 		}
-		if len(w.Y) == 0 {
+		if len(w.YFields()) == 0 {
 			errs = append(errs, fmt.Sprintf("%s: y is required for heatmap charts", prefix))
 		}
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for heatmap charts", prefix))
 		}
 
 	case "calendar":
 		// x (date) + value
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x (date column) is required for calendar charts", prefix))
 		}
-		if w.Value == "" {
+		if w.ValueField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for calendar charts", prefix))
 		}
 
 	case "histogram":
 		// x (column to bin)
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for histogram charts", prefix))
 		}
 
 	case "bubble":
 		// x + y + size
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for bubble charts", prefix))
 		}
-		if len(w.Y) == 0 {
+		if len(w.YFields()) == 0 {
 			errs = append(errs, fmt.Sprintf("%s: y is required for bubble charts", prefix))
 		}
 		if w.Size == "" {
@@ -408,14 +335,41 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		}
 
 	default:
-		// line, bar, area, scatter, combo, sparkline, waterfall, xmr, dumbbell, boxplot
+		// line, bar, area, scatter, combo, sparkline, waterfall, xmr, dumbbell, boxplot, radar
 		// all need x + y
-		if w.X == "" {
+		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x is required for %s charts", prefix, w.Chart))
 		}
-		if len(w.Y) == 0 {
+		if len(w.YFields()) == 0 {
 			errs = append(errs, fmt.Sprintf("%s: y is required for %s charts", prefix, w.Chart))
 		}
+	}
+
+	if w.Color != nil {
+		if w.Color.Field == "" {
+			errs = append(errs, fmt.Sprintf("%s: color.field is required", prefix))
+		}
+		if w.Chart != "bar" && w.Chart != "line" && w.Chart != "area" {
+			errs = append(errs, fmt.Sprintf("%s: color is only valid on bar, line, or area charts", prefix))
+		}
+		if len(w.YFields()) > 1 {
+			errs = append(errs, fmt.Sprintf("%s: color with multiple y fields is not supported", prefix))
+		}
+	}
+	if w.Stacked && w.Chart != "bar" {
+		errs = append(errs, fmt.Sprintf("%s: stacked is only valid on bar charts", prefix))
+	}
+	if w.Stacked && w.Color == nil {
+		errs = append(errs, fmt.Sprintf("%s: stacked requires color — return one row per category (long format) and set color: { field: <category column> }", prefix))
+	}
+	if w.Normalized && !w.Stacked {
+		errs = append(errs, fmt.Sprintf("%s: normalized requires stacked: true", prefix))
+	}
+	if w.Normalized && w.Chart != "bar" {
+		errs = append(errs, fmt.Sprintf("%s: normalized is only valid on bar charts", prefix))
+	}
+	if w.Horizontal && w.Chart != "bar" {
+		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar charts", prefix))
 	}
 
 	return errs

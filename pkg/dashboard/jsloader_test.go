@@ -76,7 +76,7 @@ func TestLoadTSXFile_DataDrivenWithMockBackend(t *testing.T) {
 		t.Errorf("expected %q, got %q", "Completed Orders", d.Rows[1].Widgets[0].Name)
 	}
 
-	// Row 2: charts (bar with data-driven y series + pie)
+	// Row 2: charts (stacked bar split by color + pie)
 	if len(d.Rows[2].Widgets) != 2 {
 		t.Fatalf("expected 2 chart widgets, got %d", len(d.Rows[2].Widgets))
 	}
@@ -84,8 +84,14 @@ func TestLoadTSXFile_DataDrivenWithMockBackend(t *testing.T) {
 	if bar.Chart != "bar" {
 		t.Errorf("expected bar chart, got %q", bar.Chart)
 	}
-	if len(bar.Y) != 3 {
-		t.Errorf("expected 3 y series from regions, got %d", len(bar.Y))
+	if got := bar.YFields(); len(got) != 1 || got[0] != "revenue" {
+		t.Errorf("expected y = [revenue], got %v", got)
+	}
+	if !bar.Stacked {
+		t.Error("expected stacked bar")
+	}
+	if bar.ColorField() != "region" {
+		t.Errorf("expected color field %q, got %q", "region", bar.ColorField())
 	}
 
 	// Rows 3-4: auto-discovered table previews
@@ -118,9 +124,9 @@ export default (
   <Dashboard name="Loop Test" connection="duckdb">
     <Row>
       {regions.map(r =>
-        <Metric name={r + " Revenue"} col={4} prefix="$"
+        <Metric name={r + " Revenue"} col={4}
           sql={"SELECT SUM(amount) as value FROM sales WHERE region = '" + r + "'"}
-          column="value" format="number" />
+          value={{ field: "value", type: "number", format: "$,.0f" }} />
       )}
     </Row>
   </Dashboard>
@@ -144,8 +150,11 @@ export default (
 		if w.Name != names[i] {
 			t.Errorf("widget %d: expected name %q, got %q", i, names[i], w.Name)
 		}
-		if w.Prefix != "$" {
-			t.Errorf("widget %d: expected prefix %q, got %q", i, "$", w.Prefix)
+		if w.Value == nil || w.Value.Field != "value" {
+			t.Errorf("widget %d: expected value field %q, got %+v", i, "value", w.Value)
+		}
+		if w.Value == nil || w.Value.Format != "$,.0f" {
+			t.Errorf("widget %d: expected format %q, got %+v", i, "$,.0f", w.Value)
 		}
 		if !strings.Contains(w.SQL, "WHERE region") {
 			t.Errorf("widget %d: expected SQL with region filter", i)
@@ -155,14 +164,14 @@ export default (
 
 func TestEvalTSX_CustomComponent(t *testing.T) {
 	source := `
-function KPI({ name, sql, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" {...rest} />
+function KPI({ name, sql, format = ",.0f", ...rest }) {
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format }} {...rest} />
 }
 
 export default (
   <Dashboard name="Custom Component" connection="duckdb">
     <Row>
-      <KPI name="Revenue" sql="SELECT 100 as value" prefix="$" col={4} />
+      <KPI name="Revenue" sql="SELECT 100 as value" format="$,.0f" col={4} />
       <KPI name="Orders" sql="SELECT 42 as value" col={4} />
     </Row>
   </Dashboard>
@@ -182,11 +191,11 @@ export default (
 	if w0.Type != WidgetTypeMetric {
 		t.Errorf("expected metric, got %q", w0.Type)
 	}
-	if w0.Column != "value" {
-		t.Errorf("expected column %q, got %q", "value", w0.Column)
+	if w0.Value == nil || w0.Value.Field != "value" {
+		t.Errorf("expected value field %q, got %+v", "value", w0.Value)
 	}
-	if w0.Prefix != "$" {
-		t.Errorf("expected prefix %q, got %q", "$", w0.Prefix)
+	if w0.Value == nil || w0.Value.Format != "$,.0f" {
+		t.Errorf("expected format %q, got %+v", "$,.0f", w0.Value)
 	}
 }
 
@@ -208,78 +217,6 @@ export default (
 	w := d.Rows[0].Widgets[0]
 	if !strings.Contains(w.SQL, "{{ filters.region }}") {
 		t.Errorf("Jinja template markers should be preserved, got: %s", w.SQL)
-	}
-}
-
-func TestEvalTSX_SemanticLayer(t *testing.T) {
-	source := `
-export default (
-  <Dashboard name="Semantic Test" connection="gcp">
-    <Semantic
-      source={{ table: "events", dateColumn: "event_date", dateFormat: "%Y%m%d" }}
-      metrics={{
-        page_views: { aggregate: "count", filter: { event_name: "page_view" } },
-        users: { aggregate: "count_distinct", column: "user_id" },
-      }}
-      dimensions={{
-        daily: { column: "event_date", type: "date" },
-        country: { column: "geo.country" },
-      }}
-    />
-    <Row>
-      <Metric name="Page Views" metric="page_views" col={3} />
-    </Row>
-  </Dashboard>
-)
-`
-	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
-	assertNoErr(t, err)
-
-	if d.Semantic == nil {
-		t.Fatal("expected semantic layer")
-	}
-	if d.Semantic.Source == nil {
-		t.Fatal("expected semantic source")
-	}
-	if d.Semantic.Source.Table != "events" {
-		t.Errorf("expected table %q, got %q", "events", d.Semantic.Source.Table)
-	}
-	if d.Semantic.Source.DateColumn != "event_date" {
-		t.Errorf("expected dateColumn %q, got %q", "event_date", d.Semantic.Source.DateColumn)
-	}
-	if d.Semantic.Source.DateFormat != "%Y%m%d" {
-		t.Errorf("expected dateFormat %q, got %q", "%Y%m%d", d.Semantic.Source.DateFormat)
-	}
-
-	if len(d.Semantic.Metrics) != 2 {
-		t.Fatalf("expected 2 metrics, got %d", len(d.Semantic.Metrics))
-	}
-	pv := d.Semantic.Metrics["page_views"]
-	if pv.Aggregate != "count" {
-		t.Errorf("expected count aggregate, got %q", pv.Aggregate)
-	}
-	if pv.Filter["event_name"] != "page_view" {
-		t.Errorf("expected filter event_name=page_view, got %v", pv.Filter)
-	}
-
-	users := d.Semantic.Metrics["users"]
-	if users.Aggregate != "count_distinct" {
-		t.Errorf("expected count_distinct aggregate, got %q", users.Aggregate)
-	}
-	if users.Column != "user_id" {
-		t.Errorf("expected column %q, got %q", "user_id", users.Column)
-	}
-
-	if len(d.Semantic.Dimensions) != 2 {
-		t.Fatalf("expected 2 dimensions, got %d", len(d.Semantic.Dimensions))
-	}
-	daily := d.Semantic.Dimensions["daily"]
-	if daily.Type != "date" {
-		t.Errorf("expected date type, got %q", daily.Type)
-	}
-	country := d.Semantic.Dimensions["country"]
-	if country.Column != "geo.country" {
-		t.Errorf("expected column %q, got %q", "geo.country", country.Column)
 	}
 }
 
@@ -335,7 +272,7 @@ export default (
   <Dashboard name="Named Query" connection="db">
     <Query name="total_revenue" sql="SELECT SUM(amount) as value FROM sales" />
     <Row>
-      <Metric name="Revenue" query="total_revenue" column="value" col={6} />
+      <Metric name="Revenue" query="total_revenue" value="value" col={6} />
     </Row>
   </Dashboard>
 )
@@ -413,27 +350,6 @@ export default (
 	}
 }
 
-func TestEvalTSX_RefreshConfig(t *testing.T) {
-	source := `
-export default (
-  <Dashboard name="Refresh Test" connection="db" refresh={{ interval: "30s" }}>
-    <Row>
-      <Text name="Note" content="test" col={12} />
-    </Row>
-  </Dashboard>
-)
-`
-	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
-	assertNoErr(t, err)
-
-	if d.Refresh == nil {
-		t.Fatal("expected refresh config")
-	}
-	if d.Refresh.Interval != "30s" {
-		t.Errorf("expected interval %q, got %q", "30s", d.Refresh.Interval)
-	}
-}
-
 func TestEvalTSX_TableWithColumns(t *testing.T) {
 	source := `
 export default (
@@ -483,8 +399,8 @@ export default (
 	if !w.Stacked {
 		t.Error("expected stacked=true")
 	}
-	if len(w.Y) != 2 {
-		t.Errorf("expected 2 y series, got %d", len(w.Y))
+	if len(w.YFields()) != 2 {
+		t.Errorf("expected 2 y series, got %d", len(w.YFields()))
 	}
 }
 
@@ -549,13 +465,13 @@ func TestLoadDir_MixedYAMLAndTSX(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/dashboards")
 	assertNoErr(t, err)
 
-	// Should find 6 YAML + 2 TSX = 8 dashboards.
-	if len(dashboards) != 8 {
+	// Should find 5 YAML + 2 TSX = 7 dashboards.
+	if len(dashboards) != 7 {
 		names := make([]string, len(dashboards))
 		for i, d := range dashboards {
 			names[i] = d.Name
 		}
-		t.Fatalf("expected 8 dashboards, got %d: %v", len(dashboards), names)
+		t.Fatalf("expected 7 dashboards, got %d: %v", len(dashboards), names)
 	}
 
 	// Verify TSX dashboard was loaded.
@@ -587,7 +503,7 @@ func TestEvalTSX_RequireModule(t *testing.T) {
 	// Write the shared module.
 	helperCode := `
 function KPI({ name, sql }) {
-  return h("Metric", { name: name, sql: sql, column: "value", format: "number" })
+  return h("Metric", { name: name, sql: sql, value: { field: "value", type: "number", format: ",.0f" } })
 }
 module.exports = { KPI }
 `
@@ -641,7 +557,7 @@ func TestEvalTSX_RequireTSXModule(t *testing.T) {
 	// Write a .tsx helper module.
 	helperCode := `
 function KPI({ name, sql, ...rest }) {
-  return <Metric name={name} sql={sql} column="value" format="number" {...rest} />
+  return <Metric name={name} sql={sql} value={{ field: "value", type: "number", format: ",.0f" }} {...rest} />
 }
 module.exports = { KPI }
 `
@@ -696,7 +612,7 @@ export default (
   <Dashboard name="JSON Require" connection="db">
     <Row>
       {config.regions.map(function(r) {
-        return <Metric name={r} sql={"SELECT 1 as value"} column="value" col={4} />
+        return <Metric name={r} sql={"SELECT 1 as value"} value="value" col={4} />
       })}
     </Row>
   </Dashboard>
@@ -772,8 +688,8 @@ func TestLoadTSXFile_ProjectSemanticDashboard(t *testing.T) {
 	if trend.Granularity != "month" {
 		t.Fatalf("expected month granularity, got %q", trend.Granularity)
 	}
-	if trend.X != "order_date" {
-		t.Fatalf("expected trend x order_date, got %q", trend.X)
+	if trend.XField() != "order_date" {
+		t.Fatalf("expected trend x order_date, got %q", trend.XField())
 	}
 
 	table := d.Rows[2].Widgets[0]

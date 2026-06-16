@@ -7,8 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/bruin-data/dac/pkg/dashboard"
@@ -21,9 +19,6 @@ type WidgetJob struct {
 	ID         string
 	SQL        string
 	Connection string
-	// MetricFanout is set on the merged metrics job: maps widget ID -> metric name.
-	// When set, the single query result is fanned out to multiple widget results.
-	MetricFanout map[string]string
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -78,69 +73,15 @@ func (s *Server) handleListDashboards(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"dashboards": summaries})
 }
 
-// resolveDashboard loads a single dashboard by name, using the draft file if ?draft=draftId is set.
-func (s *Server) resolveDashboard(name string, r *http.Request) (*dashboard.Dashboard, error) {
-	draftID := r.URL.Query().Get("draft")
-
-	if draftID != "" {
-		// Try the in-memory map first.
-		draft := s.resolveDraft(draftID)
-
-		// If not in memory (e.g. server restarted), scan the directory for a matching file.
-		if draft == nil {
-			draft = s.findDraftOnDisk(draftID, name)
-		}
-
-		if draft != nil && draft.DraftPath != "" {
-			d, err := s.loader.LoadPath(draft.DraftPath)
-			if err != nil {
-				log.Printf("draft parse error (falling back to live): %v", err)
-			} else {
-				return d, nil
-			}
-		}
-	}
-
+// resolveDashboard loads a single dashboard by name.
+func (s *Server) resolveDashboard(name string) (*dashboard.Dashboard, error) {
 	return s.loader.LoadOne(name)
-}
-
-// findDraftOnDisk scans the dashboard directory for a .draft.<id>.* file
-// and re-registers it in the in-memory map. This handles server restarts.
-func (s *Server) findDraftOnDisk(draftID, dashName string) *DraftInfo {
-	prefix := ".draft." + draftID + "."
-	entries, err := os.ReadDir(s.paths.DashboardDir)
-	if err != nil {
-		return nil
-	}
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), prefix) {
-			draftPath := filepath.Join(s.paths.DashboardDir, e.Name())
-
-			// Find the original live file path.
-			originalName := strings.TrimPrefix(e.Name(), prefix)
-			originalPath := filepath.Join(s.paths.DashboardDir, originalName)
-
-			draft := &DraftInfo{
-				DraftID:       draftID,
-				DashboardName: dashName,
-				DraftPath:     draftPath,
-				OriginalPath:  originalPath,
-			}
-			// Re-register so subsequent requests are fast.
-			s.draftsMu.Lock()
-			s.drafts[draftID] = draft
-			s.draftsMu.Unlock()
-			log.Printf("draft: recovered %s from disk", draftPath)
-			return draft
-		}
-	}
-	return nil
 }
 
 func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
-	d, err := s.resolveDashboard(name, r)
+	d, err := s.resolveDashboard(name)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -154,29 +95,6 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetDashboardRaw(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-
-	// Check for draft source first.
-	draftID := r.URL.Query().Get("draft")
-	if draftID != "" {
-		draft := s.resolveDraft(draftID)
-		if draft == nil {
-			draft = s.findDraftOnDisk(draftID, name)
-		}
-		if draft != nil && draft.DraftPath != "" {
-			data, err := os.ReadFile(draft.DraftPath)
-			if err != nil {
-				writeError(w, http.StatusInternalServerError, "failed to read draft file: "+err.Error())
-				return
-			}
-			ct := "text/yaml; charset=utf-8"
-			if strings.HasSuffix(draft.DraftPath, ".tsx") {
-				ct = "text/typescript; charset=utf-8"
-			}
-			w.Header().Set("Content-Type", ct)
-			w.Write(data)
-			return
-		}
-	}
 
 	dashboards, err := s.loader.LoadMeta()
 	if err != nil {
@@ -267,11 +185,7 @@ func (s *Server) handleBatchQuery(w http.ResponseWriter, r *http.Request) {
 			wr := ExecuteWidgetQuery(r.Context(), s.backend, j)
 			<-sem
 			mu.Lock()
-			if j.MetricFanout != nil {
-				FanoutMetricResults(results, wr, j, d)
-			} else {
-				results[j.ID] = wr
-			}
+			results[j.ID] = wr
 			mu.Unlock()
 		}(j)
 	}
@@ -330,29 +244,9 @@ func (s *Server) handleGetTheme(w http.ResponseWriter, r *http.Request) {
 }
 
 // ResolveWidgetJobs builds the list of SQL jobs for all data-bearing widgets
-// in a dashboard, including declarative metric and dimensional widgets.
-//
-// Metric-ref widgets are merged into a single query to avoid redundant table
-// scans. The merged result is then split into per-widget results via
-// metricsJobGroup.
+// in a dashboard, including semantic metric and dimensional widgets that
+// reference a semantic model.
 func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]WidgetJob, error) {
-	// Extract date filter values for declarative SQL generation.
-	var dateFilter map[string]any
-	if dfName := d.DateRangeFilterName(); dfName != "" {
-		if df, ok := filters[dfName]; ok {
-			if m, ok := df.(map[string]any); ok {
-				dateFilter = m
-			}
-		}
-	}
-
-	// First pass: collect metric-ref widgets to merge into one query.
-	type metricWidget struct {
-		id        string
-		metricRef string
-	}
-	var metricWidgets []metricWidget
-
 	var jobs []WidgetJob
 	for i, row := range d.Rows {
 		for j, widget := range row.Widgets {
@@ -374,35 +268,12 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 				continue
 			}
 
-			switch {
-			case widget.MetricRef != "" && d.SemanticSource() != nil:
-				// Collect for merging — don't create individual jobs yet.
-				metricWidgets = append(metricWidgets, metricWidget{
-					id:        WidgetID(i, j),
-					metricRef: widget.MetricRef,
-				})
+			sql, conn, err = widget.ResolvedQuery(d)
+			if err != nil {
+				return nil, err
+			}
+			if sql == "" {
 				continue
-
-			case len(widget.MetricRefs) > 0 && widget.Dimension != "" && d.SemanticSource() != nil:
-				dims := d.SemanticDimensions()
-				dim, ok := dims[widget.Dimension]
-				if !ok {
-					return nil, fmt.Errorf("widget %q: dimension %q not found", widget.Name, widget.Dimension)
-				}
-				sql, err = dashboard.GenerateDimensionalSQL(d.SemanticSource(), d.SemanticMetrics(), widget.MetricRefs, &dim, dateFilter, widget.Limit)
-				if err != nil {
-					return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
-				}
-				conn = d.SourceConnection()
-
-			default:
-				sql, conn, err = widget.ResolvedQuery(d)
-				if err != nil {
-					return nil, err
-				}
-				if sql == "" {
-					continue
-				}
 			}
 
 			if len(filters) > 0 {
@@ -415,38 +286,8 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 		}
 	}
 
-	// Merge all metric-ref widgets into a single query.
-	if len(metricWidgets) > 0 && d.SemanticSource() != nil {
-		sql, err := dashboard.GenerateMetricsSQL(d.SemanticSource(), d.SemanticMetrics(), dateFilter)
-		if err != nil {
-			return nil, fmt.Errorf("merged metrics query: %w", err)
-		}
-		if len(filters) > 0 {
-			sql, err = tmpl.Render(sql, filters)
-			if err != nil {
-				return nil, fmt.Errorf("template error: %w", err)
-			}
-		}
-
-		// Build mapping from widget ID to its metric ref / expression.
-		widgetMetrics := make(map[string]string, len(metricWidgets))
-		for _, mw := range metricWidgets {
-			widgetMetrics[mw.id] = mw.metricRef
-		}
-
-		jobs = append(jobs, WidgetJob{
-			ID:           MetricsJobID,
-			SQL:          sql,
-			Connection:   d.SourceConnection(),
-			MetricFanout: widgetMetrics,
-		})
-	}
-
 	return jobs, nil
 }
-
-// MetricsJobID is the sentinel job ID used for the merged metrics query.
-const MetricsJobID = "__metrics__"
 
 // ExecuteWidgetQuery runs a single widget SQL query against the given backend.
 func ExecuteWidgetQuery(ctx context.Context, backend query.Backend, j WidgetJob) *WidgetQueryResult {
@@ -530,14 +371,7 @@ func (s *Server) handleStreamQuery(w http.ResponseWriter, r *http.Request) {
 		ID   string             `json:"id"`
 		Data *WidgetQueryResult `json:"data"`
 	}
-	// Buffer size accounts for metric fanout producing multiple results per job.
-	bufSize := len(jobs)
-	for _, j := range jobs {
-		if j.MetricFanout != nil {
-			bufSize += len(j.MetricFanout) - 1
-		}
-	}
-	ch := make(chan streamResult, bufSize)
+	ch := make(chan streamResult, len(jobs))
 
 	sem := make(chan struct{}, 8)
 	var wg sync.WaitGroup
@@ -548,15 +382,7 @@ func (s *Server) handleStreamQuery(w http.ResponseWriter, r *http.Request) {
 			sem <- struct{}{}
 			wr := ExecuteWidgetQuery(r.Context(), s.backend, j)
 			<-sem
-			if j.MetricFanout != nil {
-				// Fan out the merged metrics result to individual widget results.
-				for wid, metricRef := range j.MetricFanout {
-					wr := FanoutSingleMetric(wr, metricRef, j.SQL, d)
-					ch <- streamResult{ID: wid, Data: wr}
-				}
-			} else {
-				ch <- streamResult{ID: j.ID, Data: wr}
-			}
+			ch <- streamResult{ID: j.ID, Data: wr}
 		}(j)
 	}
 
@@ -575,80 +401,6 @@ func (s *Server) handleStreamQuery(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// FanoutMetricResults splits a merged metrics query result into individual
-// widget results and adds them to the results map.
-func FanoutMetricResults(results map[string]*WidgetQueryResult, merged *WidgetQueryResult, j WidgetJob, d *dashboard.Dashboard) {
-	for wid, metricRef := range j.MetricFanout {
-		results[wid] = FanoutSingleMetric(merged, metricRef, j.SQL, d)
-	}
-}
-
-// FanoutSingleMetric extracts a single metric's value from a merged query
-// result. For aggregate metrics, it picks the column by name. For expression
-// metrics, it evaluates the expression client-side from the aggregate values.
-func FanoutSingleMetric(merged *WidgetQueryResult, metricRef string, sql string, d *dashboard.Dashboard) *WidgetQueryResult {
-	if merged.Error != "" {
-		return &WidgetQueryResult{Query: sql, Error: merged.Error}
-	}
-
-	m, ok := d.SemanticMetrics()[metricRef]
-	if !ok {
-		return &WidgetQueryResult{Query: sql, Error: fmt.Sprintf("metric %q not found", metricRef)}
-	}
-
-	if m.IsExpression() {
-		// Evaluate expression from aggregate values in the merged result.
-		values := make(map[string]float64)
-		if len(merged.Rows) > 0 {
-			for ci, col := range merged.Columns {
-				if ci < len(merged.Rows[0]) {
-					if v, ok := toFloat64(merged.Rows[0][ci]); ok {
-						values[col.Name] = v
-					}
-				}
-			}
-		}
-		result, err := dashboard.EvaluateExpression(m.Expression, values)
-		if err != nil {
-			return &WidgetQueryResult{Query: sql, Error: err.Error()}
-		}
-		return &WidgetQueryResult{
-			Columns: []struct {
-				Name string `json:"name"`
-				Type string `json:"type,omitempty"`
-			}{{Name: metricRef}},
-			Rows:  [][]any{{result}},
-			Query: sql,
-		}
-	}
-
-	// Find the column index for this metric.
-	colIdx := -1
-	for i, col := range merged.Columns {
-		if col.Name == metricRef {
-			colIdx = i
-			break
-		}
-	}
-	if colIdx < 0 {
-		return &WidgetQueryResult{Query: sql, Error: fmt.Sprintf("column %q not found in merged result", metricRef)}
-	}
-
-	// Extract just this column.
-	var value any
-	if len(merged.Rows) > 0 && colIdx < len(merged.Rows[0]) {
-		value = merged.Rows[0][colIdx]
-	}
-	return &WidgetQueryResult{
-		Columns: []struct {
-			Name string `json:"name"`
-			Type string `json:"type,omitempty"`
-		}{{Name: metricRef, Type: merged.Columns[colIdx].Type}},
-		Rows:  [][]any{{value}},
-		Query: sql,
-	}
-}
-
 // handleWidgetQuery executes a single widget's query and returns the result.
 // This allows the frontend to fetch data per-widget (lazy, on-demand).
 func (s *Server) handleWidgetQuery(w http.ResponseWriter, r *http.Request) {
@@ -663,7 +415,7 @@ func (s *Server) handleWidgetQuery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	d, err := s.resolveDashboard(name, r)
+	d, err := s.resolveDashboard(name)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -679,7 +431,6 @@ func (s *Server) handleWidgetQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve all jobs and find the one matching this widget ID.
-	// For metric-ref widgets the merged job's MetricFanout map contains the widget ID.
 	jobs, err := ResolveWidgetJobs(d, filters)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -692,34 +443,8 @@ func (s *Server) handleWidgetQuery(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, wr)
 			return
 		}
-		// Check if this widget is part of a merged metrics job.
-		if j.MetricFanout != nil {
-			if _, ok := j.MetricFanout[widgetID]; ok {
-				wr := ExecuteWidgetQuery(r.Context(), s.backend, j)
-				result := FanoutSingleMetric(wr, j.MetricFanout[widgetID], j.SQL, d)
-				writeJSON(w, http.StatusOK, result)
-				return
-			}
-		}
 	}
 
 	writeError(w, http.StatusNotFound, "widget not found: "+widgetID)
 }
 
-func toFloat64(v any) (float64, bool) {
-	switch n := v.(type) {
-	case float64:
-		return n, true
-	case float32:
-		return float64(n), true
-	case int:
-		return float64(n), true
-	case int64:
-		return float64(n), true
-	case json.Number:
-		f, err := n.Float64()
-		return f, err == nil
-	default:
-		return 0, false
-	}
-}

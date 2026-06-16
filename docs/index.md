@@ -9,9 +9,8 @@ DAC (**D**ashboard-**a**s-**C**ode) is a tool for defining, validating, and serv
 - A single binary deployment that can run locally, on a server, or be exported as static HTML for hosting anywhere
 - Designed for use by both humans and AI agents, with a focus on reviewable, reproducible, and composable dashboard definitions
 - Supports all the major databases: Postgres, MySQL, Snowflake, BigQuery, Redshift, Databricks, and more via [Bruin](https://github.com/bruin-data/bruin)
-- Interactive [filters](/dashboards/filters). Date pickers, dropdowns, multiselects, and search inputs that inject into SQL via [Jinja templating](/dashboards/queries) and re-run affected widgets in place.
+- Interactive [filters](/dashboards/filters). Date pickers, numeric inputs, dropdowns, multiselects, and search inputs that inject into SQL via [Jinja templating](/dashboards/queries) and re-run affected widgets in place.
 - Dynamic charts, tabs, loops and conditionals with TSX
-- Built-in AI agent via Codex: chat with your dashboard live and get it updated
 
 ```tsx
 export default (
@@ -21,9 +20,7 @@ export default (
         name="Total Revenue"
         col={4}
         sql="SELECT SUM(amount) AS value FROM sales"
-        column="value"
-        prefix="$"
-        format="number"
+        value={{ field: "value", type: "number", format: "$,.2f" }}
       />
       <Chart
         name="Revenue Over Time"
@@ -37,8 +34,8 @@ export default (
           GROUP BY 1
           ORDER BY 1
         `}
-        x="month"
-        y={["revenue"]}
+        x={{ field: "month" }}
+        y={{ field: ["revenue"] }}
       />
     </Row>
   </Dashboard>
@@ -63,14 +60,16 @@ rows:
       - name: Revenue
         type: metric
         sql: SELECT SUM(amount) AS value FROM sales
-        column: value
-        prefix: "$"
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 4
 ```
 
 
 - **Two authoring formats.** YAML for declarative dashboards. [TSX](/dashboards/tsx) when you need loops, variables, conditionals, or queries that resolve at load time to drive layout.
-- **17 chart types.** Line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, XMR, dumbbell — plus metrics, tables, text, images, and dividers.
+- **21 chart types.** Line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, XMR, dumbbell, gauge, treemap, radar, candlestick — plus metrics, tables, text, images, and dividers.
 - **[Semantic layer](/dashboards/semantic-layer).** Define metrics and dimensions once in `semantic/`, reference them from any widget. DAC generates the SQL.
 - **Live reload.** Edit the file, save, see the change. No restart, no rebuild.
 - **Static export.** `dac build` produces self-contained HTML with query results baked in. Deploy to S3, GitHub Pages, anywhere — no runtime server needed.

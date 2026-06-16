@@ -15,9 +15,9 @@ func TestLoadDir_LoadsAllDashboards(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/dashboards")
 	assertNoErr(t, err)
 
-	// 6 YAML + 2 TSX = 8
-	if len(dashboards) != 8 {
-		t.Fatalf("expected 8 dashboards, got %d", len(dashboards))
+	// 5 YAML + 2 TSX = 7
+	if len(dashboards) != 7 {
+		t.Fatalf("expected 7 dashboards, got %d", len(dashboards))
 	}
 }
 
@@ -82,74 +82,6 @@ rows:
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Auto-set tests for declarative widgets
-// ---------------------------------------------------------------------------
-
-func TestLoadFile_AutoSetsXYForDimensionalChart(t *testing.T) {
-	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
-	assertNoErr(t, err)
-
-	// Row 1 has "Daily Traffic" (dimension: daily -> event_date, metrics: [page_views, users]).
-	w := d.Rows[1].Widgets[0]
-	if w.Name != "Daily Traffic" {
-		t.Fatalf("expected 'Daily Traffic', got %q", w.Name)
-	}
-	if w.X != "event_date" {
-		t.Errorf("expected X = 'event_date', got %q", w.X)
-	}
-	if len(w.Y) != 2 || w.Y[0] != "page_views" || w.Y[1] != "users" {
-		t.Errorf("expected Y = [page_views, users], got %v", w.Y)
-	}
-}
-
-func TestLoadFile_AutoSetsXYForNonDateDimension(t *testing.T) {
-	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
-	assertNoErr(t, err)
-
-	// Row 2, widget 1: "Top Countries" (dimension: country -> geo.country).
-	w := d.Rows[2].Widgets[1]
-	if w.Name != "Top Countries" {
-		t.Fatalf("expected 'Top Countries', got %q", w.Name)
-	}
-	// DimensionAlias("geo.country") = "country"
-	if w.X != "country" {
-		t.Errorf("expected X = 'country', got %q", w.X)
-	}
-	if len(w.Y) != 1 || w.Y[0] != "users" {
-		t.Errorf("expected Y = [users], got %v", w.Y)
-	}
-}
-
-func TestLoadFile_DoesNotOverrideExplicitXY(t *testing.T) {
-	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
-	assertNoErr(t, err)
-
-	// Row 2, widget 0: "Traffic Sources" — has explicit x/y, no dimension.
-	w := d.Rows[2].Widgets[0]
-	if w.Name != "Traffic Sources" {
-		t.Fatalf("expected 'Traffic Sources', got %q", w.Name)
-	}
-	if w.X != "source" {
-		t.Errorf("expected explicit X = 'source', got %q", w.X)
-	}
-}
-
-func TestLoadFile_MetricRefColumnNotForced(t *testing.T) {
-	d, err := LoadFile("../../testdata/dashboards/google-analytics.yml")
-	assertNoErr(t, err)
-
-	// Row 0, widget 0: "Page Views" — metric ref, column should be empty
-	// (MetricWidget falls back to first column).
-	w := d.Rows[0].Widgets[0]
-	if w.Name != "Page Views" {
-		t.Fatalf("expected 'Page Views', got %q", w.Name)
-	}
-	if w.Column != "" {
-		t.Errorf("expected empty column for metric-ref widget, got %q", w.Column)
-	}
-}
-
 func TestLoadDir_ProjectRootLoadsDashboardsAndSemanticModels(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/project")
 	assertNoErr(t, err)
@@ -175,19 +107,19 @@ func TestLoadFile_ProjectSemanticDashboardAutoSetsXY(t *testing.T) {
 	assertNoErr(t, err)
 
 	trend := d.Rows[1].Widgets[0]
-	if trend.X != "order_date" {
-		t.Fatalf("expected semantic chart x to default to dimension name, got %q", trend.X)
+	if trend.XField() != "order_date" {
+		t.Fatalf("expected semantic chart x to default to dimension name, got %q", trend.XField())
 	}
-	if len(trend.Y) != 1 || trend.Y[0] != "revenue" {
-		t.Fatalf("expected semantic chart y to default to metrics, got %v", trend.Y)
+	if ys := trend.YFields(); len(ys) != 1 || ys[0] != "revenue" {
+		t.Fatalf("expected semantic chart y to default to metrics, got %v", ys)
 	}
 
 	byCountry := d.Rows[1].Widgets[1]
-	if byCountry.X != "country" {
-		t.Fatalf("expected named semantic query x to default to dimension name, got %q", byCountry.X)
+	if byCountry.XField() != "country" {
+		t.Fatalf("expected named semantic query x to default to dimension name, got %q", byCountry.XField())
 	}
-	if len(byCountry.Y) != 1 || byCountry.Y[0] != "revenue" {
-		t.Fatalf("expected named semantic query y to default to metrics, got %v", byCountry.Y)
+	if ys := byCountry.YFields(); len(ys) != 1 || ys[0] != "revenue" {
+		t.Fatalf("expected named semantic query y to default to metrics, got %v", ys)
 	}
 }
 

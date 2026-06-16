@@ -22,7 +22,27 @@ rows:
       - name: One
         type: metric
         sql: SELECT 1 AS value
-        column: value
+        value: { field: value }
+`,
+		},
+		{
+			name:     "dashboard filter types",
+			schemaID: DashboardV1ID,
+			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Filter Types
+filters:
+  - name: as_of_date
+    type: date
+    default: "2025-01-31"
+  - name: min_value
+    type: number
+    default: 100
+rows:
+  - widgets:
+      - name: One
+        type: metric
+        sql: SELECT 1 AS value
+        value: { field: value }
 `,
 		},
 		{
@@ -72,7 +92,7 @@ rows:
       - name: One
         type: metric
         sql: SELECT 1 AS value
-        column: value
+        value: { field: value }
 `,
 		},
 		{

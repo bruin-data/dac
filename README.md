@@ -2,7 +2,6 @@
 
 DAC is a Dashboard-as-Code tool for defining, validating, and serving dashboards from YAML and TSX.
 - Dynamic charts, tabs, loops and conditionals with TSX.
-- Built-in AI agent via Codex: chat with your dashboard live and get it updated.
 - Supports all the major databases: Postgres, MySQL, Snowflake, BigQuery, Redshift, Databricks, and more via [Bruin](https://github.com/bruin-data/bruin)
 - Built-in semantic layer: define metrics and dimensions once in `semantic/`, reference them from any widget. DAC generates the SQL.
 
@@ -28,9 +27,7 @@ It is built for AI agents to build dashboards in a reliable and reviewable way.
         name="Total Revenue"
         col={4}
         sql="SELECT SUM(amount) AS value FROM sales"
-        column="value"
-        prefix="$"
-        format="number"
+        value={{ field: "value", type: "number", format: "$,.2f" }}
       /&gt;
     &lt;/Row&gt;
   &lt;/Dashboard&gt;
@@ -47,8 +44,10 @@ rows:
       - name: Revenue
         type: metric
         sql: SELECT SUM(amount) AS value FROM sales
-        column: value
-        prefix: "$"
+        value:
+          field: value
+          type: number
+          format: "$,.2f"
         col: 4</code></pre>
 
 </td>
@@ -61,13 +60,13 @@ rows:
 Install the latest stable DAC release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash
+curl -LsSf https://getbruin.com/install/dac | sh
 ```
 
 Install the latest edge build from `main`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/bruin-data/dac/main/install.sh | bash -s -- --channel edge
+curl -LsSf https://getbruin.com/install/dac | sh -s -- --channel edge
 ```
 
 DAC uses your existing Bruin connections and currently shells out to `bruin query` for query execution. The install script installs the Bruin CLI first when `bruin` is not already available on your `PATH`.

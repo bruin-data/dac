@@ -105,10 +105,11 @@ function titleCase(s) {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
+// Returns a d3-format string suited to the column's name.
 function formatColumn(col) {
-  if (/amount|revenue|price|cost|budget|salary|spend|mrr/i.test(col)) return "currency"
-  if (/rate|pct|percent/i.test(col)) return "percent"
-  return "number"
+  if (/amount|revenue|price|cost|budget|salary|spend|mrr/i.test(col)) return "$,.2f"
+  if (/rate|pct|percent/i.test(col)) return ".1%"
+  return ",.0f"
 }
 
 function bestAggregate(colName) {
@@ -137,28 +138,25 @@ export default (
         name="Tables Discovered"
         col={3}
         sql={`SELECT ${tableNames.length} as value`}
-        column="value"
-        format="number"
+        value={{ field: "value", type: "number", format: ",.0f" }}
       />
       <Metric
         name="Total Rows"
         col={3}
         sql={`SELECT ${totalRows} as value`}
-        column="value"
-        format="number"
+        value={{ field: "value", type: "number", format: ",.0f" }}
       />
       <Metric
         name="Largest Table"
         col={3}
         sql={`SELECT '${largestTable}' as value`}
-        column="value"
+        value="value"
       />
       <Metric
         name={`${titleCase(largestTable)} Rows`}
         col={3}
         sql={`SELECT ${rowCounts[largestTable] || 0} as value`}
-        column="value"
-        format="number"
+        value={{ field: "value", type: "number", format: ",.0f" }}
       />
     </Row>
 
@@ -178,8 +176,7 @@ export default (
                 name="Row Count"
                 col={3}
                 sql={`SELECT COUNT(*) as value FROM "${table}"`}
-                column="value"
-                format="number"
+                value={{ field: "value", type: "number", format: ",.0f" }}
               />
               {kpiCols.slice(0, 3).map(col => {
                 const agg = bestAggregate(col.name)
@@ -189,10 +186,7 @@ export default (
                     name={`${agg === 'AVG' ? 'Avg' : 'Total'} ${titleCase(col.name)}`}
                     col={3}
                     sql={`SELECT ${agg}("${col.name}") as value FROM "${table}"`}
-                    column="value"
-                    format={fmt}
-                    prefix={fmt === "currency" ? "$" : ""}
-                    suffix={fmt === "percent" ? "%" : ""}
+                    value={{ field: "value", type: "number", format: fmt }}
                   />
                 )
               })}

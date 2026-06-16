@@ -109,7 +109,7 @@ func checkCmd() *cli.Command {
 					connGroups[job.Connection] = append(connGroups[job.Connection], checkJob{job: job})
 				}
 
-				results := executeCheckJobs(ctx, backend, connGroups, d)
+				results := executeCheckJobs(ctx, backend, connGroups)
 				for _, r := range results {
 					name := widgetNames[r.widgetID]
 					if r.err != nil {
@@ -137,7 +137,7 @@ func checkCmd() *cli.Command {
 
 // executeCheckJobs runs query jobs grouped by connection. Same connection runs
 // sequentially (avoids file lock contention), different connections in parallel.
-func executeCheckJobs(ctx context.Context, backend query.Backend, connGroups map[string][]checkJob, d *dashboard.Dashboard) []checkResult {
+func executeCheckJobs(ctx context.Context, backend query.Backend, connGroups map[string][]checkJob) []checkResult {
 	var allResults []checkResult
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -151,18 +151,10 @@ func executeCheckJobs(ctx context.Context, backend query.Backend, connGroups map
 				wr := server.ExecuteWidgetQuery(ctx, backend, j.job)
 				elapsed := time.Since(start)
 
-				var results []checkResult
-				if j.job.MetricFanout != nil {
-					for wid, metricRef := range j.job.MetricFanout {
-						fanned := server.FanoutSingleMetric(wr, metricRef, j.job.SQL, d)
-						results = append(results, widgetResultToCheckResult(wid, fanned, elapsed))
-					}
-				} else {
-					results = append(results, widgetResultToCheckResult(j.job.ID, wr, elapsed))
-				}
+				result := widgetResultToCheckResult(j.job.ID, wr, elapsed)
 
 				mu.Lock()
-				allResults = append(allResults, results...)
+				allResults = append(allResults, result)
 				mu.Unlock()
 			}
 		}(jobs)

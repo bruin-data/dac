@@ -106,19 +106,19 @@ In TSX, use the `<Tabs>` and `<Tab>` components:
 ```tsx
 <Dashboard name="Analytics" connection="my_db">
   <Row>
-    <Metric name="Revenue" col={4} sql="..." column="value" />
+    <Metric name="Revenue" col={4} sql="..." value={{ field: "value", type: "number", format: "$,.2f" }} />
   </Row>
 
   <Tabs>
     <Tab name="Overview">
       <Row>
-        <Chart name="Revenue Trend" chart="area" col={12} sql="..." x="month" y={["revenue"]} />
+        <Chart name="Revenue Trend" chart="area" col={12} sql="..." x={{ field: "month" }} y={{ field: ["revenue"] }} />
       </Row>
     </Tab>
     <Tab name="Breakdown">
       <Row>
-        <Chart name="By Region" chart="bar" col={6} sql="..." x="region" y={["revenue"]} />
-        <Chart name="By Channel" chart="bar" col={6} sql="..." x="channel" y={["revenue"]} />
+        <Chart name="By Region" chart="bar" col={6} sql="..." x={{ field: "region" }} y={{ field: ["revenue"] }} />
+        <Chart name="By Channel" chart="bar" col={6} sql="..." x={{ field: "channel" }} y={{ field: ["revenue"] }} />
       </Row>
     </Tab>
   </Tabs>

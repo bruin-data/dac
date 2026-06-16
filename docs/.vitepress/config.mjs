@@ -55,6 +55,7 @@ export default defineConfig({
           { text: "connections", link: "/commands/connections" },
           { text: "skills", link: "/commands/skills" },
           { text: "export", link: "/commands/export" },
+          { text: "upgrade", link: "/commands/upgrade" },
         ],
       },
       {

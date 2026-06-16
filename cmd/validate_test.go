@@ -59,7 +59,7 @@ func TestValidateDashboardWithDatabaseDryRunsWidgetQueries(t *testing.T) {
 				Name:     "Total Revenue",
 				Type:     dashboard.WidgetTypeMetric,
 				QueryRef: "total_revenue",
-				Column:   "value",
+				Value:    &dashboard.ValueEncoding{Field: "value", Type: "number", Format: "$,.0f"},
 			}},
 		}},
 	}
@@ -182,7 +182,7 @@ rows:
       - name: Total
         type: metric
         query: total
-        column: value
+        value: { field: value }
 `), 0o644); err != nil {
 		t.Fatalf("write dashboard: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestValidateCommandAcceptsPositionalDirectory(t *testing.T) {
 		}
 	})
 
-	if !strings.Contains(output, "8 dashboard(s) validated successfully") {
+	if !strings.Contains(output, "7 dashboard(s) validated successfully") {
 		t.Fatalf("expected testdata dashboards to validate, got %q", output)
 	}
 	if strings.Contains(output, "No dashboard files found in .") {

@@ -20,9 +20,7 @@ export default (
         name="Total Revenue"
         col={4}
         sql="SELECT SUM(amount) AS value FROM sales"
-        column="value"
-        prefix="$"
-        format="number"
+        value={{ field: "value", type: "number", format: "$,.2f" }}
       />
       <Chart
         name="Revenue Over Time"
@@ -36,8 +34,8 @@ export default (
           GROUP BY 1
           ORDER BY 1
         `}
-        x="month"
-        y={["revenue"]}
+        x={{ field: "month" }}
+        y={{ field: ["revenue"] }}
       />
     </Row>
   </Dashboard>
@@ -79,8 +77,6 @@ interface QueryResult {
   description="Description"
   connection="my_db"
   model="sales"
-  theme="bruin-dark"
-  refresh={{ interval: "5m" }}
 >
   {children}
 </Dashboard>
@@ -184,8 +180,8 @@ For a complete runnable project, see `examples/semantic-tsx`.
 All widget components accept the same props as their YAML equivalents.
 
 ```tsx
-<Metric name="Revenue" col={4} sql="..." column="value" />
-<Chart name="Trend" chart="area" col={8} sql="..." x="month" y={["revenue"]} />
+<Metric name="Revenue" col={4} sql="..." value={{ field: "value", type: "number", format: "$,.2f" }} />
+<Chart name="Trend" chart="area" col={8} sql="..." x={{ field: "month" }} y={{ field: ["revenue"] }} />
 <Table name="Orders" col={12} sql="..." />
 <Text name="Note" col={6} content="**Important:** This data updates daily." />
 <Divider name="sep" col={12} />

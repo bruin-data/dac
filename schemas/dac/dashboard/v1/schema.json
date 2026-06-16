@@ -27,12 +27,6 @@
         "type": "string"
       }
     },
-    "theme": {
-      "type": "string"
-    },
-    "refresh": {
-      "$ref": "#/$defs/refresh"
-    },
     "filters": {
       "type": "array",
       "items": {
@@ -44,9 +38,6 @@
       "additionalProperties": {
         "$ref": "#/$defs/query"
       }
-    },
-    "semantic": {
-      "$ref": "#/$defs/inlineSemanticLayer"
     },
     "rows": {
       "type": "array",
@@ -61,20 +52,6 @@
   },
   "additionalProperties": false,
   "$defs": {
-    "refresh": {
-      "type": "object",
-      "required": ["interval"],
-      "properties": {
-        "interval": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
     "filter": {
       "type": "object",
       "required": ["name", "type"],
@@ -84,7 +61,7 @@
           "minLength": 1
         },
         "type": {
-          "enum": ["select", "date-range", "text"]
+          "enum": ["select", "date-range", "date", "number", "text"]
         },
         "multiple": {
           "type": "boolean"
@@ -97,7 +74,23 @@
       "patternProperties": {
         "^x-": true
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "date" } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "string",
+                "pattern": "^(TODAY([+-][0-9]+)?|[0-9]{4}-[0-9]{2}-[0-9]{2})$"
+              }
+            }
+          }
+        }
+      ]
     },
     "filterOptions": {
       "type": "object",
@@ -127,9 +120,6 @@
       "type": "object",
       "properties": {
         "sql": {
-          "type": "string"
-        },
-        "file": {
           "type": "string"
         },
         "connection": {
@@ -197,6 +187,9 @@
       "type": "object",
       "required": ["name", "type"],
       "properties": {
+        "id": {
+          "type": "string"
+        },
         "name": {
           "type": "string",
           "minLength": 1
@@ -218,9 +211,6 @@
         "sql": {
           "type": "string"
         },
-        "file": {
-          "type": "string"
-        },
         "metric": {
           "type": "string"
         },
@@ -228,18 +218,6 @@
           "type": "string"
         },
         "connection": {
-          "type": "string"
-        },
-        "column": {
-          "type": "string"
-        },
-        "prefix": {
-          "type": "string"
-        },
-        "suffix": {
-          "type": "string"
-        },
-        "format": {
           "type": "string"
         },
         "dimension": {
@@ -294,22 +272,35 @@
             "sparkline",
             "waterfall",
             "xmr",
-            "dumbbell"
+            "dumbbell",
+            "gauge",
+            "treemap",
+            "radar",
+            "candlestick"
           ]
         },
         "x": {
-          "type": "string"
+          "$ref": "#/$defs/axisEncoding"
         },
         "y": {
-          "$ref": "#/$defs/stringList"
+          "$ref": "#/$defs/axisEncoding"
         },
         "label": {
           "type": "string"
         },
         "value": {
-          "type": "string"
+          "$ref": "#/$defs/valueEncoding"
+        },
+        "color": {
+          "$ref": "#/$defs/colorEncoding"
         },
         "stacked": {
+          "type": "boolean"
+        },
+        "normalized": {
+          "type": "boolean"
+        },
+        "horizontal": {
           "type": "boolean"
         },
         "size": {
@@ -332,6 +323,18 @@
           "type": "string"
         },
         "yMax": {
+          "type": "string"
+        },
+        "open": {
+          "type": "string"
+        },
+        "high": {
+          "type": "string"
+        },
+        "low": {
+          "type": "string"
+        },
+        "close": {
           "type": "string"
         },
         "columns": {
@@ -436,99 +439,63 @@
       },
       "additionalProperties": false
     },
-    "inlineSemanticLayer": {
-      "type": "object",
-      "properties": {
-        "source": {
-          "$ref": "#/$defs/inlineSource"
-        },
-        "metrics": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/inlineMetric"
-          }
-        },
-        "dimensions": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/inlineDimension"
-          }
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
-    "inlineSource": {
-      "type": "object",
-      "required": ["table"],
-      "properties": {
-        "table": {
-          "type": "string",
-          "minLength": 1
-        },
-        "date_column": {
-          "type": "string"
-        },
-        "date_format": {
-          "type": "string"
-        },
-        "connection": {
-          "type": "string"
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
-    "inlineMetric": {
-      "type": "object",
-      "properties": {
-        "aggregate": {
-          "enum": ["count", "count_distinct", "sum", "avg", "min", "max"]
-        },
-        "column": {
-          "type": "string"
-        },
-        "filter": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "expression": {
-          "type": "string"
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
-    "inlineDimension": {
-      "type": "object",
-      "required": ["column"],
-      "properties": {
-        "column": {
-          "type": "string",
-          "minLength": 1
-        },
-        "type": {
-          "enum": ["date"]
-        }
-      },
-      "patternProperties": {
-        "^x-": true
-      },
-      "additionalProperties": false
-    },
     "stringList": {
       "type": "array",
       "items": {
         "type": "string"
       }
+    },
+    "axisEncoding": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": {
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/$defs/stringList" }
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["date", "number", "category"]
+        },
+        "title": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "valueEncoding": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": ["date", "number", "category"]
+        },
+        "format": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "colorEncoding": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

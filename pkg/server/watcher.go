@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -66,19 +64,6 @@ func (w *Watcher) Run() {
 				return
 			}
 			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Remove) {
-				base := filepath.Base(event.Name)
-
-				// Draft files: send a targeted event only the owning session reacts to.
-				if after, ok := strings.CutPrefix(base, ".draft."); ok {
-					if session, _, ok := strings.Cut(after, "."); ok && session != "" {
-						w.broadcast(map[string]string{
-							"type":    "draft_reload",
-							"session": session,
-						})
-					}
-					continue
-				}
-
 				log.Printf("file changed: %s", event.Name)
 				for _, inv := range w.invalidators {
 					inv.Invalidate()

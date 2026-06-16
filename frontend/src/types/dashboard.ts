@@ -13,8 +13,6 @@ export interface Dashboard {
   connection?: string;
   model?: string;
   models?: Record<string, string>;
-  theme?: string;
-  refresh?: { interval: string };
   filters?: Filter[];
   queries?: Record<string, Query>;
   rows: Row[];
@@ -23,7 +21,7 @@ export interface Dashboard {
 
 export interface Filter {
   name: string;
-  type: "date-range" | "select" | "text";
+  type: "date" | "date-range" | "number" | "select" | "text";
   multiple?: boolean;
   default?: unknown;
   options?: {
@@ -36,7 +34,6 @@ export interface Filter {
 
 export interface Query {
   sql?: string;
-  file?: string;
   connection?: string;
   model?: string;
   dimensions?: SemanticDimensionRef[];
@@ -62,7 +59,6 @@ export interface Widget {
   // Query source
   query?: string;
   sql?: string;
-  file?: string;
   connection?: string;
   model?: string;
 
@@ -76,26 +72,29 @@ export interface Widget {
   segments?: string[];
   sort?: SemanticSort[];
 
-  // Metric
-  column?: string;
-  prefix?: string;
-  suffix?: string;
-  format?: string;
-
   // Chart
-  chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell";
-  x?: string;
-  y?: string[];
+  chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick";
+  x?: AxisEncoding;
+  y?: AxisEncoding;
   label?: string;
-  value?: string;
-  stacked?: boolean;
+  // metric: the value + formatting; pie/funnel/heatmap/calendar/treemap/gauge: value column
+  value?: ValueEncoding;
+  // bar/line/area: split the single y series by a category column (long-format SQL)
+  color?: ColorEncoding;
+  stacked?: boolean;    // bar only; requires color
+  normalized?: boolean; // stacked bars as percentages
+  horizontal?: boolean; // bar only
   size?: string;       // bubble: size dimension
   source?: string;     // sankey: source column
-  target?: string;     // sankey: target column
+  target?: string;     // sankey: target column / gauge: target (max) column
   bins?: number;       // histogram: number of bins
   lines?: string[];    // combo: which y series are lines
   yMin?: string;       // xmr: min control limit column
   yMax?: string;       // xmr: max control limit column
+  open?: string;       // candlestick: open column
+  high?: string;       // candlestick: high column
+  low?: string;        // candlestick: low column
+  close?: string;      // candlestick: close column
 
   // Table
   columns?: TableColumn[];
@@ -112,6 +111,26 @@ export interface TableColumn {
   name: string;
   label?: string;
   format?: string;
+}
+
+/** Structured encoding for a chart axis. `y.field` may list several series columns. */
+export interface AxisEncoding {
+  field: string | string[];
+  type?: "number" | "date" | "category";
+  title?: string;  // human-readable axis label
+  format?: string; // d3-format / d3-time-format string for tick labels
+}
+
+/** Encoding for the color channel: the category column that splits y into series. */
+export interface ColorEncoding {
+  field: string;
+}
+
+/** Structured encoding for a widget's value channel (metric value, pie/funnel/gauge value column). */
+export interface ValueEncoding {
+  field: string;
+  type?: "number" | "date" | "category";
+  format?: string; // d3-format / d3-time-format string, e.g. "$,.2f", ".0%", "%b %Y"
 }
 
 export interface SemanticDimensionRef {

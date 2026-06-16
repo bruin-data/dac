@@ -164,17 +164,21 @@ body {
   display: none !important;
 }
 
-/* react-day-picker calendar popover */
-.dac-calendar-popover {
+/* Shared popover surface used by date-range and multi-select filters */
+.dac-popover {
   background: var(--dac-surface);
   border: 1px solid var(--dac-border);
   border-radius: 6px;
-  padding: 12px;
+  padding: 4px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.08);
   font-family: "Geist", system-ui, sans-serif;
 }
 
-.dac-calendar-popover .rdp-root {
+.dac-popover--padded {
+  padding: 12px;
+}
+
+.dac-popover .rdp-root {
   --rdp-accent-color: var(--dac-accent);
   --rdp-accent-background-color: color-mix(in srgb, var(--dac-accent) 12%, transparent);
   --rdp-range_middle-background-color: color-mix(in srgb, var(--dac-accent) 10%, transparent);
@@ -200,35 +204,35 @@ body {
   color: var(--dac-text-primary);
 }
 
-.dac-calendar-popover .rdp-month_caption {
+.dac-popover .rdp-month_caption {
   font-size: 13px;
   font-weight: 600;
   height: 32px;
 }
 
-.dac-calendar-popover .rdp-weekday {
+.dac-popover .rdp-weekday {
   font-size: 11px;
   color: var(--dac-text-muted);
   padding: 4px 0;
 }
 
-.dac-calendar-popover .rdp-day_button:hover {
+.dac-popover .rdp-day_button:hover {
   background: var(--dac-surface-hover);
 }
 
-.dac-calendar-popover .rdp-selected {
+.dac-popover .rdp-selected {
   font-weight: 500;
   font-size: inherit;
 }
 
-.dac-calendar-popover .rdp-chevron {
+.dac-popover .rdp-chevron {
   fill: var(--dac-text-secondary);
   width: 14px;
   height: 14px;
 }
 
-.dac-calendar-popover .rdp-button_previous:hover,
-.dac-calendar-popover .rdp-button_next:hover {
+.dac-popover .rdp-button_previous:hover,
+.dac-popover .rdp-button_next:hover {
   background: var(--dac-surface-hover);
   border-radius: 4px;
 }
@@ -240,21 +244,6 @@ body {
 }
 .dac-layout-resizing {
   transition: none;
-}
-
-/* Agent sidebar */
-.agent-sidebar {
-  position: relative;
-  height: 100vh;
-  background: var(--dac-background);
-  border-right: 1px solid var(--dac-border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-.agent-sidebar-closed {
-  border-right-color: transparent;
 }
 
 /* YAML sidebar (right side) */
@@ -379,89 +368,3 @@ body {
   border-radius: 4px;
 }
 .dac-prose del { opacity: 0.5; }
-
-/* Agent wavy background */
-@keyframes waveShift {
-  0% { transform: translateX(0); }
-  50% { transform: translateX(-12px); }
-  100% { transform: translateX(0); }
-}
-.agent-wave-svg {
-  animation: waveShift 8s ease-in-out infinite;
-}
-
-/* Agent markdown */
-.agent-md p { margin: 0; }
-.agent-md p + p { margin-top: 0.5em; }
-.agent-md code {
-  font-family: "Geist Mono", monospace;
-  font-size: 0.9em;
-  background: var(--dac-surface-hover);
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-.agent-md pre {
-  margin: 0.5em 0;
-  padding: 8px 10px;
-  background: var(--dac-surface-hover);
-  border-radius: 4px;
-  overflow-x: auto;
-  font-size: 11px;
-}
-.agent-md pre code {
-  background: none;
-  padding: 0;
-  font-size: inherit;
-}
-.agent-md a {
-  color: var(--dac-accent);
-  text-decoration: none;
-}
-.agent-md a:hover { text-decoration: underline; }
-.agent-md strong { font-weight: 600; }
-.agent-md ul, .agent-md ol { margin: 0.3em 0; padding-left: 1.4em; }
-.agent-md li { margin: 0.15em 0; }
-.agent-md blockquote {
-  margin: 0.3em 0;
-  padding-left: 0.8em;
-  border-left: 2px solid var(--dac-border);
-  color: var(--dac-text-muted);
-}
-.agent-md-muted code { background: var(--dac-border); }
-.agent-md-muted pre { background: var(--dac-border); }
-
-/* Agent thinking shimmer text — left-to-right sweep */
-.agent-shimmer-text {
-  background: linear-gradient(
-    90deg,
-    var(--dac-text-muted) 25%,
-    var(--dac-text-secondary) 50%,
-    var(--dac-text-muted) 75%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer-ltr 3s ease-in-out infinite;
-}
-
-@keyframes shimmer-ltr {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* Streaming text fade-in */
-.agent-stream-in {
-  animation: streamFadeIn 0.35s ease-out both;
-}
-
-@keyframes streamFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}

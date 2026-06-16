@@ -47,16 +47,14 @@ export async function listDashboards(): Promise<DashboardSummary[]> {
   return data.dashboards;
 }
 
-export async function getDashboard(name: string, draftId?: string): Promise<Dashboard> {
+export async function getDashboard(name: string): Promise<Dashboard> {
   const sp = getStaticPayload();
   if (sp) return sp.dashboard;
-  const params = draftId ? `?draft=${encodeURIComponent(draftId)}` : "";
-  return fetchJSON<Dashboard>(`${BASE}/dashboards/${encodeURIComponent(name)}${params}`);
+  return fetchJSON<Dashboard>(`${BASE}/dashboards/${encodeURIComponent(name)}`);
 }
 
-export async function getDashboardRaw(name: string, draftId?: string): Promise<string> {
-  const params = draftId ? `?draft=${encodeURIComponent(draftId)}` : "";
-  const res = await fetch(`${BASE}/dashboards/${encodeURIComponent(name)}/raw${params}`);
+export async function getDashboardRaw(name: string): Promise<string> {
+  const res = await fetch(`${BASE}/dashboards/${encodeURIComponent(name)}/raw`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`API error ${res.status}: ${body}`);
@@ -164,13 +162,11 @@ export async function fetchWidgetData(
   dashboardName: string,
   widgetId: string,
   filters?: Record<string, unknown>,
-  draftId?: string,
 ): Promise<WidgetData> {
   const sp = getStaticPayload();
   if (sp) return sp.widgetData[widgetId];
-  const params = draftId ? `?draft=${encodeURIComponent(draftId)}` : "";
   return fetchJSON<WidgetData>(
-    `${BASE}/dashboards/${encodeURIComponent(dashboardName)}/widgets/${encodeURIComponent(widgetId)}/query${params}`,
+    `${BASE}/dashboards/${encodeURIComponent(dashboardName)}/widgets/${encodeURIComponent(widgetId)}/query`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -282,54 +278,4 @@ export async function testConnection(
       headers: adminHeaders(),
     },
   );
-}
-
-// --- Agent API ---
-
-export async function createAgentSession(dashboard: string, draftId?: string): Promise<{ session_id: string }> {
-  return fetchJSON<{ session_id: string }>(`${BASE}/agent/sessions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dashboard, draft_id: draftId }),
-  });
-}
-
-export async function createDraft(dashboardName: string, draftId: string): Promise<{ draft_id: string }> {
-  return fetchJSON<{ draft_id: string }>(`${BASE}/dashboards/${encodeURIComponent(dashboardName)}/drafts`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ draft_id: draftId }),
-  });
-}
-
-export async function sendAgentMessage(sessionId: string, message: string): Promise<void> {
-  await fetchJSON(`${BASE}/agent/sessions/${encodeURIComponent(sessionId)}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
-  });
-}
-
-export async function interruptAgent(sessionId: string, turnId?: string): Promise<void> {
-  await fetchJSON(`${BASE}/agent/sessions/${encodeURIComponent(sessionId)}/interrupt`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ turn_id: turnId }),
-  });
-}
-
-export async function saveDraft(draftId: string): Promise<void> {
-  await fetchJSON(`${BASE}/drafts/${encodeURIComponent(draftId)}/save`, {
-    method: "POST",
-  });
-}
-
-export async function discardDraft(draftId: string): Promise<void> {
-  await fetchJSON(`${BASE}/drafts/${encodeURIComponent(draftId)}/discard`, {
-    method: "POST",
-  });
-}
-
-export function agentEventsURL(sessionId: string): string {
-  return `${BASE}/agent/sessions/${encodeURIComponent(sessionId)}/events`;
 }

@@ -26,3 +26,4 @@ These flags apply to all commands:
 | [`connections`](/commands/connections) | Test database connections |
 | [`skills`](/commands/skills) | List and install DAC agent skills |
 | [`export`](/commands/export) | Export dashboards to external formats |
+| [`upgrade`](/commands/upgrade) | Upgrade the DAC CLI in place (alias: `update`) |

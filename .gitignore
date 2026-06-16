@@ -7,7 +7,6 @@ frontend/node_modules/
 *.db
 !examples/**/.bruin.yml
 !examples/data/test.db
-.sessions/
 tmp/
 .gocache
 dist/

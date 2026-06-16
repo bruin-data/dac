@@ -1,28 +1,10 @@
 import { useRef, useEffect, useState } from "react";
 import type { Widget, WidgetData } from "../../types/dashboard";
+import { buildFormatter } from "../../lib/format";
 
 interface Props {
   widget: Widget;
   data?: WidgetData;
-}
-
-function formatValue(value: unknown, format?: string): string {
-  if (value === null || value === undefined) return "—";
-  const num = Number(value);
-  if (isNaN(num)) return String(value);
-
-  switch (format) {
-    case "number":
-      return num.toLocaleString();
-    case "currency":
-      return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    case "percent":
-      return num.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-    case "compact":
-      return Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(num);
-    default:
-      return num.toLocaleString();
-  }
 }
 
 /** Pick the right font size so the value fits its container. */
@@ -55,14 +37,13 @@ function useAutoFit(text: string) {
 export function MetricWidget({ widget, data }: Props) {
   const hasData = !!data?.rows?.length && !!data.columns?.length;
 
-  const colIdx = hasData ? data.columns.findIndex((c) => c.name === widget.column) : -1;
+  const enc = widget.value;
+  const colIdx = hasData && enc?.field ? data.columns.findIndex((c) => c.name === enc.field) : -1;
   const rawValue = hasData ? (colIdx >= 0 ? data.rows[0][colIdx] : data.rows[0][0]) : null;
-  const formatted = hasData ? formatValue(rawValue, widget.format) : "";
+  const formatted = hasData ? buildFormatter(enc)(rawValue) : "";
 
   // Hook must be called unconditionally (Rules of Hooks).
-  const { containerRef, fontSize } = useAutoFit(
-    `${widget.prefix ?? ""}${formatted}${widget.suffix ?? ""}`
-  );
+  const { containerRef, fontSize } = useAutoFit(formatted);
 
   if (!hasData) {
     return (
@@ -75,15 +56,9 @@ export function MetricWidget({ widget, data }: Props) {
   return (
     <div className="tabular-nums overflow-hidden">
       <div ref={containerRef} className="flex items-baseline gap-1 whitespace-nowrap" style={{ fontSize, lineHeight: 1.1 }}>
-        {widget.prefix && (
-          <span className="font-normal text-[var(--dac-text-muted)]" style={{ fontSize: "0.65em" }}>{widget.prefix}</span>
-        )}
         <span className="font-semibold tracking-tight text-[var(--dac-text-primary)]">
           {formatted}
         </span>
-        {widget.suffix && (
-          <span className="font-normal text-[var(--dac-text-muted)]" style={{ fontSize: "0.65em" }}>{widget.suffix}</span>
-        )}
       </div>
     </div>
   );
