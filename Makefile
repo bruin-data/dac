@@ -17,7 +17,10 @@ export CGO_LDFLAGS=-Wl,-w
 export LDFLAGS=-Wl,-w
 endif
 
-.PHONY: all clean test build frontend deps format dev-frontend dev-backend
+GO_PACKAGES ?= ./cmd/... ./pkg/... ./schemas/...
+GOFMT_FILES := $(shell find . -name '*.go' -not -path './vendor/*')
+
+.PHONY: all clean test build frontend deps format format-go format-frontend dev dev-frontend dev-backend
 
 all: clean deps test build
 
@@ -43,11 +46,27 @@ test: test-unit
 
 test-unit:
 	@echo "$(OK_COLOR)==> Running the unit tests$(NO_COLOR)"
-	@go test -race -cover -timeout 5m ./cmd/... ./pkg/... ./schemas/...
+	@go test -race -cover -timeout 5m $(GO_PACKAGES)
 
-format:
-	@echo "$(OK_COLOR)>> [go vet] running$(NO_COLOR)"
-	@go vet ./cmd/... ./pkg/... ./schemas/...
+format: format-go format-frontend
+	@printf "$(OK_COLOR)==> Static checks passed$(NO_COLOR)\n"
+
+format-go:
+	@printf "$(OK_COLOR)>> [gofmt] checking$(NO_COLOR)\n"
+	@unformatted="$$(gofmt -s -l $(GOFMT_FILES))"; \
+	if [ -n "$$unformatted" ]; then \
+		printf "$(ERROR_COLOR)gofmt needed on:$(NO_COLOR)\n$$unformatted\n"; \
+		printf "Run: gofmt -s -w <files>\n"; \
+		exit 1; \
+	fi
+	@printf "$(OK_COLOR)>> [go vet] running$(NO_COLOR)\n"
+	@go vet $(GO_PACKAGES)
+
+format-frontend:
+	@printf "$(OK_COLOR)>> [frontend typecheck] running$(NO_COLOR)\n"
+	@cd frontend && npm run typecheck
+	@printf "$(OK_COLOR)>> [frontend lint] running$(NO_COLOR)\n"
+	@cd frontend && npm run lint
 
 # Run both frontend and backend with live reload
 dev:

@@ -48,6 +48,9 @@ jobs:
       - name: Install DAC dependencies
         run: make deps
 
+      - name: Run static checks
+        run: make format
+
       - name: Run tests
         run: make test
 

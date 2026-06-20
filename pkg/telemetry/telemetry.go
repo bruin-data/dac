@@ -25,7 +25,7 @@ import (
 // never leak "rudder INFO/ERROR" lines into a user's terminal.
 type silentLogger struct{}
 
-func (silentLogger) Logf(string, ...interface{})    {}
+func (silentLogger) Logf(string, ...interface{})   {}
 func (silentLogger) Errorf(string, ...interface{}) {}
 
 const (

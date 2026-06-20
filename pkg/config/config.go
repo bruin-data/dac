@@ -15,8 +15,8 @@ type Config struct {
 }
 
 type Environment struct {
-	SchemaPrefix string                   `yaml:"schema_prefix,omitempty"`
-	Connections  map[string][]Connection   `yaml:"connections"`
+	SchemaPrefix string                  `yaml:"schema_prefix,omitempty"`
+	Connections  map[string][]Connection `yaml:"connections"`
 }
 
 // Connection is a generic connection entry. Different connection types have

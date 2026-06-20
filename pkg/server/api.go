@@ -447,4 +447,3 @@ func (s *Server) handleWidgetQuery(w http.ResponseWriter, r *http.Request) {
 
 	writeError(w, http.StatusNotFound, "widget not found: "+widgetID)
 }
-

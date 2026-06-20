@@ -122,10 +122,10 @@ func New(cfg Config) (*Server, error) {
 	}
 
 	s := &Server{
-		config:      cfg,
-		paths:       paths,
-		backend:     cachedBackend,
-		themes:      themes,
+		config:  cfg,
+		paths:   paths,
+		backend: cachedBackend,
+		themes:  themes,
 		loader:  &dashboardLoader{dir: paths.RootDir, backend: cachedBackend},
 		mux:     http.NewServeMux(),
 	}

@@ -6,7 +6,7 @@ export function useLiveReload() {
 
   useEffect(() => {
     // No server to connect to in static mode.
-    if ((window as any).__DAC_STATIC__) return;
+    if (window.__DAC_STATIC__) return;
 
     const es = new EventSource("/api/v1/events");
 

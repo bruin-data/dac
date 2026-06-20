@@ -14,7 +14,7 @@ export interface StaticPayload {
 }
 
 export function getStaticPayload(): StaticPayload | undefined {
-  return (window as any).__DAC_STATIC__;
+  return window.__DAC_STATIC__;
 }
 
 // --- API functions ---
