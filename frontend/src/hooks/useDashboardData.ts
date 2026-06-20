@@ -15,7 +15,6 @@ interface StreamState {
  * Listens for SSE `full_reload` events and bumps a counter so hooks can
  * re-fetch. Shared across all instances via a module-level listener.
  */
-let reloadCounter = 0;
 const reloadListeners = new Set<() => void>();
 
 function onReloadTick(fn: () => void) {
@@ -24,13 +23,12 @@ function onReloadTick(fn: () => void) {
 }
 
 // Single SSE listener (module scope, starts once).
-if (typeof window !== "undefined" && !(window as any).__DAC_STATIC__) {
+if (typeof window !== "undefined" && !window.__DAC_STATIC__) {
   const es = new EventSource("/api/v1/events");
   es.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
       if (data.type === "full_reload") {
-        reloadCounter++;
         for (const fn of reloadListeners) fn();
       }
     } catch { /* ignore */ }

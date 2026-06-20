@@ -25,7 +25,7 @@ function buildDefaultFilters(dashboard: { filters?: Filter[] }): Record<string, 
   return defaults;
 }
 
-const isStaticMode = !!(window as any).__DAC_STATIC__;
+const isStaticMode = window.__DAC_STATIC__ !== undefined;
 
 // Non-data widget types that don't need a query.
 const STATIC_WIDGET_TYPES = new Set(["text", "divider", "image"]);

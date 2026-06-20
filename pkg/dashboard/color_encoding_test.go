@@ -69,11 +69,11 @@ func TestColorEncoding_ColorField_NilSafe(t *testing.T) {
 
 func TestValidate_ColorOnlyOnBarLineArea(t *testing.T) {
 	cases := map[string]bool{
-		"bar":  true,
-		"line": true,
-		"area": true,
-		"pie":  false,
-		"gauge": false,
+		"bar":    true,
+		"line":   true,
+		"area":   true,
+		"pie":    false,
+		"gauge":  false,
 		"sankey": false,
 	}
 	for chart, ok := range cases {
