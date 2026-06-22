@@ -156,6 +156,105 @@ func TestSkillsCommand_RegisteredWithApp(t *testing.T) {
 	}
 }
 
+func TestParseSkillVersion(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    int
+	}{
+		{"bundled skill", createDashboardSkill, 1},
+		{"explicit version", "---\nname: x\nversion: 7\n---\nbody", 7},
+		{"missing version", "---\nname: x\n---\nbody", 0},
+		{"no frontmatter", "# just a heading\n", 0},
+		{"non-integer version", "---\nversion: 1.2\n---\n", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := parseSkillVersion(tc.content); got != tc.want {
+				t.Fatalf("parseSkillVersion(%q) = %d, want %d", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSkillUpdateNotices_FlagsOlderInstall(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "skills", "create-dashboard", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create skill dir: %v", err)
+	}
+	// An install with no version field reports version 0, older than bundled.
+	if err := os.WriteFile(path, []byte("---\nname: create-dashboard\n---\nold body"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	notices := skillUpdateNotices(dir)
+	if len(notices) != 1 {
+		t.Fatalf("expected 1 notice, got %d: %v", len(notices), notices)
+	}
+	if !strings.Contains(notices[0], "create-dashboard") || !strings.Contains(notices[0], "dac skills update") {
+		t.Fatalf("unexpected notice text: %q", notices[0])
+	}
+}
+
+func TestSkillUpdateNotices_SilentWhenCurrentOrAbsent(t *testing.T) {
+	// No .claude directory at all: no project root, no notices.
+	if notices := skillUpdateNotices(t.TempDir()); len(notices) != 0 {
+		t.Fatalf("expected no notices without an install, got %v", notices)
+	}
+
+	// Freshly installed skill is current with the bundled version.
+	dir := t.TempDir()
+	if err := runSkillsInstall(dir, nil, false); err != nil {
+		t.Fatalf("skills install failed: %v", err)
+	}
+	if notices := skillUpdateNotices(dir); len(notices) != 0 {
+		t.Fatalf("expected no notices for a current install, got %v", notices)
+	}
+}
+
+func TestSkillUpdateNotices_DiscoversRootFromSubdir(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "skills", "create-dashboard", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create skill dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("---\nname: create-dashboard\n---\nold"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	sub := filepath.Join(dir, "dashboards")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatalf("create subdir: %v", err)
+	}
+
+	if notices := skillUpdateNotices(sub); len(notices) != 1 {
+		t.Fatalf("expected notice discovered from subdir, got %v", notices)
+	}
+}
+
+func TestSkillsUpdate_OverwritesThroughCLI(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "skills", "create-dashboard", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create skill dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("custom\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	app := NewApp(BuildInfo{Version: "test"})
+	if err := app.Run(context.Background(), []string{"dac", "skills", "update", "--dir", dir}); err != nil {
+		t.Fatalf("cli skills update failed: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read skill: %v", err)
+	}
+	if string(data) != createDashboardSkill {
+		t.Fatalf("expected skill updated to bundled content, got %q", data)
+	}
+}
+
 func TestSkillsCommand_RunsThroughCLI(t *testing.T) {
 	dir := t.TempDir()
 	app := NewApp(BuildInfo{Version: "test"})

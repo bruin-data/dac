@@ -47,6 +47,7 @@ func serveCmd() *cli.Command {
 			if err != nil {
 				return err
 			}
+			printSkillUpdateNotices(dir)
 			configFile := resolveConfigOptional(cmd, dir)
 
 			srv, err := server.New(server.Config{

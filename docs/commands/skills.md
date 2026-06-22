@@ -4,7 +4,7 @@ List and install DAC agent skills into a project.
 
 Agent skills are local instructions that help coding agents create and modify DAC dashboards correctly. DAC currently ships a bundled `create-dashboard` skill for dashboard authoring.
 
-`dac init` installs bundled skills automatically for new projects. Use `dac skills install` for existing projects or to refresh a skill with `--force`.
+`dac init` installs bundled skills automatically for new projects. Use `dac skills install` for existing projects, or `dac skills update` to refresh installed skills to the version bundled with your current `dac` binary.
 
 ## List Skills
 
@@ -43,12 +43,35 @@ dac skills install create-dashboard --dir . --force
 
 Restart your agent session after installing skills so the agent can discover the new local instructions.
 
+## Update Skills
+
+Each bundled skill carries a version. When you upgrade `dac`, the binary may ship a newer skill than the copy already installed in your project. `dac serve` and `dac validate` print a one-line notice when a newer skill is available:
+
+```text
+A newer create-dashboard skill is available with the latest authoring features and fixes.
+Run `dac skills update` to update your project's copy.
+```
+
+The notice never modifies files on its own — updating is always an explicit action. Refresh installed skills to the bundled version:
+
+```shell
+dac skills update --dir .
+```
+
+Update a specific skill:
+
+```shell
+dac skills update create-dashboard --dir .
+```
+
+`update` overwrites the installed skill files (equivalent to `install --force`), so any local customizations are replaced.
+
 ## Flags
 
 | Flag | Alias | Description |
 |------|-------|-------------|
 | `--dir` | `-d` | Target project directory |
-| `--force` | `-f` | Overwrite existing skill files |
+| `--force` | `-f` | Overwrite existing skill files (`install` only; `update` always overwrites) |
 
 ## Notes
 

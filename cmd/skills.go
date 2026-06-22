@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -43,10 +44,11 @@ var skillsDirFlag = &cli.StringFlag{
 func skillsCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "skills",
-		Usage: "List and install DAC agent skills",
+		Usage: "List, install, and update DAC agent skills",
 		Commands: []*cli.Command{
 			skillsListCmd(),
 			skillsInstallCmd(),
+			skillsUpdateCmd(),
 		},
 		Action: func(_ context.Context, _ *cli.Command) error {
 			return runSkillsList()
@@ -79,6 +81,20 @@ func skillsInstallCmd() *cli.Command {
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), cmd.Bool("force"))
+		},
+	}
+}
+
+func skillsUpdateCmd() *cli.Command {
+	return &cli.Command{
+		Name:      "update",
+		Usage:     "Update installed DAC agent skills to the bundled version",
+		ArgsUsage: "[skill...]",
+		Flags: []cli.Flag{
+			skillsDirFlag,
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), true)
 		},
 	}
 }
@@ -225,6 +241,83 @@ func selectSkills(names []string) ([]bundledSkill, error) {
 		seen[name] = true
 	}
 	return selected, nil
+}
+
+// skillUpdateNotices returns one-line notices for installed skills whose
+// bundled version is newer than the copy in the project. startDir is the
+// dashboard directory; the project root (the nearest ancestor containing a
+// .claude directory) is discovered by walking upward. Skills that are not
+// installed produce no notice — there is nothing to update.
+func skillUpdateNotices(startDir string) []string {
+	root, ok := findProjectRoot(startDir)
+	if !ok {
+		return nil
+	}
+
+	var notices []string
+	for _, skill := range dacSkills {
+		installedPath := filepath.Join(root, filepath.FromSlash(skill.ClaudePath))
+		data, err := os.ReadFile(installedPath)
+		if err != nil {
+			continue
+		}
+		if parseSkillVersion(skill.Content) > parseSkillVersion(string(data)) {
+			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\nRun `dac skills update` to update your project's copy.", skill.Name))
+		}
+	}
+	return notices
+}
+
+// printSkillUpdateNotices writes skill staleness notices to stderr so they
+// stay out of any machine-readable stdout.
+func printSkillUpdateNotices(startDir string) {
+	for _, notice := range skillUpdateNotices(startDir) {
+		fmt.Fprintln(os.Stderr, notice)
+	}
+}
+
+// findProjectRoot walks upward from startDir looking for the nearest ancestor
+// that contains a .claude directory (where bundled skills are installed).
+func findProjectRoot(startDir string) (string, bool) {
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", false
+	}
+	for {
+		if info, err := os.Stat(filepath.Join(dir, ".claude")); err == nil && info.IsDir() {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
+	}
+}
+
+// parseSkillVersion reads the integer "version" field from a skill's YAML
+// frontmatter. Skills without a version field (older installs) report 0.
+func parseSkillVersion(content string) int {
+	trimmed := strings.TrimLeft(content, "\uFEFF \t\r\n")
+	if !strings.HasPrefix(trimmed, "---") {
+		return 0
+	}
+	frontmatter, _, found := strings.Cut(trimmed[len("---"):], "\n---")
+	if !found {
+		return 0
+	}
+	for line := range strings.SplitSeq(frontmatter, "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "version:")
+		if !ok {
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return 0
+		}
+		return n
+	}
+	return 0
 }
 
 func symlinkPointsTo(linkPath, targetPath string) bool {
