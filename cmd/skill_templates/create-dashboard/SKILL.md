@@ -143,12 +143,14 @@ rows:
         type: chart
         chart: bar
         query: revenue_by_region
-        x: region
-        y: [revenue]
+        x: { field: region }
+        y: { field: [revenue] }
         col: 6
 ```
 
-SQL files can be referenced with `file: queries/revenue.sql`, relative to the dashboard file.
+A chart's `x` and `y` are axis encoding objects with a required `field` (bare column names like `x: region` are invalid). `field` may be a single column or a list.
+
+Every query is an inline `sql:` block or a named `query:` reference — YAML widgets do not take file paths. In TSX, `include("queries/revenue.sql")` reads a `.sql` file into an inline query at load time.
 
 ## Semantic Models
 
@@ -273,6 +275,17 @@ export default (
 ```
 
 TSX supports the same dashboard model as YAML. Keep semantic logic declarative; do not manually compile semantic metrics to SQL in TSX.
+
+## Deprecated Fields
+
+These fields were removed from the DAC schema. Never emit them in new dashboards. **If you encounter any of them while reading or editing an existing dashboard, refactor them to the current form** — preserving the original column, formatting, and labels — and re-run `dac validate` to confirm the dashboard still loads.
+
+| Deprecated | Replacement |
+|---|---|
+| Chart `x: col` / `y: [col]` (bare column names) | `x: { field: col }` / `y: { field: [col] }` — axis encoding objects with a required `field` |
+| Widget or named-query `file: path.sql` | Inline `sql:` or a named `query:` reference. In TSX, `include("path.sql")` reads a `.sql` file into inline SQL at load time |
+| Metric widget `column`, `prefix`, `suffix`, `format` (flat fields) | `value: { field: <column>, type: number, format: "<d3-format>" }` |
+| Dashboard inline `semantic:` block (`source` / `metrics` / `dimensions`) | Define the model in `semantic/*.yml` and reference it with `model:` |
 
 ## Authoring Rules
 
