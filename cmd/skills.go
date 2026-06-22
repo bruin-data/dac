@@ -43,10 +43,11 @@ var skillsDirFlag = &cli.StringFlag{
 func skillsCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "skills",
-		Usage: "List and install DAC agent skills",
+		Usage: "List, install, and update DAC agent skills",
 		Commands: []*cli.Command{
 			skillsListCmd(),
 			skillsInstallCmd(),
+			skillsUpdateCmd(),
 		},
 		Action: func(_ context.Context, _ *cli.Command) error {
 			return runSkillsList()
@@ -79,6 +80,20 @@ func skillsInstallCmd() *cli.Command {
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), cmd.Bool("force"))
+		},
+	}
+}
+
+func skillsUpdateCmd() *cli.Command {
+	return &cli.Command{
+		Name:      "update",
+		Usage:     "Update installed DAC agent skills to the bundled version",
+		ArgsUsage: "[skill...]",
+		Flags: []cli.Flag{
+			skillsDirFlag,
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), true)
 		},
 	}
 }

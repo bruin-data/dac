@@ -156,6 +156,29 @@ func TestSkillsCommand_RegisteredWithApp(t *testing.T) {
 	}
 }
 
+func TestSkillsUpdate_OverwritesThroughCLI(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "skills", "create-dashboard", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create skill dir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("custom\n"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	app := NewApp(BuildInfo{Version: "test"})
+	if err := app.Run(context.Background(), []string{"dac", "skills", "update", "--dir", dir}); err != nil {
+		t.Fatalf("cli skills update failed: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read skill: %v", err)
+	}
+	if string(data) != createDashboardSkill {
+		t.Fatalf("expected skill updated to bundled content, got %q", data)
+	}
+}
+
 func TestSkillsCommand_RunsThroughCLI(t *testing.T) {
 	dir := t.TempDir()
 	app := NewApp(BuildInfo{Version: "test"})
