@@ -45,7 +45,14 @@ Restart your agent session after installing skills so the agent can discover the
 
 ## Update Skills
 
-When you upgrade `dac`, the binary may ship a newer skill than the copy already installed in your project. Refresh installed skills to the bundled version:
+Each bundled skill carries a version. When you upgrade `dac`, the binary may ship a newer skill than the copy already installed in your project. `dac serve` and `dac validate` print a one-line notice when a newer skill is available:
+
+```text
+A newer create-dashboard skill is available with the latest authoring features and fixes.
+Run `dac skills update` to update your project's copy.
+```
+
+The notice never modifies files on its own — updating is always an explicit action. Refresh installed skills to the bundled version:
 
 ```shell
 dac skills update --dir .

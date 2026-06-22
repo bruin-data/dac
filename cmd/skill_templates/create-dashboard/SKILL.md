@@ -2,6 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
+version: 1
 ---
 
 # Create Dashboard
