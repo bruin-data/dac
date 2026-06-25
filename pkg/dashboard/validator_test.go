@@ -260,6 +260,108 @@ metrics:
 }
 
 // ---------------------------------------------------------------------------
+// Inline data widgets
+// ---------------------------------------------------------------------------
+
+func TestValidate_InlineDataTableNoQuery(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "Recent", Type: WidgetTypeTable, Col: 12,
+				Data: &WidgetData{
+					Columns: []string{"id", "amount"},
+					Rows:    [][]any{{1, 10.5}, {2, 20}},
+				},
+			}}},
+		},
+	}
+	assertNoErr(t, Validate(d))
+}
+
+func TestValidate_InlineDataChart(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "Revenue", Type: WidgetTypeChart, Chart: "bar", Col: 6,
+				Data: &WidgetData{
+					Columns: []string{"quarter", "revenue"},
+					Rows:    [][]any{{"Q1", 100}, {"Q2", 200}},
+				},
+				X: newAxisField("quarter"),
+				Y: newAxisFields([]string{"revenue"}),
+			}}},
+		},
+	}
+	assertNoErr(t, Validate(d))
+}
+
+func TestValidate_InlineDataRowArityMismatch(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "Recent", Type: WidgetTypeTable, Col: 12,
+				Data: &WidgetData{
+					Columns: []string{"id", "amount"},
+					Rows:    [][]any{{1}},
+				},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "expected 2 to match columns")
+}
+
+func TestValidate_InlineDataConflictsWithSQL(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "Recent", Type: WidgetTypeTable, Col: 12,
+				SQL:  "SELECT 1",
+				Data: &WidgetData{Columns: []string{"id"}, Rows: [][]any{{1}}},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "data cannot be combined with sql")
+}
+
+func TestValidate_InlineDataInvalidOnText(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "Notes", Type: WidgetTypeText, Content: "hi",
+				Data: &WidgetData{Columns: []string{"id"}, Rows: [][]any{{1}}},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "data is only valid on metric, chart, or table widgets")
+}
+
+func TestValidate_InlineDataEmptyColumns(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "Recent", Type: WidgetTypeTable, Col: 12,
+				Data: &WidgetData{Columns: []string{}, Rows: [][]any{}},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "data.columns is required and must be non-empty")
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 

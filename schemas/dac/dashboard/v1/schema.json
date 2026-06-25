@@ -211,6 +211,21 @@
         "sql": {
           "type": "string"
         },
+        "data": {
+          "type": "object",
+          "required": ["columns", "rows"],
+          "properties": {
+            "columns": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "rows": {
+              "type": "array",
+              "items": { "type": "array" }
+            }
+          },
+          "additionalProperties": false
+        },
         "metric": {
           "type": "string"
         },

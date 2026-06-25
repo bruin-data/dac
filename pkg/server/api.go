@@ -19,6 +19,9 @@ type WidgetJob struct {
 	ID         string
 	SQL        string
 	Connection string
+	// InlineData, when set, is returned directly without executing SQL — the
+	// widget carries static data and needs no connection.
+	InlineData *dashboard.WidgetData
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -254,6 +257,11 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 				continue
 			}
 
+			if widget.HasInlineData() {
+				jobs = append(jobs, WidgetJob{ID: WidgetID(i, j), InlineData: widget.Data})
+				continue
+			}
+
 			var sql, conn string
 			var err error
 
@@ -290,7 +298,22 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 }
 
 // ExecuteWidgetQuery runs a single widget SQL query against the given backend.
+// Widgets carrying inline static data are returned directly without a backend call.
 func ExecuteWidgetQuery(ctx context.Context, backend query.Backend, j WidgetJob) *WidgetQueryResult {
+	if j.InlineData != nil {
+		wr := &WidgetQueryResult{Rows: j.InlineData.Rows}
+		for _, name := range j.InlineData.Columns {
+			wr.Columns = append(wr.Columns, struct {
+				Name string `json:"name"`
+				Type string `json:"type,omitempty"`
+			}{Name: name})
+		}
+		if wr.Rows == nil {
+			wr.Rows = [][]any{}
+		}
+		return wr
+	}
+
 	qr, err := backend.Execute(ctx, j.Connection, j.SQL)
 	if err != nil {
 		return &WidgetQueryResult{Query: j.SQL, Error: err.Error()}

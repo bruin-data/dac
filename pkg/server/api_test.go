@@ -87,6 +87,44 @@ func TestResolveWidgetJobs_SkipsTextDividerImage(t *testing.T) {
 	}
 }
 
+func TestResolveWidgetJobs_InlineDataNoBackend(t *testing.T) {
+	d := &dashboard.Dashboard{
+		Name: "test",
+		Rows: []dashboard.Row{{
+			Widgets: []dashboard.Widget{{
+				Name: "Static",
+				Type: "table",
+				Data: &dashboard.WidgetData{
+					Columns: []string{"region", "revenue"},
+					Rows:    [][]any{{"EU", 100}, {"US", 200}},
+				},
+			}},
+		}},
+	}
+
+	jobs, err := ResolveWidgetJobs(d, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(jobs))
+	}
+	assertEqual(t, jobs[0].SQL, "")
+	if jobs[0].InlineData == nil {
+		t.Fatal("expected job to carry inline data")
+	}
+
+	// A nil backend would panic if executed — inline data must short-circuit.
+	wr := ExecuteWidgetQuery(context.Background(), nil, jobs[0])
+	assertEqual(t, wr.Error, "")
+	if len(wr.Columns) != 2 || wr.Columns[0].Name != "region" {
+		t.Fatalf("unexpected columns: %+v", wr.Columns)
+	}
+	if len(wr.Rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(wr.Rows))
+	}
+}
+
 func TestResolveWidgetJobs_JinjaFiltersRendered(t *testing.T) {
 	d := &dashboard.Dashboard{
 		Name:       "test",

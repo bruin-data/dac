@@ -89,6 +89,8 @@ func Validate(d *Dashboard) error {
 				errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, text, divider, or image)", prefix, w.Type))
 			}
 
+			errs = append(errs, validateInlineData(prefix, &w)...)
+
 			if w.Col < 0 || w.Col > 12 {
 				errs = append(errs, fmt.Sprintf("%s: col must be between 1 and 12, got %d", prefix, w.Col))
 			}
@@ -169,6 +171,50 @@ func ValidateAll(dashboards []*Dashboard) error {
 	return &ValidationSetError{Errors: errs}
 }
 
+// validateInlineData checks a widget's static inline data, when present: it is
+// only valid on data-bearing widget types, cannot be combined with a query
+// source, and every row must line up with the declared columns.
+func validateInlineData(prefix string, w *Widget) []string {
+	if w.Data == nil {
+		return nil
+	}
+
+	var errs []string
+
+	switch w.Type {
+	case WidgetTypeMetric, WidgetTypeChart, WidgetTypeTable:
+	default:
+		return append(errs, fmt.Sprintf("%s: data is only valid on metric, chart, or table widgets", prefix))
+	}
+
+	if w.SQL != "" || w.QueryRef != "" || w.IsSemantic() {
+		errs = append(errs, fmt.Sprintf("%s: data cannot be combined with sql, query, or semantic fields", prefix))
+	}
+
+	if len(w.Data.Columns) == 0 {
+		errs = append(errs, fmt.Sprintf("%s: data.columns is required and must be non-empty", prefix))
+		return errs
+	}
+
+	seen := make(map[string]bool, len(w.Data.Columns))
+	for _, c := range w.Data.Columns {
+		if c == "" {
+			errs = append(errs, fmt.Sprintf("%s: data.columns must not contain empty column names", prefix))
+		} else if seen[c] {
+			errs = append(errs, fmt.Sprintf("%s: data.columns has duplicate column %q", prefix, c))
+		}
+		seen[c] = true
+	}
+
+	for i, row := range w.Data.Rows {
+		if len(row) != len(w.Data.Columns) {
+			errs = append(errs, fmt.Sprintf("%s: data.rows[%d] has %d value(s), expected %d to match columns", prefix, i, len(row), len(w.Data.Columns)))
+		}
+	}
+
+	return errs
+}
+
 func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 	var errs []string
 	if job, handled, err := d.ResolveWidgetSemanticJob(w); err != nil {
@@ -180,8 +226,8 @@ func validateQuerySource(prefix string, w *Widget, d *Dashboard) []string {
 		}
 		return errs
 	}
-	if w.QueryRef == "" && w.SQL == "" {
-		errs = append(errs, fmt.Sprintf("%s: one of query or sql is required", prefix))
+	if w.QueryRef == "" && w.SQL == "" && !w.HasInlineData() {
+		errs = append(errs, fmt.Sprintf("%s: one of query, sql, or data is required", prefix))
 	}
 	if w.QueryRef != "" {
 		if _, ok := d.Queries[w.QueryRef]; !ok {

@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 1
+version: 2
 ---
 
 # Create Dashboard
@@ -152,6 +152,37 @@ A chart's `x` and `y` are axis encoding objects with a required `field` (bare co
 
 Every query is an inline `sql:` block or a named `query:` reference — YAML widgets do not take file paths. In TSX, `include("queries/revenue.sql")` reads a `.sql` file into an inline query at load time.
 
+## Inline (Static) Data
+
+A `metric`, `chart`, or `table` widget can carry its values inline with `data` instead of a query. A widget with `data` renders **without a connection or SQL** — `columns` are the column names and `rows` is one positional list per row. The encoding fields (`x`, `y`, `value`, `label`, `columns`) reference the column names.
+
+```yaml
+rows:
+  - widgets:
+      - name: Revenue by Quarter
+        type: chart
+        chart: bar
+        col: 6
+        data:
+          columns: [quarter, revenue]
+          rows:
+            - [Q1, 12000]
+            - [Q2, 15500]
+            - [Q3, 14200]
+            - [Q4, 18900]
+        x: { field: quarter, type: category }
+        y: { field: [revenue], type: number, format: "$,.0f" }
+```
+
+**Use this only when there is genuinely no data connection** — e.g. a brand-new project where `.bruin.yml` has no connections, a hardcoded illustrative example, or a layout mockup. **When a connection exists, always use `sql:`, `query:`, or a semantic widget instead.** Inline data is frozen: it never refreshes, ignores filters, and goes stale. Do not paste real query results into `data` to "cache" them, and do not present made-up numbers as real — tell the user inline values are illustrative until a warehouse is connected.
+
+Rules:
+
+- `data` is mutually exclusive with `sql`, `query`, and semantic fields (`model`, `dimension`, `metrics`, …). Setting both fails validation.
+- Every row must have exactly one value per column.
+- Not valid on `text`, `image`, or `divider` widgets.
+- A dashboard built entirely from `data` widgets needs no top-level `connection`.
+
 ## Semantic Models
 
 Semantic models live in `semantic/*.yml`.
@@ -292,6 +323,7 @@ These fields were removed from the DAC schema. Never emit them in new dashboards
 - Keep dashboard files focused on presentation and query intent.
 - Prefer semantic widgets when metrics or dimensions are reused.
 - Use direct SQL for one-off custom queries or non-semantic dashboards.
+- Use inline `data` only when there is no connection; prefer `sql`/`query`/semantic whenever one exists, since inline data never refreshes.
 - Validate both YAML and TSX dashboards after changes.
 - Do not require semantic models for regular SQL dashboards.
 - Do not put secrets in dashboard files; use Bruin connection config.
