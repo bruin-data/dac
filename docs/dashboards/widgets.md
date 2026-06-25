@@ -11,7 +11,7 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 | `col` | integer | No | Column span from 1 to 12 |
 | `description` | string | No | Optional tooltip or subtitle |
 
-Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), `file` (external `.sql` path), or a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
+Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), `file` (external `.sql` path), a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts), or `data` (inline static values — see [Inline data](#inline-data)). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
 
 ## Metric
 
@@ -256,6 +256,40 @@ Table column fields:
 | `name` | string | Result column name (must match the SQL output) |
 | `label` | string | Display header (defaults to `name`) |
 | `format` | string | `number` or `currency` |
+
+## Inline data
+
+`metric`, `chart`, and `table` widgets can carry their data inline instead of a
+query source. A widget with `data` renders without a connection or SQL — useful
+for hardcoded numbers, sample dashboards, or building a dashboard before a
+warehouse is connected. The encoding fields (`x`, `y`, `value`, `label`,
+`columns`) reference the column names declared in `data.columns`.
+
+```yaml
+- name: Revenue by Quarter
+  type: chart
+  chart: bar
+  col: 6
+  data:
+    columns: [quarter, revenue]
+    rows:
+      - [Q1, 12000]
+      - [Q2, 15500]
+      - [Q3, 14200]
+      - [Q4, 18900]
+  x: { field: quarter, type: category }
+  y: { field: [revenue], type: number, format: "$,.0f" }
+```
+
+`data` fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `columns` | list of strings | Column names; referenced by the encoding fields |
+| `rows` | list of lists | One list per row, positional — each must have one value per column |
+
+`data` is mutually exclusive with `sql` and `query`. It is not valid on `text`,
+`image`, or `divider` widgets.
 
 ## Text
 

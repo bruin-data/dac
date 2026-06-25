@@ -80,7 +80,7 @@ type Row struct {
 }
 
 // Widget represents a single dashboard widget.
-// Query resolution priority: query (named ref) > sql (inline).
+// Query resolution priority: query (named ref) > sql (inline) > data (static).
 type Widget struct {
 	ID          string `yaml:"id,omitempty" json:"id,omitempty"`
 	Name        string `yaml:"name" json:"name"`
@@ -93,6 +93,12 @@ type Widget struct {
 	SQL       string `yaml:"sql,omitempty" json:"sql,omitempty"`
 	MetricRef string `yaml:"metric,omitempty" json:"metric,omitempty"` // reference to metrics map key
 	Model     string `yaml:"model,omitempty" json:"model,omitempty"`
+
+	// Inline static data — an alternative to a query source. A widget with
+	// Data renders without a connection or SQL; encoding fields (x/y/value/
+	// label/columns) reference the column names in Data. Used for hardcoded
+	// or sample dashboards, e.g. before a warehouse is connected.
+	Data *WidgetData `yaml:"data,omitempty" json:"data,omitempty"`
 
 	// Connection override for inline queries
 	Connection string `yaml:"connection,omitempty" json:"connection,omitempty"`
@@ -144,6 +150,15 @@ type TableColumn struct {
 	Name   string `yaml:"name" json:"name"`
 	Label  string `yaml:"label,omitempty" json:"label,omitempty"`
 	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+}
+
+// WidgetData holds inline result data for a widget so it can render without a
+// connection. Columns are column names; each entry in Rows is positional and
+// must have one value per column. This mirrors the {columns, rows} shape the
+// frontend uses for executed query results.
+type WidgetData struct {
+	Columns []string `yaml:"columns" json:"columns"`
+	Rows    [][]any  `yaml:"rows" json:"rows"`
 }
 
 type SemanticDimensionRef struct {
@@ -304,6 +319,11 @@ func (q *Query) IsSemantic() bool {
 		q.Limit > 0
 }
 
+// HasInlineData reports whether the widget carries static inline data.
+func (w *Widget) HasInlineData() bool {
+	return w.Data != nil && len(w.Data.Columns) > 0
+}
+
 func (w *Widget) IsSemantic() bool {
 	return w.Model != "" ||
 		len(w.Dimensions) > 0 ||
@@ -328,6 +348,10 @@ func FindByName(dashboards []*Dashboard, name string) *Dashboard {
 // ResolvedQuery returns the SQL and connection for this widget, resolving named query references.
 // Widgets with MetricRef are handled separately and should not call this method.
 func (w *Widget) ResolvedQuery(dashboard *Dashboard) (sql, connection string, err error) {
+	if w.HasInlineData() {
+		return "", "", nil // static widgets carry their data inline; nothing to execute
+	}
+
 	if w.MetricRef != "" || len(w.MetricRefs) > 0 {
 		return "", "", nil // metric-based widgets are resolved via the metrics system
 	}
