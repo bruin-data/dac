@@ -3,6 +3,7 @@ import type { WidgetFrameProps } from "../../types/template";
 import { useTemplate } from "../TemplateProvider";
 import { RowHeightContext } from "../RowContext";
 import { QueryInfo } from "../../components/widgets/QueryInfo";
+import { WidgetExportButton } from "../../components/widgets/WidgetExportButton";
 
 const containerClass: Record<string, string> = {
   metric: "py-3 px-4 h-full dac-metric-border flex flex-col",
@@ -46,15 +47,18 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
   }
 
   const isTable = widget.type === "table";
+  const isExportable = widget.type === "chart" || widget.type === "table";
+  const canExport = isExportable && !isLoading;
 
   return (
-    <div className={`group ${containerClass[widget.type] ?? containerClass.text}`}>
+    <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? containerClass.text}`}>
       {widget.type !== "text" && (
         <div className={`flex items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] ${widget.description ? "mb-0.5" : "mb-1.5"} ${isTable ? "px-4" : ""}`}>
           <span>{widget.name}</span>
-          {data?.query && (
-            <span className="ml-auto">
-              <QueryInfo query={data.query} />
+          {(canExport || data?.query) && (
+            <span className="ml-auto inline-flex items-center gap-1">
+              {canExport && <WidgetExportButton widget={widget} data={data} />}
+              {data?.query && <QueryInfo query={data.query} />}
             </span>
           )}
         </div>

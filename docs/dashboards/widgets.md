@@ -341,3 +341,27 @@ Divider widgets add visual separation between sections.
   type: divider
   col: 12
 ```
+
+## Exports
+
+The dashboard viewer can export widget data as CSV and rendered dashboard or widget views as PNG/PDF. In `dac serve`, exports use the currently applied filters. In static `dac build` dashboards, exports use the query results baked into the HTML at build time.
+
+### Per-widget Exports
+
+Chart and table widgets show an export menu in the widget header on hover or keyboard focus:
+
+- **CSV** downloads that widget's result set as `<widget-name>.csv` (RFC 4180 CSV with quoted cells).
+- **PNG** captures the rendered widget as `<widget-name>.png`.
+- **PDF** captures the rendered widget as `<widget-name>.pdf`.
+
+### Dashboard Exports
+
+The dashboard header has an **Export** menu:
+
+- **CSV** exports every data-bearing widget (metrics, charts, and tables) in one file. Each widget is written as a section introduced by a `# <widget-name>` divider line, followed by the column header and rows, with a blank line separating sections. The file is named `<dashboard-name>.csv`.
+- **PNG** captures the rendered dashboard view as `<dashboard-name>.png`.
+- **PDF** captures the rendered dashboard view as `<dashboard-name>.pdf`.
+
+In `dac serve`, CSV exports reflect the active filter values at the time of the click. Static dashboard CSV exports use the baked query results. Text, divider, and image widgets are skipped in CSV exports. Widgets with query errors or no rows are omitted from the dashboard CSV.
+
+PNG and PDF exports capture the visible rendered view, excluding viewer controls such as export buttons and YAML controls. For tabbed dashboards, they capture the currently active tab.

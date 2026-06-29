@@ -118,6 +118,7 @@ export function QueryInfo({ query }: Props) {
       <button
         ref={buttonRef}
         type="button"
+        data-dac-export-control
         onMouseEnter={handleButtonEnter}
         onMouseLeave={handleButtonLeave}
         className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-medium leading-none opacity-0 group-hover:opacity-30 hover:!opacity-60 transition-opacity duration-150 cursor-default select-none"
