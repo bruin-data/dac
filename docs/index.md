@@ -73,6 +73,7 @@ rows:
 - **[Semantic layer](/dashboards/semantic-layer).** Define metrics and dimensions once in `semantic/`, reference them from any widget. DAC generates the SQL.
 - **Live reload.** Edit the file, save, see the change. No restart, no rebuild.
 - **Static export.** `dac build` produces self-contained HTML with query results baked in. Deploy to S3, GitHub Pages, anywhere — no runtime server needed.
+- **Data export.** Download chart and table data as CSV, or export dashboard and widget views as PNG/PDF directly from the viewer.
 - **[Google Slides export](/commands/export).** Render dashboards as slide decks with charts as images and data baked in.
 - **Validation in CI.** `dac validate` and `dac check` catch broken queries, missing columns, and schema violations before they reach production.
 

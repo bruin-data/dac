@@ -1,11 +1,15 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useDashboard } from "../hooks/useDashboard";
 import { useWidgetQuery } from "../hooks/useWidgetQuery";
 import { useTemplate } from "../themes/TemplateProvider";
 import { resolvePreset } from "../themes/bruin/FilterBar";
 import { YamlPanel } from "./YamlPanel";
-import type { Filter, Widget } from "../types/dashboard";
+import { ExportMenuButton, type ExportMenuItem } from "./ExportMenuButton";
+import { fetchDashboardData } from "../api/client";
+import { dashboardToCSV, downloadTextFile, slugify } from "../lib/csv";
+import { exportElementAsPDF, exportElementAsPNG } from "../lib/renderExport";
+import type { Filter, Widget, WidgetData } from "../types/dashboard";
 import type { WidgetFrameProps } from "../types/template";
 
 function buildDefaultFilters(dashboard: { filters?: Filter[] }): Record<string, unknown> {
@@ -26,6 +30,7 @@ function buildDefaultFilters(dashboard: { filters?: Filter[] }): Record<string, 
 }
 
 const isStaticMode = window.__DAC_STATIC__ !== undefined;
+type DashboardExportFormat = "csv" | "png" | "pdf";
 
 // Non-data widget types that don't need a query.
 const STATIC_WIDGET_TYPES = new Set(["text", "divider", "image"]);
@@ -81,12 +86,13 @@ function DataWidgetInner({
   filters?: Record<string, unknown>;
   WidgetFrame: React.ComponentType<WidgetFrameProps>;
 }) {
-  const { data, isLoading } = useWidgetQuery(dashboardName, widgetId, filters, true);
-  return <WidgetFrame widget={widget} data={data} isLoading={isLoading} />;
+  const { data, isLoading, isPlaceholderData } = useWidgetQuery(dashboardName, widgetId, filters, true);
+  return <WidgetFrame widget={widget} data={data} isLoading={isLoading || isPlaceholderData} />;
 }
 
 export function DashboardView() {
   const { name } = useParams<{ name: string }>();
+  const dashboardExportRef = useRef<HTMLDivElement>(null);
 
   const { data: dashboard, isLoading: dashLoading, error: dashError } = useDashboard(name || "");
   const [yamlOpen, _setYamlOpen] = useState(_yamlOpen);
@@ -107,6 +113,7 @@ export function DashboardView() {
     });
   }, []);
   const [isResizing, setIsResizing] = useState(false);
+  const [exporting, setExporting] = useState<DashboardExportFormat | null>(null);
 
   const handleYamlResize = useCallback((delta: number) => {
     setYamlWidth((w: number) => Math.max(280, Math.min(800, w + delta)));
@@ -153,6 +160,43 @@ export function DashboardView() {
     setActiveTab(null);
   }, [dashboard]);
 
+  const handleExport = useCallback(async (format: DashboardExportFormat) => {
+    if (!dashboard) return;
+    setExporting(format);
+    try {
+      const filename = `${slugify(dashboard.name)}.${format}`;
+      if (format === "csv") {
+        const widgetData = await fetchDashboardData(name || "", activeFilters ?? undefined);
+        const sections: { name: string; data: WidgetData }[] = [];
+        dashboard.rows.forEach((row, i) => {
+          row.widgets.forEach((widget, j) => {
+            if (widget.type === "text" || widget.type === "divider" || widget.type === "image") return;
+            const data = widgetData[`r${i}-w${j}`];
+            if (data && !data.error && data.rows && data.rows.length > 0) {
+              sections.push({ name: widget.name, data });
+            }
+          });
+        });
+        if (sections.length === 0) return;
+        const csv = dashboardToCSV(sections);
+        downloadTextFile(filename, csv, "text/csv;charset=utf-8");
+        return;
+      }
+
+      const element = dashboardExportRef.current;
+      if (!element) return;
+      if (format === "png") {
+        await exportElementAsPNG(element, filename);
+      } else {
+        await exportElementAsPDF(element, filename);
+      }
+    } catch (err) {
+      console.error("Dashboard export failed", err);
+    } finally {
+      setExporting(null);
+    }
+  }, [dashboard, name, activeFilters]);
+
   if (dashLoading) {
     return (
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -188,22 +232,37 @@ export function DashboardView() {
     />
   ) : null;
 
-  const headerActions = isStaticMode ? null : (
-    <div className="flex items-center gap-1.5">
-      <button
-        onClick={() => setYamlOpen(!yamlOpen)}
-        className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-sm border text-[13px] transition-all duration-100 ${
-          yamlOpen
-            ? "border-[var(--dac-accent)] text-[var(--dac-accent)] hover:bg-[color-mix(in_srgb,var(--dac-accent)_8%,transparent)]"
-            : "border-[var(--dac-border)] bg-[var(--dac-background)] text-[var(--dac-text-secondary)] hover:text-[var(--dac-text-primary)] hover:border-[var(--dac-text-muted)] hover:bg-[var(--dac-surface-hover)]"
-        }`}
-        title="View YAML"
-      >
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5.5 4L2 8L5.5 12" />
-          <path d="M10.5 4L14 8L10.5 12" />
-        </svg>
-      </button>
+  const exportItems: ExportMenuItem[] = [
+    { key: "csv", label: "CSV", onSelect: () => handleExport("csv") },
+    { key: "png", label: "PNG", onSelect: () => handleExport("png") },
+    { key: "pdf", label: "PDF", onSelect: () => handleExport("pdf") },
+  ];
+
+  const headerActions = (
+    <div data-dac-export-control className="flex items-center gap-1.5">
+      <ExportMenuButton
+        label={exporting ? "Exporting" : "Export"}
+        ariaLabel="Export dashboard"
+        title="Export dashboard"
+        items={exportItems}
+        disabled={exporting !== null}
+      />
+      {!isStaticMode && (
+        <button
+          onClick={() => setYamlOpen(!yamlOpen)}
+          className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-sm border text-[13px] transition-all duration-100 ${
+            yamlOpen
+              ? "border-[var(--dac-accent)] text-[var(--dac-accent)] hover:bg-[color-mix(in_srgb,var(--dac-accent)_8%,transparent)]"
+              : "border-[var(--dac-border)] bg-[var(--dac-background)] text-[var(--dac-text-secondary)] hover:text-[var(--dac-text-primary)] hover:border-[var(--dac-text-muted)] hover:bg-[var(--dac-surface-hover)]"
+          }`}
+          title="View YAML"
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5.5 4L2 8L5.5 12" />
+            <path d="M10.5 4L14 8L10.5 12" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 
@@ -231,63 +290,65 @@ export function DashboardView() {
       style={{ gridTemplateColumns: gridColumns }}
     >
       <div className="overflow-y-auto min-w-0">
-        <DashboardLayout dashboard={dashboard} filterBar={filterBar} headerActions={headerActions}>
-          {/* Rows without a tab — always visible */}
-          {dashboard.rows.map((row, rowIdx) => {
-            if (row.tab) return null;
-            return (
-              <div
-                key={rowIdx}
-                className="animate-in"
-                style={{ animationDelay: `${50 + rowIdx * 30}ms` }}
-              >
-                <Row height={row.height}>
-                  {row.widgets.map((widget, widgetIdx) =>
-                    renderWidget(widget, rowIdx, widgetIdx, row.widgets.length),
-                  )}
-                </Row>
-              </div>
-            );
-          })}
+        <div ref={dashboardExportRef}>
+          <DashboardLayout dashboard={dashboard} filterBar={filterBar} headerActions={headerActions}>
+            {/* Rows without a tab — always visible */}
+            {dashboard.rows.map((row, rowIdx) => {
+              if (row.tab) return null;
+              return (
+                <div
+                  key={rowIdx}
+                  className="animate-in"
+                  style={{ animationDelay: `${50 + rowIdx * 30}ms` }}
+                >
+                  <Row height={row.height}>
+                    {row.widgets.map((widget, widgetIdx) =>
+                      renderWidget(widget, rowIdx, widgetIdx, row.widgets.length),
+                    )}
+                  </Row>
+                </div>
+              );
+            })}
 
-          {/* Tab bar + tab content */}
-          {hasTabs && (
-            <>
-              <div className="flex overflow-x-auto scrollbar-hide border-b border-[var(--dac-border)]">
-                {tabNames.map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`shrink-0 px-4 py-2 text-[13px] font-medium transition-colors duration-100 border-b-2 -mb-px ${
-                      currentTab === tab
-                        ? "border-[var(--dac-accent)] text-[var(--dac-text-primary)]"
-                        : "border-transparent text-[var(--dac-text-muted)] hover:text-[var(--dac-text-secondary)]"
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
+            {/* Tab bar + tab content */}
+            {hasTabs && (
+              <>
+                <div className="flex overflow-x-auto scrollbar-hide border-b border-[var(--dac-border)]">
+                  {tabNames.map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`shrink-0 px-4 py-2 text-[13px] font-medium transition-colors duration-100 border-b-2 -mb-px ${
+                        currentTab === tab
+                          ? "border-[var(--dac-accent)] text-[var(--dac-text-primary)]"
+                          : "border-transparent text-[var(--dac-text-muted)] hover:text-[var(--dac-text-secondary)]"
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
 
-              {dashboard.rows.map((row, rowIdx) => {
-                if (row.tab !== currentTab) return null;
-                return (
-                  <div
-                    key={rowIdx}
-                    className="animate-in"
-                    style={{ animationDelay: `${50 + rowIdx * 30}ms` }}
-                  >
-                    <Row height={row.height}>
-                      {row.widgets.map((widget, widgetIdx) =>
-                        renderWidget(widget, rowIdx, widgetIdx, row.widgets.length),
-                      )}
-                    </Row>
-                  </div>
-                );
-              })}
-            </>
-          )}
-        </DashboardLayout>
+                {dashboard.rows.map((row, rowIdx) => {
+                  if (row.tab !== currentTab) return null;
+                  return (
+                    <div
+                      key={rowIdx}
+                      className="animate-in"
+                      style={{ animationDelay: `${50 + rowIdx * 30}ms` }}
+                    >
+                      <Row height={row.height}>
+                        {row.widgets.map((widget, widgetIdx) =>
+                          renderWidget(widget, rowIdx, widgetIdx, row.widgets.length),
+                        )}
+                      </Row>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </DashboardLayout>
+        </div>
       </div>
       <YamlPanel
         dashboardName={name || ""}
