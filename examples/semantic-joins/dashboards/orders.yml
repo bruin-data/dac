@@ -1,0 +1,82 @@
+name: Orders & Customers (Joins)
+description: Cross-model semantic queries that join the orders model to the customers model
+connection: local_duckdb
+model: orders
+
+queries:
+  revenue_by_country:
+    model: orders
+    dimensions:
+      - name: customers.country
+    metrics: [revenue]
+    sort:
+      - name: revenue
+        direction: desc
+
+rows:
+  - widgets:
+      - name: Revenue
+        type: metric
+        metric: revenue
+        value:
+          field: revenue
+          type: number
+          format: "$,.0f"
+        col: 4
+      - name: Orders
+        type: metric
+        metric: order_count
+        value:
+          field: order_count
+          type: number
+          format: ",.0f"
+        col: 4
+      - name: Avg Order Value
+        type: metric
+        metric: avg_order_value
+        value:
+          field: avg_order_value
+          type: number
+          format: "$,.2f"
+        col: 4
+
+  - widgets:
+      # Revenue from the orders model, grouped by a dimension on the joined customers model.
+      - name: Revenue by Country
+        type: chart
+        chart: bar
+        query: revenue_by_country
+        col: 6
+      - name: Revenue by Segment
+        type: chart
+        chart: bar
+        dimension: customers.segment
+        metrics: [revenue]
+        sort:
+          - name: revenue
+            direction: desc
+        col: 6
+
+  - widgets:
+      - name: Revenue by Customer Segment & Category
+        type: table
+        dimensions:
+          - name: customers.segment
+          - name: category
+        metrics: [revenue, order_count]
+        sort:
+          - name: revenue
+            direction: desc
+        limit: 20
+        columns:
+          - name: customers.segment
+            label: Segment
+          - name: category
+            label: Category
+          - name: revenue
+            label: Revenue
+            format: currency
+          - name: order_count
+            label: Orders
+            format: number
+        col: 12

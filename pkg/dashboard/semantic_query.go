@@ -11,6 +11,10 @@ type SemanticJob struct {
 	ModelName  string
 	Connection string
 	Query      sem.Query
+	// Models is the full set of semantic models in the project, keyed by name.
+	// It is passed to the engine so queries can reference dimensions on joined
+	// models (e.g. "customers.country").
+	Models map[string]*sem.Model
 }
 
 func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, error) {
@@ -35,6 +39,7 @@ func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, err
 			ModelName:  modelName,
 			Connection: conn,
 			Query:      semanticQueryFromNamedQuery(q),
+			Models:     d.semanticModels,
 		}, true, nil
 	}
 
@@ -64,6 +69,7 @@ func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, err
 		ModelName:  modelName,
 		Connection: conn,
 		Query:      semanticQueryFromWidget(w),
+		Models:     d.semanticModels,
 	}, true, nil
 }
 

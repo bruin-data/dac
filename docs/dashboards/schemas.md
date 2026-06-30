@@ -7,7 +7,7 @@ DAC YAML files are validated against versioned Bruin schema identifiers. The `sc
 | File type | Schema |
 |-----------|--------|
 | Dashboard YAML | `https://getbruin.com/schemas/dac/dashboard/v1` |
-| Semantic model YAML | `v1` (the legacy `https://getbruin.com/schemas/dac/semantic-model/v1` id is still accepted) |
+| Semantic model YAML | `https://getbruin.com/schemas/dac/semantic-model/v1` |
 | Theme YAML | `https://getbruin.com/schemas/dac/theme/v1` |
 
 Dashboard example:

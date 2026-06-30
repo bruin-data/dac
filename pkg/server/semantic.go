@@ -13,12 +13,31 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 	if err != nil {
 		return "", "", err
 	}
+
+	// Render every model in the project so queries that reference dimensions on
+	// joined models compile against rendered (templated) expressions too.
+	models := make(map[string]*sem.Model, len(job.Models))
+	for name, m := range job.Models {
+		rendered, err := renderSemanticModel(m, filters)
+		if err != nil {
+			return "", "", fmt.Errorf("rendering semantic model %q: %w", name, err)
+		}
+		models[name] = rendered
+	}
+	// Keep the primary model identical to its entry in the rendered set so the
+	// engine resolves joins against consistent model pointers.
+	if job.ModelName != "" {
+		if rendered, ok := models[job.ModelName]; ok {
+			model = rendered
+		}
+	}
+
 	query, err := renderSemanticQuery(job.Query, filters)
 	if err != nil {
 		return "", "", err
 	}
 
-	engine, err := sem.NewEngine(model)
+	engine, err := sem.NewEngineWithModels(model, models)
 	if err != nil {
 		return "", "", err
 	}

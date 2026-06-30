@@ -1,0 +1,8 @@
+default_environment: default
+environments:
+    default:
+        connections:
+            duckdb:
+                - name: local_duckdb
+                  path: ../data/test.db
+                  read_only: true
