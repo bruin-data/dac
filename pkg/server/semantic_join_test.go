@@ -40,7 +40,7 @@ func TestCompileSemanticJob_CrossModelJoin(t *testing.T) {
 		},
 	}
 
-	sql, conn, err := compileSemanticJob(job, nil)
+	sql, conn, renames, err := compileSemanticJob(job, nil)
 	if err != nil {
 		t.Fatalf("compile cross-model job: %v", err)
 	}
@@ -52,6 +52,10 @@ func TestCompileSemanticJob_CrossModelJoin(t *testing.T) {
 	}
 	if !strings.Contains(sql, "customers") || !strings.Contains(sql, "country") {
 		t.Fatalf("expected joined customers.country in SQL, got: %s", sql)
+	}
+	// The sanitized output column must map back to the dashboard-facing name.
+	if got := renames["customers_country"]; got != "customers.country" {
+		t.Fatalf("expected rename customers_country -> customers.country, got %q (%v)", got, renames)
 	}
 }
 
@@ -72,11 +76,14 @@ func TestCompileSemanticJob_SingleModelNoJoin(t *testing.T) {
 		Query:      sem.Query{Metrics: []string{"revenue"}},
 	}
 
-	sql, _, err := compileSemanticJob(job, nil)
+	sql, _, renames, err := compileSemanticJob(job, nil)
 	if err != nil {
 		t.Fatalf("compile single-model job: %v", err)
 	}
 	if strings.Contains(strings.ToUpper(sql), "JOIN") {
 		t.Fatalf("did not expect a JOIN for a single-model query, got: %s", sql)
+	}
+	if len(renames) != 0 {
+		t.Fatalf("did not expect column renames for a single-model query, got: %v", renames)
 	}
 }

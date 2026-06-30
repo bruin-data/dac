@@ -22,6 +22,11 @@ type WidgetJob struct {
 	// InlineData, when set, is returned directly without executing SQL — the
 	// widget carries static data and needs no connection.
 	InlineData *dashboard.WidgetData
+	// ColumnRenames maps an executed result column name to the name the
+	// dashboard references it by. Semantic joins sanitize qualified dimension
+	// names (e.g. "customers.country" -> "customers_country"); this restores
+	// the dashboard-facing name so widgets resolve the column.
+	ColumnRenames map[string]string
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -268,11 +273,11 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 			if semanticJob, handled, err := d.ResolveWidgetSemanticJob(&widget); err != nil {
 				return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
 			} else if handled {
-				sql, conn, err = compileSemanticJob(semanticJob, filters)
+				sql, conn, renames, err := compileSemanticJob(semanticJob, filters)
 				if err != nil {
 					return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
 				}
-				jobs = append(jobs, WidgetJob{ID: WidgetID(i, j), SQL: sql, Connection: conn})
+				jobs = append(jobs, WidgetJob{ID: WidgetID(i, j), SQL: sql, Connection: conn, ColumnRenames: renames})
 				continue
 			}
 
@@ -324,10 +329,14 @@ func ExecuteWidgetQuery(ctx context.Context, backend query.Backend, j WidgetJob)
 		Query: j.SQL,
 	}
 	for _, col := range qr.Columns {
+		name := col.Name
+		if renamed, ok := j.ColumnRenames[name]; ok {
+			name = renamed
+		}
 		wr.Columns = append(wr.Columns, struct {
 			Name string `json:"name"`
 			Type string `json:"type,omitempty"`
-		}{Name: col.Name, Type: col.Type})
+		}{Name: name, Type: col.Type})
 	}
 	for i, row := range qr.Rows {
 		wr.Rows[i] = row
