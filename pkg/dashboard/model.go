@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	sem "github.com/bruin-data/dac/pkg/semantic"
+	sem "github.com/bruin-data/bruin/semantic-engine"
 	"gopkg.in/yaml.v3"
 )
 

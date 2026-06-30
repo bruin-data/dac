@@ -3,7 +3,7 @@ package dashboard
 import (
 	"fmt"
 
-	sem "github.com/bruin-data/dac/pkg/semantic"
+	sem "github.com/bruin-data/bruin/semantic-engine"
 )
 
 type SemanticJob struct {

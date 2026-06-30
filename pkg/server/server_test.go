@@ -150,7 +150,7 @@ rows:
         type: text
         content: Hello
 `
-	invalidModel := `schema: https://getbruin.com/schemas/dac/semantic-model/v1
+	invalidModel := `schema: v1
 name: broken_sales
 source:
   table: sales

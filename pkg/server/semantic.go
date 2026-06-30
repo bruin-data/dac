@@ -3,8 +3,8 @@ package server
 import (
 	"fmt"
 
+	sem "github.com/bruin-data/bruin/semantic-engine"
 	"github.com/bruin-data/dac/pkg/dashboard"
-	sem "github.com/bruin-data/dac/pkg/semantic"
 	tmpl "github.com/bruin-data/dac/pkg/template"
 )
 

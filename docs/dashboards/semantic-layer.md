@@ -81,7 +81,7 @@ segments:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `schema` | string | No | Optional schema ID. Defaults to `https://getbruin.com/schemas/dac/semantic-model/v1` when omitted |
+| `schema` | string | No | Optional schema ID. Defaults to `v1` when omitted; the legacy `https://getbruin.com/schemas/dac/semantic-model/v1` id is also accepted |
 | `name` | string | Yes | Model name used by dashboards |
 | `label` | string | No | Display label |
 | `description` | string | No | Model description |

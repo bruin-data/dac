@@ -10,12 +10,11 @@ import (
 )
 
 const (
-	DashboardV1ID     = "https://getbruin.com/schemas/dac/dashboard/v1"
-	SemanticModelV1ID = "https://getbruin.com/schemas/dac/semantic-model/v1"
-	ThemeV1ID         = "https://getbruin.com/schemas/dac/theme/v1"
+	DashboardV1ID = "https://getbruin.com/schemas/dac/dashboard/v1"
+	ThemeV1ID     = "https://getbruin.com/schemas/dac/theme/v1"
 )
 
-//go:embed dac/dashboard/v1/schema.json dac/semantic-model/v1/schema.json dac/theme/v1/schema.json
+//go:embed dac/dashboard/v1/schema.json dac/theme/v1/schema.json
 var files embed.FS
 
 var registry = struct {
@@ -50,9 +49,8 @@ func compiledSchemas() (map[string]*jsonschema.Schema, error) {
 		compiler.DefaultDraft(jsonschema.Draft2020)
 
 		resources := map[string]string{
-			DashboardV1ID:     "dac/dashboard/v1/schema.json",
-			SemanticModelV1ID: "dac/semantic-model/v1/schema.json",
-			ThemeV1ID:         "dac/theme/v1/schema.json",
+			DashboardV1ID: "dac/dashboard/v1/schema.json",
+			ThemeV1ID:     "dac/theme/v1/schema.json",
 		}
 		for id, path := range resources {
 			data, err := files.ReadFile(path)

@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	sem "github.com/bruin-data/dac/pkg/semantic"
+	sem "github.com/bruin-data/bruin/semantic-engine"
 )
 
 type semanticModelSet struct {

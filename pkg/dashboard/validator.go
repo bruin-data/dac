@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	sem "github.com/bruin-data/dac/pkg/semantic"
+	sem "github.com/bruin-data/bruin/semantic-engine"
 )
 
 // ValidationError holds all validation issues for a dashboard.
