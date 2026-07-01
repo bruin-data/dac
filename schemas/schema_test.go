@@ -46,18 +46,6 @@ rows:
 `,
 		},
 		{
-			name:     "semantic model",
-			schemaID: SemanticModelV1ID,
-			yaml: `schema: https://getbruin.com/schemas/dac/semantic-model/v1
-name: sales
-source:
-  table: sales
-metrics:
-  - name: revenue
-    expression: sum(amount)
-`,
-		},
-		{
 			name:     "theme",
 			schemaID: ThemeV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/theme/v1
@@ -93,17 +81,6 @@ rows:
         type: metric
         sql: SELECT 1 AS value
         value: { field: value }
-`,
-		},
-		{
-			name:     "semantic model",
-			schemaID: SemanticModelV1ID,
-			yaml: `name: sales
-source:
-  table: sales
-metrics:
-  - name: revenue
-    expression: sum(amount)
 `,
 		},
 		{
@@ -143,16 +120,6 @@ rows:
 `,
 		},
 		{
-			name:     "semantic model extra field",
-			schemaID: SemanticModelV1ID,
-			yaml: `schema: https://getbruin.com/schemas/dac/semantic-model/v1
-name: sales
-unknown: true
-source:
-  table: sales
-`,
-		},
-		{
 			name:     "theme missing tokens",
 			schemaID: ThemeV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/theme/v1
@@ -178,14 +145,6 @@ func TestSchemasValidateRepositoryYAML(t *testing.T) {
 		"../testdata/dashboards/*.yaml",
 		"../testdata/project/dashboards/*.yml",
 		"../testdata/project/dashboards/*.yaml",
-	)
-	validateFiles(t, SemanticModelV1ID,
-		"../examples/*/semantic/*.yml",
-		"../examples/*/semantic/*.yaml",
-		"../testdata/semantic/*.yml",
-		"../testdata/semantic/*.yaml",
-		"../testdata/project/semantic/*.yml",
-		"../testdata/project/semantic/*.yaml",
 	)
 	validateFiles(t, ThemeV1ID,
 		"../testdata/themes/*.yml",

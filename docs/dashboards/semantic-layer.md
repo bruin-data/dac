@@ -86,6 +86,8 @@ segments:
 | `label` | string | No | Display label |
 | `description` | string | No | Model description |
 | `source.table` | string | Yes | Base SQL table or relation |
+| `primary_key` | string | No | Key column used as the join target; required on models referenced by another model's `joins` |
+| `joins` | array | No | Relationships to other semantic models (see [Joins](#joins)) |
 | `dimensions` | array | No | Fields available for grouping and filtering |
 | `metrics` | array | No | Aggregated or derived values |
 | `segments` | array | No | Reusable SQL predicates |
@@ -147,6 +149,72 @@ Segments are named SQL predicates reused by dashboards.
 | `filter` | string | SQL predicate |
 | `label` | string | Optional display label |
 | `description` | string | Optional description |
+
+## Joins
+
+A model can declare relationships to other models with a `joins` block. Once joined, a dashboard query can group, filter, or sort by dimensions from the joined model using a `relation.dimension` reference. The join target model must define a `primary_key`.
+
+```yaml
+# semantic/orders.yml
+name: orders
+source:
+  table: public.orders
+primary_key: order_id
+
+joins:
+  - name: customers          # relation name; also the target model name unless `model:` is set
+    relationship: many_to_one
+    foreign_key: customer_id # column on this model that points at customers.primary_key
+
+dimensions:
+  - name: category
+    type: string
+metrics:
+  - name: revenue
+    expression: sum(amount)
+```
+
+```yaml
+# semantic/customers.yml
+name: customers
+source:
+  table: public.customers
+primary_key: customer_id
+dimensions:
+  - name: country
+    type: string
+```
+
+A widget or named query on the `orders` model can then reference `customers.country`:
+
+```yaml
+- name: Revenue by Country
+  type: chart
+  chart: bar
+  dimension: customers.country   # dimension from the joined customers model
+  metrics: [revenue]
+```
+
+DAC compiles this into a join, e.g.:
+
+```sql
+SELECT customers.country AS customers_country, sum(base.amount) AS revenue
+FROM (SELECT * FROM public.orders) base
+LEFT JOIN (SELECT * FROM public.customers) customers
+  ON base.customer_id = customers.customer_id
+GROUP BY 1
+```
+
+| Join field | Type | Description |
+|------------|------|-------------|
+| `name` | string | Relation name used to qualify dimensions (`name.dimension`); defaults to the target model name |
+| `model` | string | Target model name, if it differs from `name` |
+| `relationship` | string | `one_to_one`, `many_to_one`, `one_to_many`, or `many_to_many` |
+| `foreign_key` | string | Column on this model that references the target's `primary_key` |
+| `target_key` | string | Override for the target column (defaults to the target's `primary_key`) |
+| `sql` | string | Custom join condition, used instead of `foreign_key`/`target_key` |
+
+See `examples/semantic-joins` for a complete project.
 
 ## Referencing Models
 

@@ -141,7 +141,7 @@ rows:
 `
 	assertNoErr(t, os.WriteFile(filepath.Join(dashboardsDir, "regular.yml"), []byte(regularDashboard), 0o644))
 
-	invalidModel := `schema: https://getbruin.com/schemas/dac/semantic-model/v1
+	invalidModel := `schema: v1
 name: broken_sales
 source:
   table: sales

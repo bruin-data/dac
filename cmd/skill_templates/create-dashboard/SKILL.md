@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 2
+version: 3
 ---
 
 # Create Dashboard
@@ -221,6 +221,51 @@ segments:
 ```
 
 Metrics are aggregate SQL expressions or expressions over other metrics using `{metric_name}` references. Dimensions are the only fields valid for semantic filters.
+
+### Joins
+
+A model can join to other models so a query can group, filter, or sort by dimensions on a related model. Declare a `joins` block on the model and a `primary_key` on the join target, then reference joined dimensions as `relation.dimension`.
+
+```yaml
+# semantic/orders.yml
+name: orders
+source:
+  table: marts.orders
+primary_key: order_id
+joins:
+  - name: customers          # relation name; also the target model name unless `model:` is set
+    relationship: many_to_one
+    foreign_key: customer_id # column on this model pointing at customers.primary_key
+dimensions:
+  - name: category
+    type: string
+metrics:
+  - name: revenue
+    expression: sum(amount)
+```
+
+```yaml
+# semantic/customers.yml
+name: customers
+source:
+  table: marts.customers
+primary_key: customer_id
+dimensions:
+  - name: country
+    type: string
+```
+
+A widget or named query on `orders` then references the joined dimension by `relation.dimension`:
+
+```yaml
+- name: Revenue by Country
+  type: chart
+  chart: bar
+  dimension: customers.country   # dimension from the joined customers model
+  metrics: [revenue]
+```
+
+Relationships: `one_to_one`, `many_to_one`, `one_to_many`, `many_to_many`. Use `target_key` to override the joined column, or `sql` for a custom join condition.
 
 ## Semantic Dashboard
 

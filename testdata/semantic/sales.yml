@@ -1,4 +1,4 @@
-schema: https://getbruin.com/schemas/dac/semantic-model/v1
+schema: v1
 name: sales
 label: Sales
 description: Semantic model over the sample sales table

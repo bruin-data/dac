@@ -2,32 +2,83 @@ package server
 
 import (
 	"fmt"
+	"strings"
 
+	sem "github.com/bruin-data/bruin/semantic-engine"
 	"github.com/bruin-data/dac/pkg/dashboard"
-	sem "github.com/bruin-data/dac/pkg/semantic"
 	tmpl "github.com/bruin-data/dac/pkg/template"
 )
 
-func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (string, string, error) {
+func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (string, string, map[string]string, error) {
 	model, err := renderSemanticModel(job.Model, filters)
 	if err != nil {
-		return "", "", err
-	}
-	query, err := renderSemanticQuery(job.Query, filters)
-	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 
-	engine, err := sem.NewEngine(model)
+	// Render every model in the project so queries that reference dimensions on
+	// joined models compile against rendered (templated) expressions too.
+	models := make(map[string]*sem.Model, len(job.Models))
+	for name, m := range job.Models {
+		rendered, err := renderSemanticModel(m, filters)
+		if err != nil {
+			return "", "", nil, fmt.Errorf("rendering semantic model %q: %w", name, err)
+		}
+		models[name] = rendered
+	}
+	// Keep the primary model identical to its entry in the rendered set so the
+	// engine resolves joins against consistent model pointers.
+	if job.ModelName != "" {
+		if rendered, ok := models[job.ModelName]; ok {
+			model = rendered
+		}
+	}
+
+	query, err := renderSemanticQuery(job.Query, filters)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
+	}
+
+	engine, err := sem.NewEngineWithModels(model, models)
+	if err != nil {
+		return "", "", nil, err
 	}
 	sql, err := engine.GenerateSQL(&query)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 
-	return sql, job.Connection, nil
+	return sql, job.Connection, semanticColumnRenames(query), nil
+}
+
+// semanticColumnRenames maps the column names the engine emits back to the
+// dimension names the dashboard references. The engine sanitizes qualified
+// (joined) dimension names — e.g. "customers.country" is selected as
+// "customers_country" — so without this remap the widget would look up a
+// column that does not exist in the result. Non-qualified dimensions keep
+// their name and need no entry.
+func semanticColumnRenames(query sem.Query) map[string]string {
+	renames := map[string]string{}
+	for _, dim := range query.Dimensions {
+		alias := semanticOutputAlias(dim)
+		if alias != dim.Name {
+			renames[alias] = dim.Name
+		}
+	}
+	return renames
+}
+
+// semanticOutputAlias mirrors the engine's output-column naming for a
+// dimension reference: only qualified names (containing ".") are sanitized,
+// replacing the dot (and granularity separator) with an underscore.
+func semanticOutputAlias(ref sem.DimensionRef) string {
+	if !strings.Contains(ref.Name, ".") {
+		return ref.Name
+	}
+	alias := strings.ReplaceAll(ref.Name, ".", "_")
+	if ref.Granularity != "" {
+		alias += "_" + strings.ReplaceAll(ref.Granularity, ".", "_")
+	}
+	return alias
 }
 
 func renderSemanticModel(model *sem.Model, filters map[string]any) (*sem.Model, error) {

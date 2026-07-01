@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
+	sem "github.com/bruin-data/bruin/semantic-engine"
+	semschemas "github.com/bruin-data/bruin/semantic-engine/schemas"
 	"github.com/bruin-data/dac/pkg/dashboard"
-	sem "github.com/bruin-data/dac/pkg/semantic"
-	"github.com/bruin-data/dac/schemas"
 )
 
 type Project struct {
@@ -63,7 +63,7 @@ func collectSemanticInventory(root, dashboardRoot map[string]any, modelSQL map[s
 
 		modelName := uniqueSemanticName(normalizeName(cardDisplayName(card, id)), seenModelNames)
 		model := &sem.Model{
-			Schema:      schemas.SemanticModelV1ID,
+			Schema:      semschemas.SemanticModelV1ID,
 			Name:        modelName,
 			Label:       cardDisplayName(card, id),
 			Description: firstString(card, "description"),

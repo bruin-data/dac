@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	sem "github.com/bruin-data/dac/pkg/semantic"
+	sem "github.com/bruin-data/bruin/semantic-engine"
 )
 
 // ValidationError holds all validation issues for a dashboard.
@@ -433,11 +433,12 @@ func validateSemanticNamedQuery(d *Dashboard, q Query) error {
 		Model:      model,
 		Connection: q.Connection,
 		Query:      semanticQueryFromNamedQuery(q),
+		Models:     d.semanticModels,
 	})
 }
 
 func validateSemanticJob(job *SemanticJob) error {
-	engine, err := sem.NewEngine(job.Model)
+	engine, err := sem.NewEngineWithModels(job.Model, job.Models)
 	if err != nil {
 		return err
 	}
