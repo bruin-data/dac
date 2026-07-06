@@ -177,9 +177,11 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 }
 
 func renderTemplateString(value string, filters map[string]any) (string, error) {
-	if value == "" || len(filters) == 0 {
+	if value == "" {
 		return value, nil
 	}
+	// Render even with no filters: SQL may reference the `bruin` namespace
+	// (e.g. {{ bruin.user_email }}). Render() short-circuits plain strings.
 	return tmpl.Render(value, filters)
 }
 

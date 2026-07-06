@@ -175,6 +175,7 @@ Structured semantic filters target dimensions. Metric-specific predicates usuall
 | `filters.<name>` | Filter controls | Current filter value |
 | `filters.<date_range>.start` | Date range filter | Start date |
 | `filters.<date_range>.end` | Date range filter | End date |
+| `bruin.user_email` | Signed-in viewer | Email of the user viewing the dashboard. In Bruin Cloud this resolves per viewer at load time; locally it comes from the `BRUIN_USER_EMAIL` environment variable (empty if unset). |
 
 ## Connection Override
 
