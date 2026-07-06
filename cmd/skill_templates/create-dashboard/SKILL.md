@@ -125,6 +125,16 @@ Select filters support `multiple: true` for multi-select. The value is a list â€
 {% endif %}
 ```
 
+## Current Viewer (`bruin.user_email`)
+
+`{{ bruin.user_email }}` is the email of the signed-in user viewing the dashboard â€” a Bruin Cloud runtime feature that resolves per viewer, so one dashboard can show each person only their own rows:
+
+```sql
+SELECT * FROM orders WHERE owner_email = '{{ bruin.user_email }}'
+```
+
+Locally there is no signed-in user, so the value comes from the `BRUIN_USER_EMAIL` environment variable (empty if unset). To preview a user-scoped dashboard as a specific person, pass it inline: `BRUIN_USER_EMAIL=someone@example.com dac dev`. In Bruin Cloud this becomes dynamic per signed-in viewer.
+
 ## Named Queries
 
 Use named queries when multiple widgets share the same SQL or semantic query.

@@ -284,11 +284,12 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 				continue
 			}
 
-			if len(filters) > 0 {
-				sql, err = tmpl.Render(sql, filters)
-				if err != nil {
-					return nil, fmt.Errorf("template error: %w", err)
-				}
+			// Always render: even with no filters, SQL may reference the
+			// `bruin` namespace (e.g. {{ bruin.user_email }}). Render()
+			// short-circuits templates with no placeholders.
+			sql, err = tmpl.Render(sql, filters)
+			if err != nil {
+				return nil, fmt.Errorf("template error: %w", err)
 			}
 			jobs = append(jobs, WidgetJob{ID: WidgetID(i, j), SQL: sql, Connection: conn})
 		}

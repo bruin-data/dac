@@ -101,6 +101,22 @@ func TestRender_MissingFilter(t *testing.T) {
 	})
 }
 
+func TestRender_BruinUserEmail(t *testing.T) {
+	t.Run("resolves from BRUIN_USER_EMAIL", func(t *testing.T) {
+		t.Setenv("BRUIN_USER_EMAIL", "viewer@example.com")
+		got, err := Render("WHERE owner = '{{ bruin.user_email }}'", map[string]any{})
+		assertNoErr(t, err)
+		assertEqual(t, got, "WHERE owner = 'viewer@example.com'")
+	})
+
+	t.Run("renders empty when unset", func(t *testing.T) {
+		t.Setenv("BRUIN_USER_EMAIL", "")
+		got, err := Render("owner={{ bruin.user_email }}", map[string]any{})
+		assertNoErr(t, err)
+		assertEqual(t, got, "owner=")
+	})
+}
+
 func TestRender_InvalidTemplate(t *testing.T) {
 	t.Run("malformed tag", func(t *testing.T) {
 		_, err := Render("{{ bad syntax !@ }}", map[string]any{})

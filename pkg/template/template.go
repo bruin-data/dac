@@ -3,6 +3,7 @@ package template
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/nikolalohinski/gonja/v2"
@@ -22,6 +23,13 @@ func Render(templateStr string, filters map[string]any) (string, error) {
 
 	ctx := exec.NewContext(map[string]interface{}{
 		"filters": filters,
+		"bruin": map[string]any{
+			// In Bruin Cloud this is the signed-in viewer's email, injected
+			// per request. Locally there's no viewer, so it comes from
+			// BRUIN_USER_EMAIL (empty if unset) — set it to preview a
+			// dashboard as a specific user.
+			"user_email": os.Getenv("BRUIN_USER_EMAIL"),
+		},
 	})
 
 	var buf bytes.Buffer
