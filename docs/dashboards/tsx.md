@@ -188,6 +188,23 @@ All widget components accept the same props as their YAML equivalents.
 <Image name="logo" col={3} src="https://example.com/logo.png" alt="Logo" />
 ```
 
+Series pattern styles use the same `seriesStyles` object as YAML:
+
+```tsx
+<Chart
+  name="Revenue vs Forecast"
+  chart="line"
+  col={12}
+  sql="SELECT month, actual_revenue, forecast_revenue FROM revenue_by_month"
+  x={{ field: "month" }}
+  y={{ field: ["actual_revenue", "forecast_revenue"] }}
+  seriesStyles={{
+    actual_revenue: { lineStyle: "solid" },
+    forecast_revenue: { lineStyle: "dashed" },
+  }}
+/>
+```
+
 ## How It Works
 
 DAC:

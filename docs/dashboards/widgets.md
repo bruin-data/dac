@@ -77,9 +77,9 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 
 | Chart | Required | Optional | Description |
 |-------|----------|----------|-------------|
-| `line` | `x`, `y` | `color` | Line chart |
-| `bar` | `x`, `y` | `color`, `stacked`, `normalized`, `horizontal` | Bar chart |
-| `area` | `x`, `y` | `color` | Area chart |
+| `line` | `x`, `y` | `color`, `seriesStyles` | Line chart |
+| `bar` | `x`, `y` | `color`, `stacked`, `normalized`, `horizontal`, `seriesStyles` | Bar chart |
+| `area` | `x`, `y` | `color`, `seriesStyles` | Area chart |
 | `pie` | `label`, `value` | | Pie/donut chart |
 | `scatter` | `x`, `y` | | Scatter plot |
 | `bubble` | `x`, `y`, `size` | | Bubble chart |
@@ -154,6 +154,54 @@ Rules:
 - `normalized: true` shows each stacked bar as percentages of the row total; the y axis renders `%` automatically, so omit `y.format`.
 - `horizontal: true` flips a bar chart: categories run down the vertical axis.
 
+### Series styles
+
+`seriesStyles` assigns non-color visual encodings to rendered series. Keys match the rendered series name:
+
+- For wide data with `y: { field: [actual, forecast] }`, use the y field names.
+- For long data with `color: { field: region }`, use the category values produced by `region`.
+
+Supported styles:
+
+| Key | Values | Rendered on |
+|-----|--------|-------------|
+| `lineStyle` | `solid`, `dashed`, `dotted` | line, area, combo line, sparkline, radar strokes |
+| `fillStyle` | `solid`, `striped`, `hatched` | bar, area, combo bar, radar fills |
+
+```yaml
+- name: Revenue vs Forecast
+  type: chart
+  chart: line
+  sql: |
+    SELECT month, actual_revenue, forecast_revenue
+    FROM revenue_by_month
+    ORDER BY month
+  x: { field: month }
+  y: { field: [actual_revenue, forecast_revenue] }
+  seriesStyles:
+    actual_revenue:
+      lineStyle: solid
+    forecast_revenue:
+      lineStyle: dashed
+```
+
+```yaml
+- name: Regional Mix
+  type: chart
+  chart: bar
+  sql: |
+    SELECT region, current_share, prior_share
+    FROM regional_mix
+    ORDER BY current_share DESC
+  x: { field: region }
+  y: { field: [current_share, prior_share] }
+  seriesStyles:
+    current_share:
+      fillStyle: solid
+    prior_share:
+      fillStyle: striped
+```
+
 Semantic example:
 
 ```yaml
@@ -186,6 +234,7 @@ Common chart fields:
 | `low` | string | Low column for candlestick charts |
 | `close` | string | Close column for candlestick charts |
 | `color` | object | Category column (`{ field: ... }`) that splits the single `y` series into one series per category — bar, line, and area charts |
+| `seriesStyles` | object | Per-series `lineStyle` and `fillStyle` overrides for pattern-based visual encoding |
 | `stacked` | boolean | Stack the color series (bar charts only; requires `color`) |
 | `normalized` | boolean | Render stacked bars as percentages of the row total (requires `stacked`) |
 | `horizontal` | boolean | Horizontal bars: categories on the vertical axis (bar charts only) |

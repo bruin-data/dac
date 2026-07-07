@@ -81,6 +81,7 @@ export interface Widget {
   value?: ValueEncoding;
   // bar/line/area: split the single y series by a category column (long-format SQL)
   color?: ColorEncoding;
+  seriesStyles?: Record<string, SeriesStyle>;
   stacked?: boolean;    // bar only; requires color
   normalized?: boolean; // stacked bars as percentages
   horizontal?: boolean; // bar only
@@ -124,6 +125,14 @@ export interface AxisEncoding {
 /** Encoding for the color channel: the category column that splits y into series. */
 export interface ColorEncoding {
   field: string;
+}
+
+export type LineStyle = "solid" | "dashed" | "dotted";
+export type FillStyle = "solid" | "striped" | "hatched";
+
+export interface SeriesStyle {
+  lineStyle?: LineStyle;
+  fillStyle?: FillStyle;
 }
 
 /** Structured encoding for a widget's value channel (metric value, pie/funnel/gauge value column). */
