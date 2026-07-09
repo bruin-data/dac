@@ -10,6 +10,16 @@ dac upgrade [tag] [flags]
 
 `dac update` is an alias.
 
+## Skill refresh
+
+After the new binary is installed, `dac upgrade` refreshes your project's bundled agent skills to match it: any skill already installed in the current project (under `.claude/skills/`) whose bundled version is now newer is updated in place, and a one-line notice reports what changed.
+
+```text
+Updated the create-dashboard skill to the latest version (v2 -> v3). Restart your agent session to pick it up.
+```
+
+This runs from the newly installed binary and only touches skills that are already installed — it never installs new skills and never creates project directories. If you run `dac upgrade` outside a DAC project, nothing is refreshed. The refresh is best-effort: a failure never fails the upgrade. See [`dac skills`](skills.md) for manual control.
+
 ## Flags
 
 | Flag | Type | Default | Description |
