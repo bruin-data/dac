@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from "react";
+import { useContext, useId, useMemo, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   ScatterChart, Scatter, ZAxis,
@@ -8,7 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import type { TreemapNode } from "recharts";
-import type { Widget, WidgetData } from "../../types/dashboard";
+import type { SeriesStyle, Widget, WidgetData } from "../../types/dashboard";
 import { axisField, axisFields, buildAxisFormatter, valueField } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
 import { RowHeightContext } from "../../themes/RowContext";
@@ -77,6 +77,112 @@ const CHART_COLORS = [
 
 const AXIS_STYLE = { fontSize: 11, fontFamily: '"Geist", system-ui' };
 
+type SeriesStyles = Record<string, SeriesStyle>;
+type SeriesMarkerMode = "line" | "fill" | "area";
+type SeriesMarkerModes = Record<string, SeriesMarkerMode>;
+
+const LINE_DASHARRAYS = {
+  solid: undefined,
+  dashed: "6 4",
+  dotted: "1 4",
+} satisfies Record<NonNullable<SeriesStyle["lineStyle"]>, string | undefined>;
+
+function getLineDasharray(style?: SeriesStyle): string | undefined {
+  if (!style?.lineStyle) return undefined;
+  return LINE_DASHARRAYS[style.lineStyle];
+}
+
+function getFillPattern(style?: SeriesStyle): "striped" | "hatched" | undefined {
+  if (style?.fillStyle === "striped" || style?.fillStyle === "hatched") {
+    return style.fillStyle;
+  }
+  return undefined;
+}
+
+function svgSafeId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+function patternId(baseId: string, series: string): string {
+  return `dac-pattern-${baseId}-${svgSafeId(series)}`;
+}
+
+function fillForSeries(baseId: string, series: string, color: string, style?: SeriesStyle): string {
+  return getFillPattern(style) ? `url(#${patternId(baseId, series)})` : color;
+}
+
+function seriesColorMap(series: string[], colors: string[]): Record<string, string> {
+  return Object.fromEntries(series.map((field, i) => [field, colors[i % colors.length]]));
+}
+
+function markerModeForSeries(chartType: Widget["chart"], field: string, modes?: SeriesMarkerModes): SeriesMarkerMode {
+  if (modes?.[field]) return modes[field];
+  if (chartType === "line" || chartType === "sparkline") return "line";
+  if (chartType === "area" || chartType === "radar") return "area";
+  return "fill";
+}
+
+function SeriesPatternDefs({
+  baseId,
+  series,
+  colors,
+  seriesStyles,
+}: {
+  baseId: string;
+  series: string[];
+  colors: string[];
+  seriesStyles?: SeriesStyles;
+}) {
+  const patternedSeries = series.filter((field) => getFillPattern(seriesStyles?.[field]));
+  if (patternedSeries.length === 0) return null;
+
+  return (
+    <defs>
+      {patternedSeries.map((field) => {
+        const color = colors[series.indexOf(field) % colors.length];
+        const fillPattern = getFillPattern(seriesStyles?.[field]);
+        return (
+          <pattern key={field} id={patternId(baseId, field)} patternUnits="userSpaceOnUse" width={8} height={8}>
+            <rect width={8} height={8} fill={color} fillOpacity={0.08} />
+            <path d="M-2 8 L8 -2 M0 10 L10 0 M6 10 L10 6" stroke={color} strokeWidth={1.4} strokeOpacity={0.75} />
+            {fillPattern === "hatched" && (
+              <path d="M-2 0 L8 10 M0 -2 L10 8 M6 -2 L10 2" stroke={color} strokeWidth={1.1} strokeOpacity={0.55} />
+            )}
+          </pattern>
+        );
+      })}
+    </defs>
+  );
+}
+
+function SeriesMarker({ color, style, mode }: { color: string; style?: SeriesStyle; mode: SeriesMarkerMode }) {
+  const dasharray = getLineDasharray(style);
+  const fillPattern = getFillPattern(style);
+
+  if (mode === "line") {
+    return (
+      <svg width={16} height={8} viewBox="0 0 16 8" aria-hidden="true">
+        <line x1={1} y1={4} x2={15} y2={4} stroke={color} strokeWidth={2} strokeDasharray={dasharray} strokeLinecap={style?.lineStyle === "dotted" ? "round" : "butt"} />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width={14} height={10} viewBox="0 0 14 10" aria-hidden="true">
+      <rect x={0.5} y={1} width={13} height={8} rx={1} fill={fillPattern ? "transparent" : color} stroke={color} strokeOpacity={0.8} />
+      {fillPattern && (
+        <>
+          <path d="M-1 9 L9 -1 M3 11 L15 -1 M8 11 L15 4" stroke={color} strokeWidth={1.3} strokeOpacity={0.8} />
+          {fillPattern === "hatched" && <path d="M-1 1 L9 11 M3 -1 L15 11 M8 -1 L15 6" stroke={color} strokeWidth={1} strokeOpacity={0.6} />}
+        </>
+      )}
+      {mode === "area" && (
+        <line x1={1} y1={2} x2={13} y2={2} stroke={color} strokeWidth={1.5} strokeDasharray={dasharray} strokeLinecap={style?.lineStyle === "dotted" ? "round" : "butt"} />
+      )}
+    </svg>
+  );
+}
+
 interface TooltipPayloadEntry {
   color?: string;
   fill?: string;
@@ -85,25 +191,70 @@ interface TooltipPayloadEntry {
   value?: unknown;
 }
 
-function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue }: {
+function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue, seriesStyles, chartType, seriesColors, seriesModes }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
   label?: unknown;
   labelFormatter?: (val: unknown) => string;
   valueFormatter?: (val: unknown) => string;
+  seriesStyles?: SeriesStyles;
+  chartType?: Widget["chart"];
+  seriesColors?: Record<string, string>;
+  seriesModes?: SeriesMarkerModes;
 }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="dac-tooltip">
       <div className="dac-tooltip-label">{labelFormatter(label)}</div>
-      {payload.map((p, i) => (
-        <div key={i} className="dac-tooltip-row">
-          <span className="dac-tooltip-dot" style={{ background: p.color ?? p.fill }} />
-          <span className="dac-tooltip-name">{p.name ?? p.dataKey}</span>
-          <span className="dac-tooltip-value">{valueFormatter(p.value)}</span>
-        </div>
-      ))}
+      {payload.map((p, i) => {
+        const field = String(p.dataKey ?? p.name ?? "");
+        const color = seriesColors?.[field] ?? p.color ?? p.fill ?? "var(--dac-accent)";
+        return (
+          <div key={i} className="dac-tooltip-row">
+            <SeriesMarker color={color} style={seriesStyles?.[field]} mode={markerModeForSeries(chartType, field, seriesModes)} />
+            <span className="dac-tooltip-name">{p.name ?? p.dataKey}</span>
+            <span className="dac-tooltip-value">{valueFormatter(p.value)}</span>
+          </div>
+        );
+      })}
     </div>
+  );
+}
+
+interface LegendPayloadEntry {
+  color?: string;
+  value?: string;
+  dataKey?: string;
+}
+
+function CustomLegend({
+  payload,
+  seriesStyles,
+  chartType,
+  seriesColors,
+  seriesModes,
+}: {
+  payload?: LegendPayloadEntry[];
+  seriesStyles?: SeriesStyles;
+  chartType?: Widget["chart"];
+  seriesColors?: Record<string, string>;
+  seriesModes?: SeriesMarkerModes;
+}) {
+  if (!payload?.length) return null;
+
+  return (
+    <ul style={{ ...AXIS_STYLE, display: "flex", justifyContent: "center", gap: 12, margin: 0, padding: 0, listStyle: "none", color: "var(--dac-text-muted)" }}>
+      {payload.map((entry, i) => {
+        const field = String(entry.dataKey ?? entry.value ?? "");
+        const color = seriesColors?.[field] ?? entry.color ?? "var(--dac-accent)";
+        return (
+          <li key={`${field}-${i}`} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <SeriesMarker color={color} style={seriesStyles?.[field]} mode={markerModeForSeries(chartType, field, seriesModes)} />
+            <span>{entry.value ?? entry.dataKey}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -834,6 +985,7 @@ export function ChartWidget({ widget, data }: Props) {
 function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: number }) {
   const tokens = useTokens();
   const rowHeight = useContext(RowHeightContext);
+  const patternBaseId = svgSafeId(useId());
   const chartHeight = (rowHeight !== undefined
     ? Math.max(80, rowHeight - FRAME_OVERHEAD)
     : DEFAULT_CHART_HEIGHT) - titleOffset;
@@ -877,26 +1029,32 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
       const rows = pivoted ? pivoted.rows : chartData;
       const series = pivoted ? pivoted.series : yKeys;
+      const seriesColors = seriesColorMap(series, colors);
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <LineChart data={rows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
             <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
-            <Tooltip content={cartesianTooltip} />
-            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
-            {series.map((field, i) => (
-              <Line
-                key={field}
-                type="monotone"
-                dataKey={field}
-                stroke={colors[i % colors.length]}
-                strokeWidth={1.5}
-                dot={false}
-                activeDot={{ r: 3, strokeWidth: 0 }}
-                isAnimationActive={false}
-              />
-            ))}
+            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} seriesStyles={widget.seriesStyles} chartType="line" seriesColors={seriesColors} />} />
+            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} content={<CustomLegend seriesStyles={widget.seriesStyles} chartType="line" seriesColors={seriesColors} />} />}
+            {series.map((field, i) => {
+              const style = widget.seriesStyles?.[field];
+              return (
+                <Line
+                  key={field}
+                  type="monotone"
+                  dataKey={field}
+                  stroke={colors[i % colors.length]}
+                  strokeDasharray={getLineDasharray(style)}
+                  strokeLinecap={style?.lineStyle === "dotted" ? "round" : "butt"}
+                  strokeWidth={1.5}
+                  dot={false}
+                  activeDot={{ r: 3, strokeWidth: 0 }}
+                  isAnimationActive={false}
+                />
+              );
+            })}
           </LineChart>
         </ResponsiveContainer>
       );
@@ -914,9 +1072,11 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const valueTick = widget.normalized ? formatPercentTick : yTick;
       const valueTooltip = widget.normalized ? formatPercentTick : yTooltipValue;
       const lastRadius: [number, number, number, number] = horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0];
+      const seriesColors = seriesColorMap(series, colors);
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={rows} layout={horizontal ? "vertical" : "horizontal"} margin={cartesianMargin}>
+            <SeriesPatternDefs baseId={patternBaseId} series={series} colors={colors} seriesStyles={widget.seriesStyles} />
             <CartesianGrid {...gridProps} vertical={horizontal} horizontal={!horizontal} />
             {horizontal ? (
               <>
@@ -929,18 +1089,22 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 <YAxis {...commonAxisProps} dx={-4} tickFormatter={valueTick} />
               </>
             )}
-            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
-            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
-            {series.map((field, i) => (
-              <Bar
-                key={field}
-                dataKey={field}
-                fill={colors[i % colors.length]}
-                stackId={isStacked ? "stack" : undefined}
-                radius={isStacked && i < series.length - 1 ? undefined : lastRadius}
-                isAnimationActive={false}
-              />
-            ))}
+            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} seriesStyles={widget.seriesStyles} chartType="bar" seriesColors={seriesColors} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
+            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} content={<CustomLegend seriesStyles={widget.seriesStyles} chartType="bar" seriesColors={seriesColors} />} />}
+            {series.map((field, i) => {
+              const color = colors[i % colors.length];
+              const style = widget.seriesStyles?.[field];
+              return (
+                <Bar
+                  key={field}
+                  dataKey={field}
+                  fill={fillForSeries(patternBaseId, field, color, style)}
+                  stackId={isStacked ? "stack" : undefined}
+                  radius={isStacked && i < series.length - 1 ? undefined : lastRadius}
+                  isAnimationActive={false}
+                />
+              );
+            })}
           </BarChart>
         </ResponsiveContainer>
       );
@@ -951,26 +1115,34 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
       const rows = pivoted ? pivoted.rows : chartData;
       const series = pivoted ? pivoted.series : yKeys;
+      const seriesColors = seriesColorMap(series, colors);
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <AreaChart data={rows} margin={cartesianMargin}>
+            <SeriesPatternDefs baseId={patternBaseId} series={series} colors={colors} seriesStyles={widget.seriesStyles} />
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
             <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
-            <Tooltip content={cartesianTooltip} />
-            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
-            {series.map((field, i) => (
-              <Area
-                key={field}
-                type="monotone"
-                dataKey={field}
-                stroke={colors[i % colors.length]}
-                fill={colors[i % colors.length]}
-                fillOpacity={0.06}
-                strokeWidth={1.5}
-                isAnimationActive={false}
-              />
-            ))}
+            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} seriesStyles={widget.seriesStyles} chartType="area" seriesColors={seriesColors} />} />
+            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} content={<CustomLegend seriesStyles={widget.seriesStyles} chartType="area" seriesColors={seriesColors} />} />}
+            {series.map((field, i) => {
+              const color = colors[i % colors.length];
+              const style = widget.seriesStyles?.[field];
+              return (
+                <Area
+                  key={field}
+                  type="monotone"
+                  dataKey={field}
+                  stroke={color}
+                  strokeDasharray={getLineDasharray(style)}
+                  strokeLinecap={style?.lineStyle === "dotted" ? "round" : "butt"}
+                  fill={fillForSeries(patternBaseId, field, color, style)}
+                  fillOpacity={getFillPattern(style) ? 1 : 0.06}
+                  strokeWidth={1.5}
+                  isAnimationActive={false}
+                />
+              );
+            })}
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -1057,21 +1229,28 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     case "combo": {
       const yFields = yKeys;
       const lineSet = new Set(widget.lines ?? []);
+      const seriesColors = seriesColorMap(yFields, colors);
+      const seriesModes = Object.fromEntries(yFields.map((field) => [field, lineSet.has(field) ? "line" : "fill"])) as SeriesMarkerModes;
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <ComposedChart data={chartData} margin={cartesianMargin}>
+            <SeriesPatternDefs baseId={patternBaseId} series={yFields} colors={colors} seriesStyles={widget.seriesStyles} />
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
             <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
-            <Tooltip content={cartesianTooltip} />
-            <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
-            {yFields.map((field, i) =>
-              lineSet.has(field) ? (
+            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} seriesStyles={widget.seriesStyles} chartType="combo" seriesColors={seriesColors} seriesModes={seriesModes} />} />
+            <Legend wrapperStyle={AXIS_STYLE} iconSize={7} content={<CustomLegend seriesStyles={widget.seriesStyles} chartType="combo" seriesColors={seriesColors} seriesModes={seriesModes} />} />
+            {yFields.map((field, i) => {
+              const color = colors[i % colors.length];
+              const style = widget.seriesStyles?.[field];
+              return lineSet.has(field) ? (
                 <Line
                   key={field}
                   type="monotone"
                   dataKey={field}
-                  stroke={colors[i % colors.length]}
+                  stroke={color}
+                  strokeDasharray={getLineDasharray(style)}
+                  strokeLinecap={style?.lineStyle === "dotted" ? "round" : "butt"}
                   strokeWidth={1.5}
                   dot={false}
                   isAnimationActive={false}
@@ -1080,12 +1259,12 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 <Bar
                   key={field}
                   dataKey={field}
-                  fill={colors[i % colors.length]}
+                  fill={fillForSeries(patternBaseId, field, color, style)}
                   radius={[2, 2, 0, 0]}
                   isAnimationActive={false}
                 />
-              ),
-            )}
+              );
+            })}
           </ComposedChart>
         </ResponsiveContainer>
       );
@@ -1203,18 +1382,23 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       return (
         <ResponsiveContainer width="100%" height={60}>
           <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-            {yKeys.map((field, i) => (
-              <Line
-                key={field}
-                type="monotone"
-                dataKey={field}
-                stroke={colors[i % colors.length]}
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={false}
-              />
-            ))}
-            <Tooltip content={<CustomTooltip />} />
+            {yKeys.map((field, i) => {
+              const style = widget.seriesStyles?.[field];
+              return (
+                <Line
+                  key={field}
+                  type="monotone"
+                  dataKey={field}
+                  stroke={colors[i % colors.length]}
+                  strokeDasharray={getLineDasharray(style)}
+                  strokeLinecap={style?.lineStyle === "dotted" ? "round" : "butt"}
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              );
+            })}
+            <Tooltip content={<CustomTooltip seriesStyles={widget.seriesStyles} chartType="sparkline" seriesColors={seriesColorMap(yKeys, colors)} />} />
           </LineChart>
         </ResponsiveContainer>
       );
@@ -1318,26 +1502,34 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
 
     case "radar": {
       const yFields = yKeys;
+      const seriesColors = seriesColorMap(yFields, colors);
       return (
         <ResponsiveContainer width="100%" height={240}>
           <RadarChart data={chartData} margin={{ top: 8, right: 24, bottom: 8, left: 24 }}>
+            <SeriesPatternDefs baseId={patternBaseId} series={yFields} colors={colors} seriesStyles={widget.seriesStyles} />
             <PolarGrid stroke={gridColor} strokeOpacity={0.5} />
             <PolarAngleAxis dataKey={xKey} tick={{ ...AXIS_STYLE, fill: axisColor }} />
             <PolarRadiusAxis tick={{ ...AXIS_STYLE, fill: axisColor }} axisLine={false} tickFormatter={yTick} />
-            <Tooltip content={<CustomTooltip />} />
-            {yFields.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
-            {yFields.map((field, i) => (
-              <Radar
-                key={field}
-                name={field}
-                dataKey={field}
-                stroke={colors[i % colors.length]}
-                fill={colors[i % colors.length]}
-                fillOpacity={0.15}
-                strokeWidth={1.5}
-                isAnimationActive={false}
-              />
-            ))}
+            <Tooltip content={<CustomTooltip seriesStyles={widget.seriesStyles} chartType="radar" seriesColors={seriesColors} />} />
+            {yFields.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} content={<CustomLegend seriesStyles={widget.seriesStyles} chartType="radar" seriesColors={seriesColors} />} />}
+            {yFields.map((field, i) => {
+              const color = colors[i % colors.length];
+              const style = widget.seriesStyles?.[field];
+              return (
+                <Radar
+                  key={field}
+                  name={field}
+                  dataKey={field}
+                  stroke={color}
+                  strokeDasharray={getLineDasharray(style)}
+                  strokeLinecap={style?.lineStyle === "dotted" ? "round" : "butt"}
+                  fill={fillForSeries(patternBaseId, field, color, style)}
+                  fillOpacity={getFillPattern(style) ? 1 : 0.15}
+                  strokeWidth={1.5}
+                  isAnimationActive={false}
+                />
+              );
+            })}
           </RadarChart>
         </ResponsiveContainer>
       );

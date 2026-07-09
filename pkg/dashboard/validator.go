@@ -89,6 +89,10 @@ func Validate(d *Dashboard) error {
 				errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, text, divider, or image)", prefix, w.Type))
 			}
 
+			if len(w.SeriesStyles) > 0 && w.Type != WidgetTypeChart {
+				errs = append(errs, fmt.Sprintf("%s: seriesStyles is only valid on chart widgets", prefix))
+			}
+
 			errs = append(errs, validateInlineData(prefix, &w)...)
 
 			if w.Col < 0 || w.Col > 12 {
@@ -267,6 +271,14 @@ var validChartTypes = map[string]bool{
 	"candlestick": true,
 }
 
+var validLineStyles = map[string]bool{
+	"solid": true, "dashed": true, "dotted": true,
+}
+
+var validFillStyles = map[string]bool{
+	"solid": true, "striped": true, "hatched": true,
+}
+
 func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	var errs []string
 	if w.Chart == "" {
@@ -277,6 +289,8 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		errs = append(errs, fmt.Sprintf("%s: unknown chart type %q", prefix, w.Chart))
 		return errs
 	}
+
+	errs = append(errs, validateSeriesStyles(prefix, w)...)
 
 	// Dimensional chart: uses dimension + metrics from a semantic model
 	// instead of x/y/sql.
@@ -418,6 +432,29 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar charts", prefix))
 	}
 
+	return errs
+}
+
+func validateSeriesStyles(prefix string, w *Widget) []string {
+	if len(w.SeriesStyles) == 0 {
+		return nil
+	}
+
+	var errs []string
+	for series, style := range w.SeriesStyles {
+		if series == "" {
+			errs = append(errs, fmt.Sprintf("%s: seriesStyles keys must not be empty", prefix))
+		}
+		if style.LineStyle == "" && style.FillStyle == "" {
+			errs = append(errs, fmt.Sprintf("%s: seriesStyles[%q] must set lineStyle or fillStyle", prefix, series))
+		}
+		if style.LineStyle != "" && !validLineStyles[style.LineStyle] {
+			errs = append(errs, fmt.Sprintf("%s: seriesStyles[%q].lineStyle must be one of solid, dashed, or dotted", prefix, series))
+		}
+		if style.FillStyle != "" && !validFillStyles[style.FillStyle] {
+			errs = append(errs, fmt.Sprintf("%s: seriesStyles[%q].fillStyle must be one of solid, striped, or hatched", prefix, series))
+		}
+	}
 	return errs
 }
 

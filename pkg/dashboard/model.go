@@ -114,26 +114,27 @@ type Widget struct {
 	Limit       int                    `yaml:"limit,omitempty" json:"limit,omitempty"` // LIMIT for dimensional queries
 
 	// Chart fields
-	Chart      string         `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick
-	X          *AxisEncoding  `yaml:"x,omitempty" json:"x,omitempty"`
-	Y          *AxisEncoding  `yaml:"y,omitempty" json:"y,omitempty"`
-	Label      string         `yaml:"label,omitempty" json:"label,omitempty"` // for pie/funnel/treemap
-	Value      *ValueEncoding `yaml:"value,omitempty" json:"value,omitempty"` // metric: the value; pie/funnel/heatmap/calendar/treemap/gauge: value column
-	Color      *ColorEncoding `yaml:"color,omitempty" json:"color,omitempty"`
-	Stacked    bool           `yaml:"stacked,omitempty" json:"stacked,omitempty"`
-	Normalized bool           `yaml:"normalized,omitempty" json:"normalized,omitempty"`
-	Horizontal bool           `yaml:"horizontal,omitempty" json:"horizontal,omitempty"`
-	Size       string         `yaml:"size,omitempty" json:"size,omitempty"`
-	Source     string         `yaml:"source,omitempty" json:"source,omitempty"` // sankey: source column
-	Target     string         `yaml:"target,omitempty" json:"target,omitempty"` // sankey: target column, gauge: target (max) column
-	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`     // histogram: number of bins
-	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`   // combo: which y series render as lines
-	YMin       string         `yaml:"yMin,omitempty" json:"yMin,omitempty"`     // xmr: min control limit column
-	YMax       string         `yaml:"yMax,omitempty" json:"yMax,omitempty"`     // xmr: max control limit column
-	Open       string         `yaml:"open,omitempty" json:"open,omitempty"`     // candlestick: open price column
-	High       string         `yaml:"high,omitempty" json:"high,omitempty"`     // candlestick: high price column
-	Low        string         `yaml:"low,omitempty" json:"low,omitempty"`       // candlestick: low price column
-	Close      string         `yaml:"close,omitempty" json:"close,omitempty"`   // candlestick: close price column
+	Chart        string                 `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick
+	X            *AxisEncoding          `yaml:"x,omitempty" json:"x,omitempty"`
+	Y            *AxisEncoding          `yaml:"y,omitempty" json:"y,omitempty"`
+	Label        string                 `yaml:"label,omitempty" json:"label,omitempty"` // for pie/funnel/treemap
+	Value        *ValueEncoding         `yaml:"value,omitempty" json:"value,omitempty"` // metric: the value; pie/funnel/heatmap/calendar/treemap/gauge: value column
+	Color        *ColorEncoding         `yaml:"color,omitempty" json:"color,omitempty"`
+	SeriesStyles map[string]SeriesStyle `yaml:"seriesStyles,omitempty" json:"seriesStyles,omitempty"`
+	Stacked      bool                   `yaml:"stacked,omitempty" json:"stacked,omitempty"`
+	Normalized   bool                   `yaml:"normalized,omitempty" json:"normalized,omitempty"`
+	Horizontal   bool                   `yaml:"horizontal,omitempty" json:"horizontal,omitempty"`
+	Size         string                 `yaml:"size,omitempty" json:"size,omitempty"`
+	Source       string                 `yaml:"source,omitempty" json:"source,omitempty"` // sankey: source column
+	Target       string                 `yaml:"target,omitempty" json:"target,omitempty"` // sankey: target column, gauge: target (max) column
+	Bins         int                    `yaml:"bins,omitempty" json:"bins,omitempty"`     // histogram: number of bins
+	Lines        []string               `yaml:"lines,omitempty" json:"lines,omitempty"`   // combo: which y series render as lines
+	YMin         string                 `yaml:"yMin,omitempty" json:"yMin,omitempty"`     // xmr: min control limit column
+	YMax         string                 `yaml:"yMax,omitempty" json:"yMax,omitempty"`     // xmr: max control limit column
+	Open         string                 `yaml:"open,omitempty" json:"open,omitempty"`     // candlestick: open price column
+	High         string                 `yaml:"high,omitempty" json:"high,omitempty"`     // candlestick: high price column
+	Low          string                 `yaml:"low,omitempty" json:"low,omitempty"`       // candlestick: low price column
+	Close        string                 `yaml:"close,omitempty" json:"close,omitempty"`   // candlestick: close price column
 
 	// Table fields
 	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
@@ -631,6 +632,11 @@ func (v *ValueEncoding) MarshalJSON() ([]byte, error) {
 
 type ColorEncoding struct {
 	Field string `yaml:"field" json:"field"`
+}
+
+type SeriesStyle struct {
+	LineStyle string `yaml:"lineStyle,omitempty" json:"lineStyle,omitempty"`
+	FillStyle string `yaml:"fillStyle,omitempty" json:"fillStyle,omitempty"`
 }
 
 func (c *ColorEncoding) FieldString() string {

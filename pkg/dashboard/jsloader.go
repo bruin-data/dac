@@ -523,22 +523,23 @@ func vnodeToWidget(n *vnode) Widget {
 		Limit:       asInt(n.Props["limit"]),
 
 		// Chart fields
-		Chart:      asString(n.Props["chart"]),
-		X:          asAxisEncoding(n.Props["x"]),
-		Y:          asAxisEncoding(n.Props["y"]),
-		Label:      asString(n.Props["label"]),
-		Value:      asValueEncoding(n.Props["value"]),
-		Color:      asColorEncoding(n.Props["color"]),
-		Stacked:    asBool(n.Props["stacked"]),
-		Normalized: asBool(n.Props["normalized"]),
-		Horizontal: asBool(n.Props["horizontal"]),
-		Size:       asString(n.Props["size"]),
-		Source:     asString(n.Props["source"]),
-		Target:     asString(n.Props["target"]),
-		Bins:       asInt(n.Props["bins"]),
-		Lines:      asStringSlice(n.Props["lines"]),
-		YMin:       asString(n.Props["yMin"]),
-		YMax:       asString(n.Props["yMax"]),
+		Chart:        asString(n.Props["chart"]),
+		X:            asAxisEncoding(n.Props["x"]),
+		Y:            asAxisEncoding(n.Props["y"]),
+		Label:        asString(n.Props["label"]),
+		Value:        asValueEncoding(n.Props["value"]),
+		Color:        asColorEncoding(n.Props["color"]),
+		SeriesStyles: asSeriesStyles(n.Props["seriesStyles"]),
+		Stacked:      asBool(n.Props["stacked"]),
+		Normalized:   asBool(n.Props["normalized"]),
+		Horizontal:   asBool(n.Props["horizontal"]),
+		Size:         asString(n.Props["size"]),
+		Source:       asString(n.Props["source"]),
+		Target:       asString(n.Props["target"]),
+		Bins:         asInt(n.Props["bins"]),
+		Lines:        asStringSlice(n.Props["lines"]),
+		YMin:         asString(n.Props["yMin"]),
+		YMax:         asString(n.Props["yMax"]),
 
 		// Table fields
 		Columns: asTableColumns(n.Props["columns"]),
@@ -719,6 +720,35 @@ func asColorEncoding(v interface{}) *ColorEncoding {
 		return nil
 	}
 	return &ColorEncoding{Field: field}
+}
+
+func asSeriesStyles(v interface{}) map[string]SeriesStyle {
+	if v == nil {
+		return nil
+	}
+	raw, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	out := make(map[string]SeriesStyle, len(raw))
+	for series, value := range raw {
+		m, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		style := SeriesStyle{
+			LineStyle: asString(m["lineStyle"]),
+			FillStyle: asString(m["fillStyle"]),
+		}
+		if style.LineStyle == "" && style.FillStyle == "" {
+			continue
+		}
+		out[series] = style
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func asStringMap(v interface{}) map[string]string {

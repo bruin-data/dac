@@ -309,6 +309,9 @@
         "color": {
           "$ref": "#/$defs/colorEncoding"
         },
+        "seriesStyles": {
+          "$ref": "#/$defs/seriesStyles"
+        },
         "stacked": {
           "type": "boolean"
         },
@@ -508,6 +511,29 @@
         "field": {
           "type": "string",
           "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "seriesStyles": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/seriesStyle"
+      }
+    },
+    "seriesStyle": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "lineStyle": {
+          "enum": ["solid", "dashed", "dotted"]
+        },
+        "fillStyle": {
+          "enum": ["solid", "striped", "hatched"]
         }
       },
       "additionalProperties": false
