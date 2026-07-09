@@ -177,7 +177,37 @@ func TestParseSkillVersion(t *testing.T) {
 	}
 }
 
-func TestSkillUpdateNotices_FlagsOlderInstall(t *testing.T) {
+func TestSkillUpdateNotices_FlagsButDoesNotModify(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "skills", "create-dashboard", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create skill dir: %v", err)
+	}
+	// An install with no version field reports version 0, older than bundled.
+	original := "---\nname: create-dashboard\n---\nold body"
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	notices := skillUpdateNotices(dir)
+	if len(notices) != 1 {
+		t.Fatalf("expected 1 notice, got %d: %v", len(notices), notices)
+	}
+	if !strings.Contains(notices[0], "create-dashboard") || !strings.Contains(notices[0], "dac upgrade") {
+		t.Fatalf("unexpected notice text: %q", notices[0])
+	}
+
+	// The notice is passive: the installed file is left untouched.
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read skill after notice: %v", err)
+	}
+	if string(got) != original {
+		t.Fatalf("skillUpdateNotices modified the skill file")
+	}
+}
+
+func TestAutoUpdateStaleSkills_RewritesOlderInstall(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".claude", "skills", "create-dashboard", "SKILL.md")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -188,18 +218,32 @@ func TestSkillUpdateNotices_FlagsOlderInstall(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	notices := skillUpdateNotices(dir)
+	notices := autoUpdateStaleSkills(dir)
 	if len(notices) != 1 {
 		t.Fatalf("expected 1 notice, got %d: %v", len(notices), notices)
 	}
-	if !strings.Contains(notices[0], "create-dashboard") || !strings.Contains(notices[0], "dac skills update") {
+	if !strings.Contains(notices[0], "create-dashboard") || !strings.Contains(notices[0], "Updated") {
 		t.Fatalf("unexpected notice text: %q", notices[0])
+	}
+
+	// The stale file is rewritten in place with the bundled content.
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read updated skill: %v", err)
+	}
+	if string(got) != createDashboardSkill {
+		t.Fatalf("skill file was not updated to the bundled content")
+	}
+
+	// A second run is a no-op now that the install is current.
+	if notices := autoUpdateStaleSkills(dir); len(notices) != 0 {
+		t.Fatalf("expected no notices after update, got %v", notices)
 	}
 }
 
-func TestSkillUpdateNotices_SilentWhenCurrentOrAbsent(t *testing.T) {
-	// No .claude directory at all: no project root, no notices.
-	if notices := skillUpdateNotices(t.TempDir()); len(notices) != 0 {
+func TestAutoUpdateStaleSkills_SilentWhenCurrentOrAbsent(t *testing.T) {
+	// No .claude directory at all: no project root, nothing to update.
+	if notices := autoUpdateStaleSkills(t.TempDir()); len(notices) != 0 {
 		t.Fatalf("expected no notices without an install, got %v", notices)
 	}
 
@@ -208,12 +252,12 @@ func TestSkillUpdateNotices_SilentWhenCurrentOrAbsent(t *testing.T) {
 	if err := runSkillsInstall(dir, nil, false); err != nil {
 		t.Fatalf("skills install failed: %v", err)
 	}
-	if notices := skillUpdateNotices(dir); len(notices) != 0 {
+	if notices := autoUpdateStaleSkills(dir); len(notices) != 0 {
 		t.Fatalf("expected no notices for a current install, got %v", notices)
 	}
 }
 
-func TestSkillUpdateNotices_DiscoversRootFromSubdir(t *testing.T) {
+func TestAutoUpdateStaleSkills_DiscoversRootFromSubdir(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".claude", "skills", "create-dashboard", "SKILL.md")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -227,8 +271,15 @@ func TestSkillUpdateNotices_DiscoversRootFromSubdir(t *testing.T) {
 		t.Fatalf("create subdir: %v", err)
 	}
 
-	if notices := skillUpdateNotices(sub); len(notices) != 1 {
-		t.Fatalf("expected notice discovered from subdir, got %v", notices)
+	if notices := autoUpdateStaleSkills(sub); len(notices) != 1 {
+		t.Fatalf("expected the skill updated from subdir, got %v", notices)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read updated skill: %v", err)
+	}
+	if string(got) != createDashboardSkill {
+		t.Fatalf("skill file was not updated to the bundled content")
 	}
 }
 

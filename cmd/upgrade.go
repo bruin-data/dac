@@ -102,7 +102,29 @@ func runUpgrade(ctx context.Context, cmd *cli.Command, build BuildInfo) error {
 	if err := bash.Wait(); err != nil {
 		return fmt.Errorf("installer failed: %w", err)
 	}
+
+	refreshSkillsAfterUpgrade(ctx, bindir)
 	return nil
+}
+
+// refreshSkillsAfterUpgrade brings the current project's installed skills up to
+// the version bundled with the freshly installed binary. It must run the NEW
+// binary — the running process still embeds the old skill content — so it
+// re-execs `dac skills auto-update` from bindir against the current directory.
+// It is best-effort: a failure here never fails the upgrade itself.
+func refreshSkillsAfterUpgrade(ctx context.Context, bindir string) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return
+	}
+	newBin := filepath.Join(bindir, "dac")
+	if _, err := os.Stat(newBin); err != nil {
+		return
+	}
+	refresh := exec.CommandContext(ctx, newBin, "skills", "auto-update", "--dir", cwd)
+	refresh.Stdout = os.Stderr
+	refresh.Stderr = os.Stderr
+	_ = refresh.Run()
 }
 
 // inferChannel picks a default channel from the running binary's version

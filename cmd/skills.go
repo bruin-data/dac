@@ -49,6 +49,7 @@ func skillsCmd() *cli.Command {
 			skillsListCmd(),
 			skillsInstallCmd(),
 			skillsUpdateCmd(),
+			skillsAutoUpdateCmd(),
 		},
 		Action: func(_ context.Context, _ *cli.Command) error {
 			return runSkillsList()
@@ -95,6 +96,25 @@ func skillsUpdateCmd() *cli.Command {
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), true)
+		},
+	}
+}
+
+// skillsAutoUpdateCmd is an internal command invoked by `dac upgrade` from the
+// freshly installed binary. It updates any installed-but-stale skills in place
+// and reports what changed. It is hidden because end users should reach this
+// behavior through `dac upgrade`, not run it directly.
+func skillsAutoUpdateCmd() *cli.Command {
+	return &cli.Command{
+		Name:   "auto-update",
+		Hidden: true,
+		Usage:  "Refresh installed skills to the bundled version (used by `dac upgrade`)",
+		Flags: []cli.Flag{
+			skillsDirFlag,
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			printSkillUpdates(cmd.String("dir"))
+			return nil
 		},
 	}
 }
@@ -247,7 +267,8 @@ func selectSkills(names []string) ([]bundledSkill, error) {
 // bundled version is newer than the copy in the project. startDir is the
 // dashboard directory; the project root (the nearest ancestor containing a
 // .claude directory) is discovered by walking upward. Skills that are not
-// installed produce no notice — there is nothing to update.
+// installed produce no notice — there is nothing to update. This is passive:
+// it never modifies files. `dac upgrade` performs the actual update.
 func skillUpdateNotices(startDir string) []string {
 	root, ok := findProjectRoot(startDir)
 	if !ok {
@@ -262,7 +283,7 @@ func skillUpdateNotices(startDir string) []string {
 			continue
 		}
 		if parseSkillVersion(skill.Content) > parseSkillVersion(string(data)) {
-			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\nRun `dac skills update` to update your project's copy.", skill.Name))
+			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\nRun `dac upgrade` to update the CLI and refresh your project's copy.", skill.Name))
 		}
 	}
 	return notices
@@ -272,6 +293,48 @@ func skillUpdateNotices(startDir string) []string {
 // stay out of any machine-readable stdout.
 func printSkillUpdateNotices(startDir string) {
 	for _, notice := range skillUpdateNotices(startDir) {
+		fmt.Fprintln(os.Stderr, notice)
+	}
+}
+
+// autoUpdateStaleSkills rewrites installed skills whose bundled version is newer
+// than the copy in the project, then returns a one-line report for each skill it
+// touched. startDir is the dashboard directory; the project root (the nearest
+// ancestor containing a .claude directory) is discovered by walking upward.
+// Skills that are not installed or already current are left untouched — there is
+// nothing to update. The Codex path is a symlink back into the Claude skill
+// directory, so rewriting the SKILL.md updates both agents at once.
+func autoUpdateStaleSkills(startDir string) []string {
+	root, ok := findProjectRoot(startDir)
+	if !ok {
+		return nil
+	}
+
+	var notices []string
+	for _, skill := range dacSkills {
+		installedPath := filepath.Join(root, filepath.FromSlash(skill.ClaudePath))
+		data, err := os.ReadFile(installedPath)
+		if err != nil {
+			continue
+		}
+		to := parseSkillVersion(skill.Content)
+		from := parseSkillVersion(string(data))
+		if to <= from {
+			continue
+		}
+		if err := os.WriteFile(installedPath, []byte(skill.Content), 0o644); err != nil {
+			notices = append(notices, fmt.Sprintf("Could not auto-update the %s skill (v%d -> v%d): %v\nRun `dac skills update` to update it manually.", skill.Name, from, to, err))
+			continue
+		}
+		notices = append(notices, fmt.Sprintf("Updated the %s skill to the latest version (v%d -> v%d). Restart your agent session to pick it up.", skill.Name, from, to))
+	}
+	return notices
+}
+
+// printSkillUpdates auto-updates any stale installed skills and writes what
+// changed to stderr so it stays out of any machine-readable stdout.
+func printSkillUpdates(startDir string) {
+	for _, notice := range autoUpdateStaleSkills(startDir) {
 		fmt.Fprintln(os.Stderr, notice)
 	}
 }
