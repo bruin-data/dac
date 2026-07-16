@@ -86,7 +86,7 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 | `combo` | `x`, `y` | `lines` | Mixed bar + line chart (y series in `lines` render as lines, the rest as bars) |
 | `histogram` | `x` | `bins` | Histogram (client-side binning) |
 | `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
-| `funnel` | `label`, `value` | | Funnel chart |
+| `funnel` | `label`, `value` | `horizontal` | Conversion funnel: one bar per stage with each stage's share of the top and step-to-step conversion. Rows render in query order — put the top of the funnel first. `horizontal: true` lays stages left-to-right |
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
 | `heatmap` | `x`, `y`, `value` | | Grid heatmap |
 | `calendar` | `x`, `value` | | GitHub-style calendar heatmap |

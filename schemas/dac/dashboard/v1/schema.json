@@ -316,7 +316,8 @@
           "type": "boolean"
         },
         "horizontal": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "Bar charts: render horizontal bars. Funnel charts: lay stages left-to-right instead of top-to-bottom."
         },
         "size": {
           "type": "string"

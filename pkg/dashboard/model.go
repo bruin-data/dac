@@ -122,7 +122,7 @@ type Widget struct {
 	Color      *ColorEncoding `yaml:"color,omitempty" json:"color,omitempty"`
 	Stacked    bool           `yaml:"stacked,omitempty" json:"stacked,omitempty"`
 	Normalized bool           `yaml:"normalized,omitempty" json:"normalized,omitempty"`
-	Horizontal bool           `yaml:"horizontal,omitempty" json:"horizontal,omitempty"`
+	Horizontal bool           `yaml:"horizontal,omitempty" json:"horizontal,omitempty"` // bar: horizontal bars; funnel: lay stages left-to-right
 	Size       string         `yaml:"size,omitempty" json:"size,omitempty"`
 	Source     string         `yaml:"source,omitempty" json:"source,omitempty"` // sankey: source column
 	Target     string         `yaml:"target,omitempty" json:"target,omitempty"` // sankey: target column, gauge: target (max) column

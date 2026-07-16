@@ -156,8 +156,26 @@ func TestValidate_HorizontalOnlyOnBar(t *testing.T) {
 		}}}},
 	}
 	err := Validate(d)
-	if err == nil || !strings.Contains(err.Error(), "horizontal is only valid on bar charts") {
-		t.Fatalf("expected horizontal-bar-only error, got: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "horizontal is only valid on bar and funnel charts") {
+		t.Fatalf("expected horizontal-not-on-line error, got: %v", err)
+	}
+}
+
+func TestValidate_HorizontalFunnelIsValid(t *testing.T) {
+	d := &Dashboard{
+		Name: "t",
+		Rows: []Row{{Widgets: []Widget{{
+			Name:       "w",
+			Type:       WidgetTypeChart,
+			Chart:      "funnel",
+			SQL:        "SELECT stage, users FROM funnel",
+			Label:      "stage",
+			Value:      &ValueEncoding{Field: "users"},
+			Horizontal: true,
+		}}}},
+	}
+	if err := Validate(d); err != nil {
+		t.Fatalf("expected no error for horizontal funnel, got: %v", err)
 	}
 }
 
