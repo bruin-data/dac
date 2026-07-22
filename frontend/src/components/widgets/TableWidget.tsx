@@ -1,5 +1,13 @@
-import { useMemo, useState } from "react";
-import type { Widget, WidgetData } from "../../types/dashboard";
+import { useMemo, useState, type CSSProperties } from "react";
+import type { ColorScale, SingleColorRule, Widget, WidgetData } from "../../types/dashboard";
+import {
+  applyRuleStyle,
+  cellColor,
+  matchRule,
+  resolveScale,
+  toNumber,
+  type ResolvedScale,
+} from "./conditionalFormat";
 
 interface Props {
   widget: Widget;
@@ -17,6 +25,8 @@ interface TableColumn {
   name: string;
   label: string;
   format?: string;
+  colorScale?: ColorScale;
+  singleColor?: SingleColorRule[];
   idx: number;
 }
 
@@ -31,12 +41,16 @@ export function TableWidget({ widget, data }: Props) {
           name: col.name,
           label: col.label || col.name,
           format: col.format,
+          colorScale: col.colorScale,
+          singleColor: col.singleColor,
           idx: data.columns.findIndex((c) => c.name === col.name),
         }))
       : data.columns.map((col, idx) => ({
           name: col.name,
           label: col.name,
           format: undefined as string | undefined,
+          colorScale: undefined as ColorScale | undefined,
+          singleColor: undefined as SingleColorRule[] | undefined,
           idx,
         }));
   }, [widget.columns, data?.columns]);
@@ -51,6 +65,23 @@ export function TableWidget({ widget, data }: Props) {
 
     return sortRows(rows, col.idx, sort.direction, isNumericFormat(col.format));
   }, [columns, rows, sort]);
+
+  // Resolve a color scale per column against the full (unsorted) value range so
+  // cell backgrounds stay stable regardless of the active sort.
+  const colorScales = useMemo(() => {
+    const map = new Map<string, ResolvedScale>();
+    for (const col of columns) {
+      if (!col.colorScale || col.idx < 0) continue;
+      const values: number[] = [];
+      for (const row of rows) {
+        const n = toNumber(row[col.idx]);
+        if (n !== null) values.push(n);
+      }
+      const scale = resolveScale(col.colorScale, values);
+      if (scale) map.set(col.name, scale);
+    }
+    return map;
+  }, [columns, rows]);
 
   if (!rows.length) {
     return <div className="text-[var(--dac-text-muted)] text-xs py-4 text-center">No data</div>;
@@ -103,17 +134,33 @@ export function TableWidget({ widget, data }: Props) {
               key={i}
               className="border-b border-[var(--dac-border)] border-opacity-40 last:border-0 hover:bg-[var(--dac-surface)] transition-colors duration-75"
             >
-              {columns.map((col) => (
-                <td
-                  key={col.name}
-                  className={`py-1.5 px-4 whitespace-nowrap ${
-                    isNumericFormat(col.format) ? "text-right tabular-nums text-[12px]" : ""
-                  }`}
-                  style={isNumericFormat(col.format) ? { fontFamily: '"Geist Mono", monospace' } : undefined}
-                >
-                  {formatCell(col.idx >= 0 ? row[col.idx] : null, col.format)}
-                </td>
-              ))}
+              {columns.map((col) => {
+                const numeric = isNumericFormat(col.format);
+                const raw = col.idx >= 0 ? row[col.idx] : null;
+                const scale = colorScales.get(col.name);
+                const fill = scale ? cellColor(scale, toNumber(raw)) : undefined;
+                const style: CSSProperties = {};
+                if (numeric) style.fontFamily = '"Geist Mono", monospace';
+                if (fill) {
+                  style.backgroundColor = fill.background;
+                  style.color = fill.text;
+                }
+                // Single-color rules override the scale where they overlap;
+                // the first matching rule wins.
+                const rule = col.singleColor?.find((r) => matchRule(r, raw));
+                if (rule) applyRuleStyle(style, rule);
+                return (
+                  <td
+                    key={col.name}
+                    className={`py-1.5 px-4 whitespace-nowrap ${
+                      numeric ? "text-right tabular-nums text-[12px]" : ""
+                    }`}
+                    style={Object.keys(style).length ? style : undefined}
+                  >
+                    {formatCell(raw, col.format)}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

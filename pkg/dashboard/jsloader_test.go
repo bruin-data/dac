@@ -465,13 +465,13 @@ func TestLoadDir_MixedYAMLAndTSX(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/dashboards")
 	assertNoErr(t, err)
 
-	// Should find 5 YAML + 2 TSX = 7 dashboards.
-	if len(dashboards) != 7 {
+	// Should find 6 YAML + 2 TSX = 8 dashboards.
+	if len(dashboards) != 8 {
 		names := make([]string, len(dashboards))
 		for i, d := range dashboards {
 			names[i] = d.Name
 		}
-		t.Fatalf("expected 7 dashboards, got %d: %v", len(dashboards), names)
+		t.Fatalf("expected 8 dashboards, got %d: %v", len(dashboards), names)
 	}
 
 	// Verify TSX dashboard was loaded.

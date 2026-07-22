@@ -602,6 +602,21 @@ func asInt(v interface{}) int {
 	}
 }
 
+func asFloatPtr(v interface{}) *float64 {
+	switch val := v.(type) {
+	case float64:
+		return &val
+	case int:
+		f := float64(val)
+		return &f
+	case int64:
+		f := float64(val)
+		return &f
+	default:
+		return nil
+	}
+}
+
 func asBool(v interface{}) bool {
 	if v == nil {
 		return false
@@ -827,13 +842,70 @@ func asTableColumns(v interface{}) []TableColumn {
 	for _, item := range arr {
 		if m, ok := item.(map[string]interface{}); ok {
 			cols = append(cols, TableColumn{
-				Name:   asString(m["name"]),
-				Label:  asString(m["label"]),
-				Format: asString(m["format"]),
+				Name:        asString(m["name"]),
+				Label:       asString(m["label"]),
+				Format:      asString(m["format"]),
+				ColorScale:  asColorScale(m["colorScale"]),
+				SingleColor: asSingleColor(m["singleColor"]),
 			})
 		}
 	}
 	return cols
+}
+
+func asColorScale(v interface{}) *ColorScale {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return &ColorScale{
+		Min: asColorStop(m["min"]),
+		Mid: asColorStop(m["mid"]),
+		Max: asColorStop(m["max"]),
+	}
+}
+
+// asColorStop accepts a bare color string or a { type, value, color } object.
+func asColorStop(v interface{}) *ColorStop {
+	switch val := v.(type) {
+	case nil:
+		return nil
+	case string:
+		return &ColorStop{Color: val}
+	case map[string]interface{}:
+		return &ColorStop{
+			Type:  asString(val["type"]),
+			Value: asFloatPtr(val["value"]),
+			Color: asString(val["color"]),
+		}
+	default:
+		return nil
+	}
+}
+
+func asSingleColor(v interface{}) []SingleColorRule {
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	var rules []SingleColorRule
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		rules = append(rules, SingleColorRule{
+			If:            asString(m["if"]),
+			Value:         m["value"],
+			Bold:          asBool(m["bold"]),
+			Italic:        asBool(m["italic"]),
+			Underline:     asBool(m["underline"]),
+			Strikethrough: asBool(m["strikethrough"]),
+			TextColor:     asString(m["textColor"]),
+			Background:    asString(m["background"]),
+		})
+	}
+	return rules
 }
 
 // IsTSXFile checks if a filename matches the .dashboard.tsx convention.

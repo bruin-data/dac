@@ -111,6 +111,54 @@ export interface TableColumn {
   name: string;
   label?: string;
   format?: string;
+  colorScale?: ColorScale;
+  singleColor?: SingleColorRule[];
+}
+
+export type ColorStopType = "min" | "max" | "number" | "percent" | "percentile";
+
+export interface ColorStop {
+  type?: ColorStopType; // min | max | number | percent | percentile
+  value?: number; // for number | percent | percentile
+  color?: string;
+}
+
+export interface ColorScale {
+  min?: ColorStop | string;
+  mid?: ColorStop | string;
+  max?: ColorStop | string;
+}
+
+export type SingleColorOperator =
+  | "is_empty"
+  | "is_not_empty"
+  | "text_contains"
+  | "text_does_not_contain"
+  | "text_starts_with"
+  | "text_ends_with"
+  | "text_is_exactly"
+  | "date_is"
+  | "date_before"
+  | "date_after"
+  | "greater_than"
+  | "greater_than_or_equal"
+  | "less_than"
+  | "less_than_or_equal"
+  | "is_equal_to"
+  | "is_not_equal_to"
+  | "is_between"
+  | "is_not_between";
+
+
+export interface SingleColorRule {
+  if: SingleColorOperator;
+  value?: number | string | Array<number | string>; // scalar, or [low, high] for between
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  textColor?: string;
+  background?: string;
 }
 
 /** Structured encoding for a chart axis. `y.field` may list several series columns. */

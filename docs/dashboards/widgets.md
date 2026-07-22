@@ -256,6 +256,104 @@ Table column fields:
 | `name` | string | Result column name (must match the SQL output) |
 | `label` | string | Display header (defaults to `name`) |
 | `format` | string | `number` or `currency` |
+| `colorScale` | object | Gradient conditional formatting — see below |
+| `singleColor` | array | Threshold-based conditional formatting — see below |
+
+Conditional formatting comes in two modes: a **colour scale**
+(gradient) or **single colour** (threshold rules). A column may use either or both.
+
+### Colour scale (gradient)
+
+`colorScale` shades each cell's background by interpolating between up to three
+stops — **min**, **mid**, **max** — based on where the value falls.
+
+```yaml
+columns:
+  - name: revenue
+    label: Revenue
+    format: currency
+    colorScale:
+      min: { type: min,        color: "#E67C73" }
+      mid: { type: percentile, value: 50, color: "#FFFFFF" }
+      max: { type: number,     value: 1000, color: "#57BB8A" }
+```
+
+Each stop is `{ type, value, color }`. A bare string is shorthand for the color
+(`min: "#E67C73"`), and `colorScale: {}` applies the default red → white → green
+scale. Omit `mid` for a two-color scale. Cell text auto-contrasts light/dark.
+
+**Stop types** — how the stop anchors to the data:
+
+| Type | Meaning | `value`? |
+|------|---------|----------|
+| `min` | The column's minimum value | ✗ (not allowed) |
+| `max` | The column's maximum value | ✗ (not allowed) |
+| `number` | A fixed number | ✓ required |
+| `percent` | A percentage across the min–max range | ✓ (0–100) |
+| `percentile` | A percentile of the values | ✓ (0–100) |
+
+Rules enforced at validation:
+
+- The **min** stop may use `min | number | percent | percentile` — **not** `max`.
+- The **max** stop may use `max | number | percent | percentile` — **not** `min`.
+- The **mid** stop may use `number | percent | percentile` only.
+- `value` is provided for `number` / `percent` / `percentile`, and **not** for `min` / `max`.
+
+Defaults: `min` stop → `min` type, `max` stop → `max` type, `mid` stop →
+`percentile` 50 — so `colorScale: { min: "#red", max: "#green" }` anchors to the
+observed range with no `value` needed.
+
+### Single colour (threshold rules)
+
+`singleColor` is a list of rules that apply a fixed style to cells matching a
+condition. Rules are evaluated in order; the **first match wins**.
+
+```yaml
+columns:
+  - name: status
+    label: Status
+    singleColor:
+      - if: text_is_exactly
+        value: overdue
+        background: "#FEE2E2"
+        textColor: "#991B1B"
+        bold: true
+  - name: margin
+    format: number
+    singleColor:
+      - if: less_than
+        value: 0
+        background: "#FEE2E2"
+        strikethrough: true
+      - if: is_between
+        value: [0, 10]   
+        background: "#FEF9C3"
+```
+
+Rule fields — one condition plus one or more styles:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `if` | string | Condition operator (see below). Required. |
+| `value` | any | Comparison value; a `[low, high]` list for `is_between` / `is_not_between`; omitted for `is_empty` / `is_not_empty` |
+| `background` | string | Fill color |
+| `textColor` | string | Text color |
+| `bold` | bool | Bold text |
+| `italic` | bool | Italic text |
+| `underline` | bool | Underline text |
+| `strikethrough` | bool | Strike-through text |
+
+At least one style is required per rule.
+
+**Operators** (`if`): `is_empty`, `is_not_empty`, `text_contains`,
+`text_does_not_contain`, `text_starts_with`, `text_ends_with`, `text_is_exactly`,
+`date_is`, `date_before`, `date_after`, `greater_than`,
+`greater_than_or_equal`, `less_than`, `less_than_or_equal`, `is_equal_to`,
+`is_not_equal_to`, `is_between`, `is_not_between`. Text operators are
+case-insensitive. Date operators (`date_is` / `date_before` / `date_after`)
+accept dates or timestamps: they compare by calendar day when the rule's `value`
+is date-only (e.g. `"2026-07-22"`), or by exact instant when the `value` includes
+a time (e.g. `"2026-07-22T12:00"`).
 
 ## Inline data
 

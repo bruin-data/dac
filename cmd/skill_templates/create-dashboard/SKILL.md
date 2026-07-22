@@ -103,6 +103,11 @@ rows:
 
 Widget types are `metric`, `chart`, `table`, `text`, `divider`, and `image`.
 
+A `table` column takes `name`, `label`, `format` (`number` or `currency`), and optional spreadsheet-style conditional formatting:
+
+- `colorScale` — gradient across `min`/`mid`/`max` stops, each `{ type, value, color }` (bare string = color; `colorScale: {}` = default red→white→green). Stop types: `min | max | number | percent | percentile`; the `min` stop can't be `max` and vice versa, `mid` is `number`/`percent`/`percentile` only, and `value` is required for number/percent/percentile (not min/max).
+- `singleColor` — list of threshold rules `{ if, value, background, textColor, bold, italic, underline, strikethrough }`; first match wins. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (compare by day for date-only values, or exact instant when the value includes a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between` (value is `[low, high]`).
+
 ## Filters
 
 Dashboard filters are UI controls. SQL dashboards use filter values through Jinja templates.

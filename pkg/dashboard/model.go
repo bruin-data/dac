@@ -150,6 +150,89 @@ type TableColumn struct {
 	Name   string `yaml:"name" json:"name"`
 	Label  string `yaml:"label,omitempty" json:"label,omitempty"`
 	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+	ColorScale *ColorScale `yaml:"colorScale,omitempty" json:"colorScale,omitempty"`
+	SingleColor []SingleColorRule `yaml:"singleColor,omitempty" json:"singleColor,omitempty"`
+}
+
+type ColorScale struct {
+	Min *ColorStop `yaml:"min,omitempty" json:"min,omitempty"`
+	Mid *ColorStop `yaml:"mid,omitempty" json:"mid,omitempty"`
+	Max *ColorStop `yaml:"max,omitempty" json:"max,omitempty"`
+}
+
+const (
+	StopTypeMin        = "min"
+	StopTypeMax        = "max"
+	StopTypeNumber     = "number"
+	StopTypePercent    = "percent"
+	StopTypePercentile = "percentile"
+)
+
+type ColorStop struct {
+	Type  string   `yaml:"type,omitempty" json:"type,omitempty"`   // min|max|number|percent|percentile
+	Value *float64 `yaml:"value,omitempty" json:"value,omitempty"` // for number|percent|percentile
+	Color string   `yaml:"color,omitempty" json:"color,omitempty"`
+}
+
+func (s *ColorStop) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		s.Color = node.Value
+		return nil
+	}
+	type raw ColorStop
+	var r raw
+	if err := node.Decode(&r); err != nil {
+		return err
+	}
+	*s = ColorStop(r)
+	return nil
+}
+
+func (s *ColorStop) UnmarshalJSON(data []byte) error {
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		s.Color = str
+		return nil
+	}
+	type raw ColorStop
+	var r raw
+	if err := json.Unmarshal(data, &r); err != nil {
+		return err
+	}
+	*s = ColorStop(r)
+	return nil
+}
+
+const (
+	CondIsEmpty            = "is_empty"
+	CondIsNotEmpty         = "is_not_empty"
+	CondTextContains       = "text_contains"
+	CondTextNotContains    = "text_does_not_contain"
+	CondTextStartsWith     = "text_starts_with"
+	CondTextEndsWith       = "text_ends_with"
+	CondTextIsExactly      = "text_is_exactly"
+	CondDateIs             = "date_is"
+	CondDateBefore         = "date_before"
+	CondDateAfter          = "date_after"
+	CondGreaterThan        = "greater_than"
+	CondGreaterThanOrEqual = "greater_than_or_equal"
+	CondLessThan           = "less_than"
+	CondLessThanOrEqual    = "less_than_or_equal"
+	CondIsEqualTo          = "is_equal_to"
+	CondIsNotEqualTo       = "is_not_equal_to"
+	CondIsBetween          = "is_between"
+	CondIsNotBetween       = "is_not_between"
+)
+
+type SingleColorRule struct {
+	If            string `yaml:"if" json:"if"`
+	Value         any    `yaml:"value,omitempty" json:"value,omitempty"`
+	Bold          bool   `yaml:"bold,omitempty" json:"bold,omitempty"`
+	Italic        bool   `yaml:"italic,omitempty" json:"italic,omitempty"`
+	Underline     bool   `yaml:"underline,omitempty" json:"underline,omitempty"`
+	Strikethrough bool   `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
+	TextColor     string `yaml:"textColor,omitempty" json:"textColor,omitempty"`
+	Background    string `yaml:"background,omitempty" json:"background,omitempty"`
 }
 
 // WidgetData holds inline result data for a widget so it can render without a

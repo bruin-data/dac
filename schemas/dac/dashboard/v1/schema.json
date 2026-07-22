@@ -447,6 +447,109 @@
         },
         "format": {
           "type": "string"
+        },
+        "colorScale": {
+          "$ref": "#/$defs/colorScale"
+        },
+        "singleColor": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/singleColorRule"
+          }
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "colorScale": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "$ref": "#/$defs/colorStop"
+        },
+        "mid": {
+          "$ref": "#/$defs/colorStop"
+        },
+        "max": {
+          "$ref": "#/$defs/colorStop"
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "colorStop": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "enum": ["min", "max", "number", "percent", "percentile"]
+            },
+            "value": {
+              "type": "number"
+            },
+            "color": {
+              "type": "string"
+            }
+          },
+          "patternProperties": {
+            "^x-": true
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "singleColorRule": {
+      "type": "object",
+      "required": ["if"],
+      "properties": {
+        "if": {
+          "enum": [
+            "is_empty",
+            "is_not_empty",
+            "text_contains",
+            "text_does_not_contain",
+            "text_starts_with",
+            "text_ends_with",
+            "text_is_exactly",
+            "date_is",
+            "date_before",
+            "date_after",
+            "greater_than",
+            "greater_than_or_equal",
+            "less_than",
+            "less_than_or_equal",
+            "is_equal_to",
+            "is_not_equal_to",
+            "is_between",
+            "is_not_between"
+          ]
+        },
+        "value": true,
+        "bold": {
+          "type": "boolean"
+        },
+        "italic": {
+          "type": "boolean"
+        },
+        "underline": {
+          "type": "boolean"
+        },
+        "strikethrough": {
+          "type": "boolean"
+        },
+        "textColor": {
+          "type": "string"
+        },
+        "background": {
+          "type": "string"
         }
       },
       "patternProperties": {

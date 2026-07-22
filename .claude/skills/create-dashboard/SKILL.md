@@ -763,6 +763,40 @@ Data table with optional column configuration.
 
 If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
+**Conditional formatting** comes in two spreadsheet-style modes — a **colour scale** (gradient) and/or **single colour** (threshold rules).
+
+*Colour scale* — shade cells by value across up to three stops:
+
+```yaml
+  columns:
+    - name: revenue
+      format: currency
+      colorScale:
+        min: { type: min,        color: "#E67C73" }        # min | number | percent | percentile (NOT max)
+        mid: { type: percentile, value: 50, color: "#FFFFFF" }  # number | percent | percentile
+        max: { type: number,     value: 1000, color: "#57BB8A" } # max | number | percent | percentile (NOT min)
+```
+
+Each stop is `{ type, value, color }`; a bare string is shorthand for the color, and `colorScale: {}` gives the default red→white→green. Omit `mid` for a 2-color scale. `value` is required for `number`/`percent`/`percentile` (0–100 for the latter two) and disallowed for `min`/`max`. Defaults: min stop→`min`, max stop→`max`, mid→`percentile` 50.
+
+*Single colour* — apply a fixed style to cells matching a condition (first match wins):
+
+```yaml
+  columns:
+    - name: status
+      singleColor:
+        - if: text_is_exactly
+          value: overdue
+          background: "#FEE2E2"
+          textColor: "#991B1B"
+          bold: true            # also: italic, underline, strikethrough
+        - if: is_between
+          value: [10, 20]       # two-element list for is_between / is_not_between
+          background: "#FEF9C3"
+```
+
+Operators: `is_empty`, `is_not_empty`, `text_contains`, `text_does_not_contain`, `text_starts_with`, `text_ends_with`, `text_is_exactly`, `date_is`, `date_before`, `date_after`, `greater_than`, `greater_than_or_equal`, `less_than`, `less_than_or_equal`, `is_equal_to`, `is_not_equal_to`, `is_between`, `is_not_between`. Each rule needs ≥1 style (`background`, `textColor`, `bold`, `italic`, `underline`, `strikethrough`). Date operators compare by day for date-only values (`"2026-07-22"`) or by exact instant when the value includes a time (`"2026-07-22T12:00"`).
+
 ### Text Widget
 
 Static content with markdown formatting. No query needed.

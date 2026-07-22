@@ -1,0 +1,91 @@
+name: Conditional Formatting
+rows:
+  - widgets:
+      - name: Colour scale + single colour
+        type: table
+        col: 12
+        data:
+          columns: [region, revenue, growth, status]
+          rows:
+            - [North, 1200, 12, closed]
+            - [South, 4800, -5, overdue]
+            - [East, 3100, 8, pending]
+            - [West, 900, 22, overdue]
+            - [Central, 2500, 0, closed]
+        columns:
+          - name: region
+            label: Region
+          - name: revenue
+            label: Revenue
+            format: currency
+            colorScale: {}                   
+          - name: growth
+            label: Growth %
+            format: number
+            colorScale:
+              min: { type: number, value: -25, color: "#E67C73" }
+              mid: { type: number, value: 0,   color: "#FFFFFF" }
+              max: { type: number, value: 25,  color: "#57BB8A" }
+          - name: status
+            label: Status
+            singleColor:
+              - if: text_is_exactly
+                value: overdue
+                background: "#FEE2E2"
+                textColor: "#991B1B"
+                bold: true
+              - if: text_is_exactly
+                value: closed
+                background: "#DCFCE7"
+  - widgets:
+      - name: Single-colour operators
+        type: table
+        col: 12
+        data:
+          columns: [task, note, score, due, owner]
+          rows:
+            - [T1, "URGENT fix", 92, "2026-07-01", alice]
+            - [T2, "routine check", 45, "2026-07-20", ""]
+            - [T3, "urgent review", 68, "2026-08-01", bob]
+            - [T4, "cleanup", 30, "2026-07-22", ""]
+            - [T5, "normal task", 80, "2026-07-25", carol]
+        columns:
+          - name: task
+            label: Task
+          - name: note
+            label: "Note — text_contains 'urgent' (case-insensitive)"
+            singleColor:
+              - if: text_contains
+                value: urgent
+                background: "#FEF9C3"
+                bold: true
+          - name: score
+            label: "Score — >=80 / <50 / between 50–79"
+            format: number
+            singleColor:
+              - if: greater_than_or_equal
+                value: 80
+                background: "#DCFCE7"
+              - if: less_than
+                value: 50
+                background: "#FEE2E2"
+                strikethrough: true
+              - if: is_between
+                value: [50, 79]
+                background: "#FEF9C3"
+          - name: due
+            label: "Due — date_before / date_after 2026-07-22"
+            singleColor:
+              - if: date_before
+                value: "2026-07-22"
+                textColor: "#DC2626"
+                bold: true
+              - if: date_after
+                value: "2026-07-22"
+                textColor: "#16A34A"
+          - name: owner
+            label: "Owner — is_empty"
+            singleColor:
+              - if: is_empty
+                background: "#F3F4F6"
+                italic: true

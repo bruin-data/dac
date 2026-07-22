@@ -73,6 +73,7 @@ func Validate(d *Dashboard) error {
 			case WidgetTypeTable:
 				// Table widgets just need a query source.
 				errs = append(errs, validateQuerySource(prefix, &w, d)...)
+				validateTableColumns(prefix, &w, &errs)
 			case WidgetTypeText:
 				if w.Content == "" {
 					errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
@@ -444,4 +445,101 @@ func validateSemanticJob(job *SemanticJob) error {
 	}
 	_, err = engine.GenerateSQL(&job.Query)
 	return err
+}
+
+var validSingleColorOps = map[string]bool{
+	CondIsEmpty: true, CondIsNotEmpty: true,
+	CondTextContains: true, CondTextNotContains: true, CondTextStartsWith: true,
+	CondTextEndsWith: true, CondTextIsExactly: true,
+	CondDateIs: true, CondDateBefore: true, CondDateAfter: true,
+	CondGreaterThan: true, CondGreaterThanOrEqual: true, CondLessThan: true,
+	CondLessThanOrEqual: true, CondIsEqualTo: true, CondIsNotEqualTo: true,
+	CondIsBetween: true, CondIsNotBetween: true,
+}
+
+func validateTableColumns(prefix string, w *Widget, errs *[]string) {
+	for _, c := range w.Columns {
+		cp := fmt.Sprintf("%s: column %q", prefix, c.Name)
+		if cs := c.ColorScale; cs != nil {
+			// The min stop may not use type "max" and the max stop may not use
+			// type "min"; the mid stop is number/percent/percentile only.
+			validateColorStop(cp, "min", cs.Min, []string{StopTypeMin, StopTypeNumber, StopTypePercent, StopTypePercentile}, StopTypeMin, errs)
+			validateColorStop(cp, "mid", cs.Mid, []string{StopTypeNumber, StopTypePercent, StopTypePercentile}, StopTypePercentile, errs)
+			validateColorStop(cp, "max", cs.Max, []string{StopTypeMax, StopTypeNumber, StopTypePercent, StopTypePercentile}, StopTypeMax, errs)
+		}
+		for i, r := range c.SingleColor {
+			validateSingleColorRule(fmt.Sprintf("%s singleColor[%d]", cp, i), r, errs)
+		}
+	}
+}
+
+func validateColorStop(prefix, role string, stop *ColorStop, allowed []string, defaultType string, errs *[]string) {
+	if stop == nil {
+		return
+	}
+	if stop.Type != "" && !containsString(allowed, stop.Type) {
+		*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: type %q not allowed (expected one of: %s)", prefix, role, stop.Type, strings.Join(allowed, ", ")))
+		return
+	}
+	eff := stop.Type
+	if eff == "" {
+		eff = defaultType
+	}
+	switch eff {
+	case StopTypeMin, StopTypeMax:
+		if stop.Value != nil {
+			*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: value is not allowed for type %q", prefix, role, eff))
+		}
+	case StopTypeNumber:
+		if stop.Type != "" && stop.Value == nil {
+			*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: value is required for type %q", prefix, role, eff))
+		}
+	case StopTypePercent, StopTypePercentile:
+		if stop.Type != "" && stop.Value == nil {
+			*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: value is required for type %q", prefix, role, eff))
+		}
+		if stop.Value != nil && (*stop.Value < 0 || *stop.Value > 100) {
+			*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: %s value must be between 0 and 100", prefix, role, eff))
+		}
+	}
+}
+
+func validateSingleColorRule(prefix string, r SingleColorRule, errs *[]string) {
+	if r.If == "" {
+		*errs = append(*errs, fmt.Sprintf("%s: if (operator) is required", prefix))
+		return
+	}
+	if !validSingleColorOps[r.If] {
+		*errs = append(*errs, fmt.Sprintf("%s: unknown operator %q", prefix, r.If))
+		return
+	}
+	switch r.If {
+	case CondIsEmpty, CondIsNotEmpty:
+		// No value expected.
+	case CondIsBetween, CondIsNotBetween:
+		if !isPairValue(r.Value) {
+			*errs = append(*errs, fmt.Sprintf("%s: %q requires a two-element value list [low, high]", prefix, r.If))
+		}
+	default:
+		if r.Value == nil {
+			*errs = append(*errs, fmt.Sprintf("%s: %q requires a value", prefix, r.If))
+		}
+	}
+	if !r.Bold && !r.Italic && !r.Underline && !r.Strikethrough && r.TextColor == "" && r.Background == "" {
+		*errs = append(*errs, fmt.Sprintf("%s: at least one style (background, textColor, bold, italic, underline, strikethrough) is required", prefix))
+	}
+}
+
+func isPairValue(v any) bool {
+	arr, ok := v.([]interface{})
+	return ok && len(arr) == 2
+}
+
+func containsString(list []string, s string) bool {
+	for _, item := range list {
+		if item == s {
+			return true
+		}
+	}
+	return false
 }
