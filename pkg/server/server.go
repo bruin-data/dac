@@ -197,6 +197,20 @@ func spaHandler(fsys fs.FS) http.Handler {
 	})
 }
 
+// corsMiddleware lets the VS Code webview embed (a different origin) reach the server.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control, Accept")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Start begins listening and serving.
 // It tries the configured port first, then increments until it finds an available one.
 func (s *Server) Start() error {
@@ -213,6 +227,8 @@ func (s *Server) Start() error {
 		go s.watcher.Run()
 	}
 
+	handler := corsMiddleware(s.mux)
+
 	port := s.config.Port
 	maxAttempts := 50
 	for i := 0; i < maxAttempts; i++ {
@@ -224,7 +240,7 @@ func (s *Server) Start() error {
 			continue
 		}
 		log.Printf("dac server listening on http://%s", addr)
-		return http.Serve(ln, s.mux)
+		return http.Serve(ln, handler)
 	}
 
 	return fmt.Errorf("no available port found in range %d-%d", s.config.Port, s.config.Port+maxAttempts-1)

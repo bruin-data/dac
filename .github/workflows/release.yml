@@ -47,3 +47,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TELEMETRY_KEY: ${{ secrets.TELEMETRY_KEY }}
+
+      # Build the relative-path embed variant for the Bruin VS Code extension
+      # and attach it as a release asset (separate from the binary's base:"/" build).
+      - name: Build & upload embed frontend for the VS Code extension
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DAC_EMBED: "1"
+        run: |
+          npm --prefix frontend run build -- --outDir dist-embed --emptyOutDir
+          tar -czf dac-frontend.tar.gz -C frontend/dist-embed .
+          gh release upload "${{ github.ref_name }}" dac-frontend.tar.gz --clobber
