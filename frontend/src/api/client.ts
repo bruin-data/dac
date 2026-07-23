@@ -1,7 +1,8 @@
 import type { DashboardSummary, Dashboard, BatchDataResponse, WidgetData } from "../types/dashboard";
 import type { Theme } from "../types/theme";
 
-const BASE = "/api/v1";
+// Embed injects the dac-serve URL; else relative.
+const BASE = (window.__DAC_API_BASE__ || "") + "/api/v1";
 
 // --- Static payload detection ---
 

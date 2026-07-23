@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { streamDashboardData } from "../api/client";
 import type { WidgetData } from "../types/dashboard";
 
+// Embed injects the dac-serve URL; else relative.
+const API_BASE = (window.__DAC_API_BASE__ || "") + "/api/v1";
+
 interface StreamState {
   /** Accumulated widget results, updated as each arrives. */
   data: Record<string, WidgetData> | undefined;
@@ -24,7 +27,7 @@ function onReloadTick(fn: () => void) {
 
 // Single SSE listener (module scope, starts once).
 if (typeof window !== "undefined" && !window.__DAC_STATIC__) {
-  const es = new EventSource("/api/v1/events");
+  const es = new EventSource(`${API_BASE}/events`);
   es.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);

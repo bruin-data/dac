@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+// Embed injects the dac-serve URL; else relative.
+const API_BASE = (window.__DAC_API_BASE__ || "") + "/api/v1";
+
 export function useLiveReload() {
   const queryClient = useQueryClient();
 
@@ -8,7 +11,7 @@ export function useLiveReload() {
     // No server to connect to in static mode.
     if (window.__DAC_STATIC__) return;
 
-    const es = new EventSource("/api/v1/events");
+    const es = new EventSource(`${API_BASE}/events`);
 
     es.onmessage = (event) => {
       try {

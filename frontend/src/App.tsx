@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { BrowserRouter, HashRouter, Navigate, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { TemplateProvider } from "./themes/TemplateProvider";
@@ -9,7 +10,9 @@ import { Admin } from "./components/Admin";
 import { useLiveReload } from "./hooks/useLiveReload";
 
 const staticPayload = getStaticPayload();
-const Router = staticPayload ? HashRouter : BrowserRouter;
+// HashRouter for embed/static mode (no server-side routing).
+const isEmbedded = !!window.__DAC_API_BASE__;
+const Router = staticPayload || isEmbedded ? HashRouter : BrowserRouter;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,13 +23,21 @@ const queryClient = new QueryClient({
   },
 });
 
+// Dashboard the embed asked to open first, if any.
+const initialDashboard = window.__DAC_INITIAL_DASHBOARD__;
+
 function DashboardContent() {
   useLiveReload();
 
-  // In static mode, skip the list and go straight to the baked dashboard.
-  const home = staticPayload
-    ? <Navigate to={`/d/${encodeURIComponent(staticPayload.dashboard.name)}`} replace />
-    : <DashboardList />;
+  // Static → baked dashboard; embed → requested one; else the list.
+  let home: ReactElement;
+  if (staticPayload) {
+    home = <Navigate to={`/d/${encodeURIComponent(staticPayload.dashboard.name)}`} replace />;
+  } else if (isEmbedded && initialDashboard) {
+    home = <Navigate to={`/d/${encodeURIComponent(initialDashboard)}`} replace />;
+  } else {
+    home = <DashboardList />;
+  }
 
   return (
     <Routes>
