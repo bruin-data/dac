@@ -125,6 +125,8 @@ Select filters support `multiple: true` for multi-select. The value is a list â€
 {% endif %}
 ```
 
+Filter values are kept in the URL query string, so you can share a filtered dashboard as a link. Each filter becomes one query parameter named after it, for example `?region=Europe&date_range=last_30_days`. When a select has `multiple: true` the values are comma separated, and a `date-range` is either a preset key or `start..end`. Anything read from the URL is checked against the filter's type and options, and ignored if it doesn't match.
+
 ## Current Viewer (`bruin.user_email`)
 
 `{{ bruin.user_email }}` is the email of the signed-in user viewing the dashboard â€” a Bruin Cloud runtime feature that resolves per viewer, so one dashboard can show each person only their own rows:
