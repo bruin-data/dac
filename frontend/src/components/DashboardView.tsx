@@ -4,7 +4,7 @@ import { useDashboard } from "../hooks/useDashboard";
 import { useWidgetQuery } from "../hooks/useWidgetQuery";
 import { useTemplate } from "../themes/TemplateProvider";
 import { resolvePreset } from "../themes/bruin/FilterBar";
-import { fromParam, toParam } from "../lib/filterParams";
+import { fromParam, toParam, keepAllowedValues } from "../lib/filterParams";
 import { YamlPanel } from "./YamlPanel";
 import { ExportMenuButton, type ExportMenuItem } from "./ExportMenuButton";
 import { fetchDashboardData } from "../api/client";
@@ -129,6 +129,14 @@ export function DashboardView() {
     // Start from the dashboard defaults, then apply any values from the URL.
     const values = buildDefaultFilters(dashboard);
     for (const f of dashboard.filters ?? []) {
+      // Multi-select uses repeated params (?x=a&x=b) so values may contain commas.
+      if (f.type === "select" && f.multiple) {
+        const raws = searchParams.getAll(f.name).map((s) => s.trim()).filter(Boolean);
+        if (!raws.length) continue;
+        const kept = keepAllowedValues(f, raws);
+        if (kept.length) values[f.name] = kept;
+        continue;
+      }
       const raw = searchParams.get(f.name);
       if (raw == null) continue;
       const parsed = fromParam(f, raw);
@@ -241,9 +249,19 @@ export function DashboardView() {
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
-          const param = toParam(filter, value);
-          if (param == null) next.delete(filterName);
-          else next.set(filterName, param);
+          // Multi-select writes one repeated param per value (comma-safe).
+          if (filter.type === "select" && filter.multiple) {
+            next.delete(filterName);
+            if (Array.isArray(value)) {
+              for (const v of value) {
+                if (v != null && v !== "") next.append(filterName, String(v));
+              }
+            }
+          } else {
+            const param = toParam(filter, value);
+            if (param == null) next.delete(filterName);
+            else next.set(filterName, param);
+          }
           return next;
         },
         { replace: true },
