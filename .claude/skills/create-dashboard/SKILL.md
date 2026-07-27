@@ -175,6 +175,8 @@ filters:
 
 **Filter types:** `select`, `date-range`, `date`, `number`, `text`
 
+**Searchable selects:** both single and multiple `select` filters show a searchable dropdown, so you can type to find an option quickly when the list is long.
+
 **Date range presets:** `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, `all_time`. If `options.presets` is omitted, a default set is shown. Users can always pick "Custom range" for arbitrary dates.
 
 ---
