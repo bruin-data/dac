@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useDashboard } from "../hooks/useDashboard";
 import { useWidgetQuery } from "../hooks/useWidgetQuery";
 import { useTemplate } from "../themes/TemplateProvider";
 import { resolvePreset } from "../themes/bruin/FilterBar";
+import { fromParam, toParam } from "../lib/filterParams";
 import { YamlPanel } from "./YamlPanel";
 import { ExportMenuButton, type ExportMenuItem } from "./ExportMenuButton";
 import { fetchDashboardData } from "../api/client";
@@ -121,13 +122,23 @@ export function DashboardView() {
   const onResizeStart = useCallback(() => setIsResizing(true), []);
   const onResizeEnd = useCallback(() => setIsResizing(false), []);
 
-  const defaultFilters = useMemo(
-    () => dashboard ? buildDefaultFilters(dashboard) : null,
-    [dashboard],
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const baseFilters = useMemo(() => {
+    if (!dashboard) return null;
+    // Start from the dashboard defaults, then apply any values from the URL.
+    const values = buildDefaultFilters(dashboard);
+    for (const f of dashboard.filters ?? []) {
+      const raw = searchParams.get(f.name);
+      if (raw == null) continue;
+      const parsed = fromParam(f, raw);
+      if (parsed !== undefined) values[f.name] = parsed;
+    }
+    return values;
+  }, [dashboard, searchParams]);
 
   const [filters, setFilters] = useState<Record<string, unknown> | null>(null);
-  const activeFilters = filters ?? defaultFilters;
+  const activeFilters = filters ?? baseFilters;
 
   const {
     DashboardLayout,
@@ -221,7 +232,23 @@ export function DashboardView() {
   const currentTab = activeTab ?? (hasTabs ? tabNames[0] : null);
 
   const handleFilterChange = (filterName: string, value: unknown) => {
-    setFilters((prev) => ({ ...prev, [filterName]: value }));
+    // Seed from the currently active values so other filters are preserved.
+    setFilters((prev) => ({ ...(prev ?? activeFilters ?? {}), [filterName]: value }));
+
+    // Reflect the change in the URL query string.
+    const filter = dashboard.filters?.find((f) => f.name === filterName);
+    if (filter) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          const param = toParam(filter, value);
+          if (param == null) next.delete(filterName);
+          else next.set(filterName, param);
+          return next;
+        },
+        { replace: true },
+      );
+    }
   };
 
   const filterBar = dashboard.filters ? (

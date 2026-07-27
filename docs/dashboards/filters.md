@@ -111,6 +111,23 @@ A free-form text input.
 | `year_to_date` | January 1 to today |
 | `all_time` | 1970-01-01 to 2099-12-31 |
 
+## Sharing Filter State via URL
+
+Filter values are reflected in the page's URL query string. Each filter is one query parameter keyed by its `name`:
+
+```
+/dashboards/sales?region=Europe&date_range=2025-01-01..2025-03-31
+```
+
+- **Multi-select** values are comma-separated: `?region=Europe,APAC`.
+- **Date-range** values use `start..end`: `?date_range=2025-01-01..2025-03-31`.
+- Opening a link applies the URL values on load; queries run with them immediately.
+
+A few behaviors worth noting:
+
+- **Defaults stay out of the URL.** The URL only captures values the viewer actively changes, keeping links clean. A link with no parameter for a filter uses that filter's current `default` from the YAML.
+- **Invalid values are ignored.** URL values are validated before use, so a filter falls back to its default when the value doesn't fit its type. For `select` with a static `options.values` list, values that aren't real options are discarded (per-value for multi-select; if none are valid, the default is used). `date` and `date-range` values must be `YYYY-MM-DD` dates (`date-range` written as `start..end`); anything else is rejected. `number` values must parse as a number.
+
 ## Using Filters in Queries
 
 Filter values are injected into SQL via [Jinja templating](/dashboards/queries). Access them with `filters.<filter_name>`:
