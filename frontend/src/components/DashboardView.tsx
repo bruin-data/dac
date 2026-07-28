@@ -148,6 +148,10 @@ export function DashboardView() {
   const [filters, setFilters] = useState<Record<string, unknown> | null>(null);
   const activeFilters = filters ?? baseFilters;
 
+  // Set by handleFilterChange so its own URL write doesn't trigger the external
+  // reset below — that write is already reflected in the local overrides.
+  const selfUrlWrite = useRef(false);
+
   const {
     DashboardLayout,
     WidgetFrame,
@@ -178,6 +182,18 @@ export function DashboardView() {
     setFilters(null);
     setActiveTab(null);
   }, [dashboard]);
+
+  // When the URL query string changes on its own — the viewer opens or navigates
+  // to the same dashboard with different params — drop the local overrides so the
+  // URL wins. Skip our own writes (handleFilterChange) so in-progress input
+  // (partial numbers, cleared fields) isn't clobbered.
+  useEffect(() => {
+    if (selfUrlWrite.current) {
+      selfUrlWrite.current = false;
+      return;
+    }
+    setFilters(null);
+  }, [searchParams]);
 
   const handleExport = useCallback(async (format: DashboardExportFormat) => {
     if (!dashboard) return;
@@ -245,28 +261,28 @@ export function DashboardView() {
 
     // Reflect the change in the URL query string.
     const filter = dashboard.filters?.find((f) => f.name === filterName);
-    if (filter) {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          // Multi-select writes one repeated param per value (comma-safe).
-          if (filter.type === "select" && filter.multiple) {
-            next.delete(filterName);
-            if (Array.isArray(value)) {
-              for (const v of value) {
-                if (v != null && v !== "") next.append(filterName, String(v));
-              }
-            }
-          } else {
-            const param = toParam(filter, value);
-            if (param == null) next.delete(filterName);
-            else next.set(filterName, param);
-          }
-          return next;
-        },
-        { replace: true },
-      );
+    if (!filter) return;
+
+    const next = new URLSearchParams(searchParams);
+    // Multi-select writes one repeated param per value (comma-safe).
+    if (filter.type === "select" && filter.multiple) {
+      next.delete(filterName);
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          if (v != null && v !== "") next.append(filterName, String(v));
+        }
+      }
+    } else {
+      const param = toParam(filter, value);
+      if (param == null) next.delete(filterName);
+      else next.set(filterName, param);
     }
+
+    // Only write (and arm the self-write guard) when the query actually changes,
+    // so an identical write can't leave the guard stuck for a later external nav.
+    if (next.toString() === searchParams.toString()) return;
+    selfUrlWrite.current = true;
+    setSearchParams(next, { replace: true });
   };
 
   const filterBar = dashboard.filters ? (
