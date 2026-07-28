@@ -148,9 +148,8 @@ export function DashboardView() {
   const [filters, setFilters] = useState<Record<string, unknown> | null>(null);
   const activeFilters = filters ?? baseFilters;
 
-  // Set by handleFilterChange so its own URL write doesn't trigger the external
-  // reset below — that write is already reflected in the local overrides.
-  const selfUrlWrite = useRef(false);
+  // Last query string, so the reseed effect can skip our own writes.
+  const lastSelfWrite = useRef<string | null>(null);
 
   const {
     DashboardLayout,
@@ -177,21 +176,39 @@ export function DashboardView() {
 
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
-  // Reset local state when the dashboard definition changes (e.g. file edited on disk).
+  // Reset local overrides when the dashboard definition changes (e.g. file edited on disk).
   useEffect(() => {
     setFilters(null);
     setActiveTab(null);
   }, [dashboard]);
 
-  // When the URL query string changes on its own — the viewer opens or navigates
-  // to the same dashboard with different params — drop the local overrides so the
-  // URL wins. Skip our own writes (handleFilterChange) so in-progress input
-  // (partial numbers, cleared fields) isn't clobbered.
+  // Mirror local overrides to the URL. Writing the whole set
+  // stays correct when several filters change at once (e.g. a "reset all").
   useEffect(() => {
-    if (selfUrlWrite.current) {
-      selfUrlWrite.current = false;
-      return;
+    if (filters == null || !dashboard) return;
+    const next = new URLSearchParams(searchParams);
+    for (const f of dashboard.filters ?? []) next.delete(f.name);
+    for (const f of dashboard.filters ?? []) {
+      const v = filters[f.name];
+      if (f.type === "select" && f.multiple) {
+        if (Array.isArray(v)) {
+          for (const x of v) if (x != null && x !== "") next.append(f.name, String(x));
+        }
+      } else {
+        const param = toParam(f, v);
+        if (param != null) next.set(f.name, param);
+      }
     }
+    const s = next.toString();
+    if (s === searchParams.toString()) return;
+    lastSelfWrite.current = s;
+    setSearchParams(next, { replace: true });
+  }, [filters]);
+
+  // An external URL change (e.g. a shared link) re-seeds from the URL; our own
+  // writes are skipped so in-progress input survives.
+  useEffect(() => {
+    if (searchParams.toString() === lastSelfWrite.current) return;
     setFilters(null);
   }, [searchParams]);
 
@@ -256,33 +273,9 @@ export function DashboardView() {
   const currentTab = activeTab ?? (hasTabs ? tabNames[0] : null);
 
   const handleFilterChange = (filterName: string, value: unknown) => {
-    // Seed from the currently active values so other filters are preserved.
+    // Accumulate locally; the projection effect writes the URL. Functional update
+    // so batched changes in one tick don't clobber each other.
     setFilters((prev) => ({ ...(prev ?? activeFilters ?? {}), [filterName]: value }));
-
-    // Reflect the change in the URL query string.
-    const filter = dashboard.filters?.find((f) => f.name === filterName);
-    if (!filter) return;
-
-    const next = new URLSearchParams(searchParams);
-    // Multi-select writes one repeated param per value (comma-safe).
-    if (filter.type === "select" && filter.multiple) {
-      next.delete(filterName);
-      if (Array.isArray(value)) {
-        for (const v of value) {
-          if (v != null && v !== "") next.append(filterName, String(v));
-        }
-      }
-    } else {
-      const param = toParam(filter, value);
-      if (param == null) next.delete(filterName);
-      else next.set(filterName, param);
-    }
-
-    // Only write (and arm the self-write guard) when the query actually changes,
-    // so an identical write can't leave the guard stuck for a later external nav.
-    if (next.toString() === searchParams.toString()) return;
-    selfUrlWrite.current = true;
-    setSearchParams(next, { replace: true });
   };
 
   const filterBar = dashboard.filters ? (
