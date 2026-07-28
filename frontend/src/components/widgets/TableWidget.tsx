@@ -53,12 +53,20 @@ export function TableWidget({ widget, data }: Props) {
           idx,
         }));
 
-    // Resolve `format.like`: adopt the referenced column's *coloring* and drive
-    // it from that column's per-row value (so cells match it exactly), while
-    // keeping this column's own `number` display format.
+    // `format.like`: adopt the source's coloring driven by its per-row value,
+    // keeping own `number`. Followed transitively (cycle-guarded) to the terminal source.
     const byName = new Map(raw.map((c) => [c.name, c]));
+    const likeSource = (col: (typeof raw)[number]) => {
+      let src = col.format?.like ? byName.get(col.format.like) : undefined;
+      const seen = new Set([col.name]);
+      while (src && src.format?.like && !seen.has(src.name)) {
+        seen.add(src.name);
+        src = byName.get(src.format.like);
+      }
+      return src;
+    };
     return raw.map((c) => {
-      const src = c.format?.like ? byName.get(c.format.like) : undefined;
+      const src = c.format?.like ? likeSource(c) : undefined;
       if (src?.format) {
         return {
           ...c,
