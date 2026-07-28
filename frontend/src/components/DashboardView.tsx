@@ -182,8 +182,7 @@ export function DashboardView() {
     setActiveTab(null);
   }, [dashboard]);
 
-  // Mirror local overrides to the URL. Writing the whole set
-  // stays correct when several filters change at once (e.g. a "reset all").
+  // Mirror all filters to the URL in one write (order-stable, concurrency-safe).
   useEffect(() => {
     if (filters == null || !dashboard) return;
     const next = new URLSearchParams(searchParams);
@@ -199,14 +198,14 @@ export function DashboardView() {
         if (param != null) next.set(f.name, param);
       }
     }
+    // Record even when unchanged, so a later nav isn't taken for a self-write.
     const s = next.toString();
-    if (s === searchParams.toString()) return;
     lastSelfWrite.current = s;
-    setSearchParams(next, { replace: true });
+    if (s !== searchParams.toString()) setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run only on filters change
   }, [filters]);
 
-  // An external URL change (e.g. a shared link) re-seeds from the URL; our own
-  // writes are skipped so in-progress input survives.
+  // External URL change (e.g. a shared link) re-seeds from the URL; our own writes are skipped.
   useEffect(() => {
     if (searchParams.toString() === lastSelfWrite.current) return;
     setFilters(null);
