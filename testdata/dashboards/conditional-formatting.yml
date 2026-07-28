@@ -1,11 +1,7 @@
 name: Conditional Formatting
 
-# Custom palette: a reusable gradient, referenced by name with `scheme` below.
-palettes:
-  risk: [red, amber, green]
-
 rows:
-  # 1. Coloring: flat fill, auto gradient, pinned domain, built-in scheme, custom palette
+  # 1. Coloring: flat fill, auto gradient, pinned domain, built-in schemes
   - widgets:
       - name: Coloring
         type: table
@@ -42,7 +38,7 @@ rows:
             label: Rating
             format:
               number: number
-              scheme: risk                                        # custom palette, by name
+              scheme: red-amber-green                             # built-in scheme
 
   # 2. Domain units: percent of the range vs percentile of the data
   - widgets:

@@ -24,16 +24,15 @@ const (
 
 // Dashboard represents a complete dashboard definition loaded from YAML.
 type Dashboard struct {
-	Schema      string              `yaml:"schema,omitempty" json:"schema,omitempty"`
-	Name        string              `yaml:"name" json:"name"`
-	Description string              `yaml:"description,omitempty" json:"description,omitempty"`
-	Connection  string              `yaml:"connection,omitempty" json:"connection,omitempty"`
-	Model       string              `yaml:"model,omitempty" json:"model,omitempty"`
-	Models      map[string]string   `yaml:"models,omitempty" json:"models,omitempty"`
-	Filters     []Filter            `yaml:"filters,omitempty" json:"filters,omitempty"`
-	Queries     map[string]Query    `yaml:"queries,omitempty" json:"queries,omitempty"`
-	Palettes    map[string][]string `yaml:"palettes,omitempty" json:"palettes,omitempty"`
-	Rows        []Row               `yaml:"rows" json:"rows"`
+	Schema      string            `yaml:"schema,omitempty" json:"schema,omitempty"`
+	Name        string            `yaml:"name" json:"name"`
+	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
+	Connection  string            `yaml:"connection,omitempty" json:"connection,omitempty"`
+	Model       string            `yaml:"model,omitempty" json:"model,omitempty"`
+	Models      map[string]string `yaml:"models,omitempty" json:"models,omitempty"`
+	Filters     []Filter          `yaml:"filters,omitempty" json:"filters,omitempty"`
+	Queries     map[string]Query  `yaml:"queries,omitempty" json:"queries,omitempty"`
+	Rows        []Row             `yaml:"rows" json:"rows"`
 
 	// FilePath is the source file path, not serialized to JSON for API consumers.
 	FilePath string `yaml:"-" json:"-"`

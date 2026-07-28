@@ -107,7 +107,7 @@ A `table` column takes `name`, `label`, and `format`. `format` is a string (numb
 
 - `number`: the value format string.
 - `backgroundColor`: a **string** is a flat whole-column fill; an **array** is a gradient (2+ colors). `domain` pins gradient anchors: a raw array `[-25, 0, 25]`, or `{ unit, anchors }` where `unit` is `value` (default), `percent`, or `percentile` (0 to 100). Omit `domain` for auto min/max; omit `anchors` to spread evenly (percentile puts the midpoint at the median).
-- `scheme`: a gradient by name instead of listing colors. Either a built-in (`red-white-green`, `green-white-red`, `red-amber-green`, `green-amber-red`, `white-green`, `white-red`, `white-blue`) or a custom palette defined once at the dashboard top level under `palettes` (name to 2+ colors, reused by name, must not collide with a built-in). Works with `domain` too.
+- `scheme`: a built-in gradient by name instead of listing colors (`red-white-green`, `green-white-red`, `red-amber-green`, `green-amber-red`, `white-green`, `white-red`, `white-blue`). Works with `domain` too.
 - `textColor`, `bold`, `italic`, `underline`, `strikethrough`: whole-column text styling.
 - `rules`: a list of `{ if, value, ...styles }`; first match wins. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day for a date, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
 - `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
@@ -118,9 +118,6 @@ Worked example:
 
 ```yaml
 name: Regions
-
-palettes:
-  risk: [red, amber, green]                                       # custom palette, reused by name
 
 rows:
   - widgets:
@@ -139,7 +136,7 @@ rows:
               domain: [-25, 0, 25]                                      # raw anchors (0 = neutral)
               backgroundColor: [blue, white, amber]                     # custom gradient colors
           - name: margin
-            format: { number: ".0%", scheme: risk, domain: { unit: percentile } }   # palette + percentile domain
+            format: { number: ".0%", scheme: red-amber-green, domain: { unit: percentile } }   # built-in scheme + percentile domain
           - name: score
             format:
               number: number

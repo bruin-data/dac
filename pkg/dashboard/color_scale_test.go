@@ -213,15 +213,6 @@ func TestValidate_DomainSchemeLengthMismatch(t *testing.T) {
 	}
 }
 
-func TestValidate_DomainWithPaletteAccepted(t *testing.T) {
-	// A custom palette is a gradient too; a matching domain is valid.
-	d := paletteDashboard(map[string][]string{"risk": {"red", "amber", "green"}}, "risk")
-	d.Rows[0].Widgets[0].Columns[0].Format.Domain = &Domain{Anchors: []float64{-25, 0, 25}}
-	if errs := runValidate(d); len(errs) != 0 {
-		t.Errorf("expected domain+palette to pass, got %v", errs)
-	}
-}
-
 func TestValidate_DomainLengthMismatch(t *testing.T) {
 	errs := validateColumnFormat(t, &Format{
 		Domain:          &Domain{Anchors: []float64{0, 50, 100}},
@@ -379,95 +370,5 @@ func TestValidate_FormatValidPasses(t *testing.T) {
 	})
 	if len(errs) != 0 {
 		t.Errorf("expected no errors, got %v", errs)
-	}
-}
-
-// --- custom palettes ---
-
-// paletteDashboard builds a dashboard with the given palettes and one table
-// column whose format references a scheme by name.
-func paletteDashboard(palettes map[string][]string, scheme string) *Dashboard {
-	return &Dashboard{
-		Name:     "d",
-		Palettes: palettes,
-		Rows: []Row{{Widgets: []Widget{{
-			Name: "t", Type: WidgetTypeTable, SQL: "SELECT 1",
-			Columns: []TableColumn{{Name: "c", Format: &Format{Scheme: scheme}}},
-		}}}},
-	}
-}
-
-func TestFormat_YAML_Palettes(t *testing.T) {
-	yamlBody := `
-name: Palettes
-palettes:
-  risk: [red, amber, green]
-  heat: ["#FEF0D9", "#E34A33"]
-rows:
-  - widgets:
-      - name: t
-        type: table
-        sql: SELECT 1
-        columns:
-          - name: c
-            format: { scheme: risk }
-`
-	var d Dashboard
-	if err := yaml.Unmarshal([]byte(yamlBody), &d); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if got := d.Palettes["risk"]; len(got) != 3 || got[0] != "red" || got[2] != "green" {
-		t.Errorf("unexpected risk palette: %v", d.Palettes["risk"])
-	}
-	if len(d.Palettes["heat"]) != 2 {
-		t.Errorf("unexpected heat palette: %v", d.Palettes["heat"])
-	}
-}
-
-func TestFormat_TSX_Palettes(t *testing.T) {
-	source := `
-export default (
-  <Dashboard name="Heat" palettes={{ risk: ["red", "amber", "green"] }}>
-    <Row>
-      <Table name="Sales" col={12} sql="SELECT region, revenue FROM sales"
-        columns={[
-          { name: "revenue", format: { scheme: "risk" } },
-        ]} />
-    </Row>
-  </Dashboard>
-)
-`
-	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
-	assertNoErr(t, err)
-	if got := d.Palettes["risk"]; len(got) != 3 || got[1] != "amber" {
-		t.Errorf("unexpected risk palette from TSX: %v", d.Palettes["risk"])
-	}
-}
-
-func TestValidate_PaletteSchemeAccepted(t *testing.T) {
-	errs := runValidate(paletteDashboard(map[string][]string{"risk": {"red", "amber", "green"}}, "risk"))
-	if len(errs) != 0 {
-		t.Errorf("expected palette scheme to pass, got %v", errs)
-	}
-}
-
-func TestValidate_PaletteUnknownScheme(t *testing.T) {
-	errs := runValidate(paletteDashboard(map[string][]string{"risk": {"red", "amber", "green"}}, "nope"))
-	if !hasErrContaining(errs, "unknown scheme") {
-		t.Errorf("expected unknown-scheme error, got %v", errs)
-	}
-}
-
-func TestValidate_PaletteTooFewColors(t *testing.T) {
-	errs := runValidate(paletteDashboard(map[string][]string{"solo": {"red"}}, "solo"))
-	if !hasErrContaining(errs, "at least 2 colors") {
-		t.Errorf("expected too-few-colors error, got %v", errs)
-	}
-}
-
-func TestValidate_PaletteCollidesWithBuiltin(t *testing.T) {
-	errs := runValidate(paletteDashboard(map[string][]string{"white-green": {"red", "green"}}, "white-green"))
-	if !hasErrContaining(errs, "collides with a built-in") {
-		t.Errorf("expected collision error, got %v", errs)
 	}
 }

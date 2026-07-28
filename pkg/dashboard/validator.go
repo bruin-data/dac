@@ -46,21 +46,6 @@ func Validate(d *Dashboard) error {
 		errs = append(errs, "at least one row is required")
 	}
 
-	// Custom palettes: each is a reusable gradient, referenced by name via
-	// `format.scheme`.
-	for name, colors := range d.Palettes {
-		if name == "" {
-			errs = append(errs, "palettes: a palette name cannot be empty")
-			continue
-		}
-		if _, ok := validSchemes[name]; ok {
-			errs = append(errs, fmt.Sprintf("palettes: %q collides with a built-in scheme; pick a different name", name))
-		}
-		if len(colors) < 2 {
-			errs = append(errs, fmt.Sprintf("palettes: %q needs at least 2 colors to form a gradient", name))
-		}
-	}
-
 	for i, row := range d.Rows {
 		if len(row.Widgets) == 0 {
 			errs = append(errs, fmt.Sprintf("row %d: at least one widget is required", i+1))
@@ -88,7 +73,7 @@ func Validate(d *Dashboard) error {
 			case WidgetTypeTable:
 				// Table widgets just need a query source.
 				errs = append(errs, validateQuerySource(prefix, &w, d)...)
-				validateTableColumns(prefix, &w, d.Palettes, &errs)
+				validateTableColumns(prefix, &w, &errs)
 			case WidgetTypeText:
 				if w.Content == "" {
 					errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
@@ -480,7 +465,7 @@ var validSchemes = map[string]int{
 	"white-green": 2, "white-red": 2, "white-blue": 2,
 }
 
-func validateTableColumns(prefix string, w *Widget, palettes map[string][]string, errs *[]string) {
+func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 	names := make(map[string]bool, len(w.Columns))
 	for _, c := range w.Columns {
 		names[c.Name] = true
@@ -497,16 +482,14 @@ func validateTableColumns(prefix string, w *Widget, palettes map[string][]string
 				*errs = append(*errs, fmt.Sprintf("%s.format.like: references unknown column %q", cp, c.Format.Like))
 			}
 		}
-		validateFormat(cp, c.Format, palettes, errs)
+		validateFormat(cp, c.Format, errs)
 	}
 }
 
-func validateFormat(prefix string, f *Format, palettes map[string][]string, errs *[]string) {
+func validateFormat(prefix string, f *Format, errs *[]string) {
 	if f.Scheme != "" {
-		_, isBuiltin := validSchemes[f.Scheme]
-		_, isPalette := palettes[f.Scheme]
-		if !isBuiltin && !isPalette {
-			*errs = append(*errs, fmt.Sprintf("%s.format.scheme: unknown scheme %q (not a built-in or a defined palette)", prefix, f.Scheme))
+		if _, ok := validSchemes[f.Scheme]; !ok {
+			*errs = append(*errs, fmt.Sprintf("%s.format.scheme: unknown scheme %q", prefix, f.Scheme))
 		}
 	}
 	// A gradient (array backgroundColor) needs at least two colors to blend.
@@ -514,14 +497,14 @@ func validateFormat(prefix string, f *Format, palettes map[string][]string, errs
 		*errs = append(*errs, fmt.Sprintf("%s.format.backgroundColor: a gradient needs at least 2 colors (use a single string for a flat fill)", prefix))
 	}
 	if f.Domain != nil {
-		validateDomain(prefix, f, palettes, errs)
+		validateDomain(prefix, f, errs)
 	}
 	for i, r := range f.Rules {
 		validateFormatRule(fmt.Sprintf("%s.format.rules[%d]", prefix, i), r, errs)
 	}
 }
 
-func validateDomain(prefix string, f *Format, palettes map[string][]string, errs *[]string) {
+func validateDomain(prefix string, f *Format, errs *[]string) {
 	d := f.Domain
 	// unit must be a known kind.
 	if d.Unit != "" && d.Unit != "value" && d.Unit != "percent" && d.Unit != "percentile" {
@@ -537,16 +520,14 @@ func validateDomain(prefix string, f *Format, palettes map[string][]string, errs
 		}
 	}
 	// A domain pins the anchors of a gradient, whose colors come from an explicit
-	// backgroundColor array, a built-in scheme, or a custom palette.
+	// backgroundColor array or a built-in scheme.
 	colorCount := 0
 	if colors, ok := f.BackgroundColor.([]interface{}); ok {
 		colorCount = len(colors)
 	} else if c, ok := validSchemes[f.Scheme]; ok {
 		colorCount = c
-	} else if p, ok := palettes[f.Scheme]; ok {
-		colorCount = len(p)
 	} else {
-		*errs = append(*errs, fmt.Sprintf("%s.format.domain: requires a gradient (a backgroundColor list, a scheme, or a palette)", prefix))
+		*errs = append(*errs, fmt.Sprintf("%s.format.domain: requires a gradient (a backgroundColor list or a scheme)", prefix))
 		return
 	}
 	// When explicit anchors are given they must match the gradient's color count.

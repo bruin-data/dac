@@ -392,7 +392,6 @@ func vnodeToDashboard(root *vnode) (*Dashboard, error) {
 		Connection:  asString(root.Props["connection"]),
 		Model:       asString(root.Props["model"]),
 		Models:      asStringMap(root.Props["models"]),
-		Palettes:    asStringSliceMap(root.Props["palettes"]),
 	}
 
 	for _, child := range root.Children {
@@ -733,23 +732,6 @@ func asStringMap(v interface{}) map[string]string {
 	out := make(map[string]string, len(m))
 	for key, value := range m {
 		out[key] = asString(value)
-	}
-	return out
-}
-
-// asStringSliceMap converts a JS object of string arrays (e.g. `palettes`) into
-// map[string][]string.
-func asStringSliceMap(v interface{}) map[string][]string {
-	if v == nil {
-		return nil
-	}
-	m, ok := v.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	out := make(map[string][]string, len(m))
-	for key, value := range m {
-		out[key] = asStringSlice(value)
 	}
 	return out
 }

@@ -15,8 +15,6 @@ export interface Dashboard {
   models?: Record<string, string>;
   filters?: Filter[];
   queries?: Record<string, Query>;
-  /** Reusable named gradients, referenced by a column's format.scheme. */
-  palettes?: Record<string, string[]>;
   rows: Row[];
   file_type?: "yaml" | "tsx";
 }
@@ -158,7 +156,7 @@ export interface FormatRule {
  * A column's value display and conditional coloring.
  * `backgroundColor`: string = flat fill · array = gradient.
  * `domain`: gradient anchor values (omit → auto min/max).
- * `scheme`: a gradient by name (built-in or a dashboard `palettes` entry). `rules`: conditional styling (first match wins).
+ * `scheme`: a built-in gradient by name. `rules`: conditional styling (first match wins).
  */
 export interface Format {
   /** Mirror another column's format and per-row value, so cells get identical colors. */

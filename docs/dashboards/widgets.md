@@ -278,7 +278,7 @@ format:                   # object: number format + coloring
 | `number` | Value display: `currency`, `number`, or a d3-format string. |
 | `backgroundColor` | **string** = flat fill for the whole column. **array** = gradient (at least 2 colors). |
 | `domain` | Gradient anchors. A raw array `[-25, 0, 25]`, or `{ unit, anchors }` where `unit` is `value` (default) / `percent` / `percentile`. Omit for auto min/max; omit `anchors` to spread evenly (percentile puts the midpoint at the median). |
-| `scheme` | A gradient by name instead of listing colors: a built-in, or a custom `palettes` entry (see below). |
+| `scheme` | A built-in gradient by name instead of listing colors. |
 | `textColor` | Text color. |
 | `bold` / `italic` / `underline` / `strikethrough` | Text styling (booleans). |
 | `rules` | Conditional styling, evaluated in order, first match wins. |
@@ -296,16 +296,6 @@ format:                   # object: number format + coloring
 Named colors match the chart palette and adapt to light/dark; `white` and `black` are fixed literals that stay the same in both themes.
 
 **Built-in `scheme`s:** `red-white-green`, `green-white-red`, `red-amber-green`, `green-amber-red`, `white-green`, `white-red`, `white-blue`.
-
-**Custom palettes:** define reusable gradients at the dashboard top level under `palettes` (name to 2+ colors), then reference one by name with `scheme`. A palette name must not collide with a built-in.
-
-```yaml
-palettes:
-  risk: [red, amber, green]
-columns:
-  - name: growth
-    format: { scheme: risk }        # the palette, by name
-```
 
 **Rule fields** (each rule = one condition + one or more styles)
 
@@ -331,9 +321,6 @@ columns:
 ```yaml
 name: Regions
 
-palettes:
-  risk: [red, amber, green]                                       # custom palette, reused by name via `scheme`
-
 rows:
   - widgets:
       - name: Regions
@@ -358,7 +345,7 @@ rows:
           - name: margin
             format:
               number: ".0%"                                             # d3-format string
-              scheme: risk                                              # custom palette, by name
+              scheme: red-amber-green                                   # built-in scheme
               domain: { unit: percentile }                              # anchor by percentile (midpoint = median)
 
           - name: score
@@ -397,7 +384,7 @@ How the example reads, column by column:
 - `region`: one flat color on every cell, bold text (a plain string fill plus a text style).
 - `revenue`: currency, colored by the built-in `red-white-green` gradient.
 - `growth`: a custom blue/white/amber gradient with the neutral point pinned to 0 via a raw `domain`.
-- `margin`: a percentage, colored by the custom `risk` palette, anchored by `percentile` so the midpoint sits at the median.
+- `margin`: a percentage, colored by the built-in `red-amber-green` scheme, anchored by `percentile` so the midpoint sits at the median.
 - `score`: numeric rules covering two `value` forms, a scalar (`>= 80`) and a `[low, high]` range (`50 to 79`), plus a text style (`< 50` struck through in red).
 - `status`: text rules checked in order, first match wins (contains "urgent", exactly "overdue", or empty).
 - `actual`: cross-column rules, compared to `target` in the same row (explained next).

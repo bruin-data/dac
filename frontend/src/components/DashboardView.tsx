@@ -3,7 +3,6 @@ import { useParams } from "react-router-dom";
 import { useDashboard } from "../hooks/useDashboard";
 import { useWidgetQuery } from "../hooks/useWidgetQuery";
 import { useTemplate } from "../themes/TemplateProvider";
-import { PalettesContext } from "../themes/PalettesContext";
 import { resolvePreset } from "../themes/bruin/FilterBar";
 import { YamlPanel } from "./YamlPanel";
 import { ExportMenuButton, type ExportMenuItem } from "./ExportMenuButton";
@@ -286,7 +285,6 @@ export function DashboardView() {
   };
 
   return (
-    <PalettesContext.Provider value={dashboard.palettes ?? {}}>
     <div
       className={`dac-layout h-screen overflow-hidden ${isResizing ? "dac-layout-resizing" : ""}`}
       style={{ gridTemplateColumns: gridColumns }}
@@ -362,6 +360,5 @@ export function DashboardView() {
         onResizeEnd={onResizeEnd}
       />
     </div>
-    </PalettesContext.Provider>
   );
 }

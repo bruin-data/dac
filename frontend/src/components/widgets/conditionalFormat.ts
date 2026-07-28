@@ -62,19 +62,15 @@ export function toNumber(value: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
-// Custom palettes are dashboard-defined gradients, referenced by name via
-// `scheme`, and take the same shape as the built-ins.
-type Palettes = Record<string, string[]>;
-
-function gradientColorNames(format: Format, palettes?: Palettes): string[] | null {
+function gradientColorNames(format: Format): string[] | null {
   if (Array.isArray(format.backgroundColor)) return format.backgroundColor;
-  if (format.scheme) return SCHEMES[format.scheme] ?? palettes?.[format.scheme] ?? null;
+  if (format.scheme) return SCHEMES[format.scheme] ?? null;
   return null;
 }
 
 /** True when this format paints a gradient (needs the column's value range). */
-export function hasScale(format: Format, palettes?: Palettes): boolean {
-  return gradientColorNames(format, palettes) !== null;
+export function hasScale(format: Format): boolean {
+  return gradientColorNames(format) !== null;
 }
 
 /** Build the gradient stops for a column from its format and observed values. */
@@ -82,9 +78,8 @@ export function resolveScale(
   format: Format,
   values: number[],
   tokens: Record<string, string>,
-  palettes?: Palettes,
 ): ResolvedScale | null {
-  const names = gradientColorNames(format, palettes);
+  const names = gradientColorNames(format);
   if (!names || names.length < 2 || values.length === 0) return null;
 
   const rgbs: RGB[] = names.map((n) => parseHex(resolveColor(n, tokens)) ?? [136, 136, 136]);

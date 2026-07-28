@@ -3,7 +3,6 @@ import { format as d3Format } from "d3-format";
 import type { Format, Widget, WidgetData } from "../../types/dashboard";
 import { useTokens } from "../../themes/TemplateProvider";
 import { cellStyle, hasScale, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
-import { usePalettes } from "../../themes/PalettesContext";
 
 /** A column's `format` may be a bare number-format string; normalize to an object. */
 function toFormat(f?: Format | string): Format | undefined {
@@ -34,7 +33,6 @@ interface TableColumn {
 export function TableWidget({ widget, data }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
   const tokens = useTokens();
-  const palettes = usePalettes();
 
   const columns: TableColumn[] = useMemo(() => {
     if (!data?.columns) return [];
@@ -102,17 +100,17 @@ export function TableWidget({ widget, data }: Props) {
   const scales = useMemo(() => {
     const map = new Map<string, ResolvedScale>();
     for (const col of columns) {
-      if (!col.format || col.colorIdx < 0 || !hasScale(col.format, palettes)) continue;
+      if (!col.format || col.colorIdx < 0 || !hasScale(col.format)) continue;
       const values: number[] = [];
       for (const row of rows) {
         const n = toNumber(row[col.colorIdx]);
         if (n !== null) values.push(n);
       }
-      const scale = resolveScale(col.format, values, tokens, palettes);
+      const scale = resolveScale(col.format, values, tokens);
       if (scale) map.set(col.name, scale);
     }
     return map;
-  }, [columns, rows, tokens, palettes]);
+  }, [columns, rows, tokens]);
 
   // Compile each column's d3-format spec once (currency/number are handled
   // separately). Invalid specs are skipped so cells fall back to raw text.
