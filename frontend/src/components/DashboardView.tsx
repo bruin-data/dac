@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useDashboard } from "../hooks/useDashboard";
 import { useWidgetQuery } from "../hooks/useWidgetQuery";
 import { useTemplate } from "../themes/TemplateProvider";
 import { resolvePreset } from "../themes/bruin/FilterBar";
+import { fromParam, toParam, keepAllowedValues } from "../lib/filterParams";
 import { YamlPanel } from "./YamlPanel";
 import { ExportMenuButton, type ExportMenuItem } from "./ExportMenuButton";
 import { fetchDashboardData } from "../api/client";
@@ -121,13 +122,34 @@ export function DashboardView() {
   const onResizeStart = useCallback(() => setIsResizing(true), []);
   const onResizeEnd = useCallback(() => setIsResizing(false), []);
 
-  const defaultFilters = useMemo(
-    () => dashboard ? buildDefaultFilters(dashboard) : null,
-    [dashboard],
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const baseFilters = useMemo(() => {
+    if (!dashboard) return null;
+    // Start from the dashboard defaults, then apply any values from the URL.
+    const values = buildDefaultFilters(dashboard);
+    for (const f of dashboard.filters ?? []) {
+      // Multi-select uses repeated params (?x=a&x=b) so values may contain commas.
+      if (f.type === "select" && f.multiple) {
+        const raws = searchParams.getAll(f.name).map((s) => s.trim()).filter(Boolean);
+        if (!raws.length) continue;
+        const kept = keepAllowedValues(f, raws);
+        if (kept.length) values[f.name] = kept;
+        continue;
+      }
+      const raw = searchParams.get(f.name);
+      if (raw == null) continue;
+      const parsed = fromParam(f, raw);
+      if (parsed !== undefined) values[f.name] = parsed;
+    }
+    return values;
+  }, [dashboard, searchParams]);
 
   const [filters, setFilters] = useState<Record<string, unknown> | null>(null);
-  const activeFilters = filters ?? defaultFilters;
+  const activeFilters = filters ?? baseFilters;
+
+  // Last query string, so the reseed effect can skip our own writes.
+  const lastSelfWrite = useRef<string | null>(null);
 
   const {
     DashboardLayout,
@@ -154,11 +176,40 @@ export function DashboardView() {
 
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
-  // Reset local state when the dashboard definition changes (e.g. file edited on disk).
+  // Reset local overrides when the dashboard definition changes (e.g. file edited on disk).
   useEffect(() => {
     setFilters(null);
     setActiveTab(null);
   }, [dashboard]);
+
+  // Mirror all filters to the URL in one write (order-stable, concurrency-safe).
+  useEffect(() => {
+    if (filters == null || !dashboard) return;
+    const next = new URLSearchParams(searchParams);
+    for (const f of dashboard.filters ?? []) next.delete(f.name);
+    for (const f of dashboard.filters ?? []) {
+      const v = filters[f.name];
+      if (f.type === "select" && f.multiple) {
+        if (Array.isArray(v)) {
+          for (const x of v) if (x != null && x !== "") next.append(f.name, String(x));
+        }
+      } else {
+        const param = toParam(f, v);
+        if (param != null) next.set(f.name, param);
+      }
+    }
+    // Record even when unchanged, so a later nav isn't taken for a self-write.
+    const s = next.toString();
+    lastSelfWrite.current = s;
+    if (s !== searchParams.toString()) setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run only on filters change
+  }, [filters]);
+
+  // External URL change (e.g. a shared link) re-seeds from the URL; our own writes are skipped.
+  useEffect(() => {
+    if (searchParams.toString() === lastSelfWrite.current) return;
+    setFilters(null);
+  }, [searchParams]);
 
   const handleExport = useCallback(async (format: DashboardExportFormat) => {
     if (!dashboard) return;
@@ -221,7 +272,9 @@ export function DashboardView() {
   const currentTab = activeTab ?? (hasTabs ? tabNames[0] : null);
 
   const handleFilterChange = (filterName: string, value: unknown) => {
-    setFilters((prev) => ({ ...prev, [filterName]: value }));
+    // Accumulate locally; the projection effect writes the URL. Functional update
+    // so batched changes in one tick don't clobber each other.
+    setFilters((prev) => ({ ...(prev ?? activeFilters ?? {}), [filterName]: value }));
   };
 
   const filterBar = dashboard.filters ? (

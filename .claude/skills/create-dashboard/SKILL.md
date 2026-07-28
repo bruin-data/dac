@@ -177,6 +177,8 @@ filters:
 
 **Date range presets:** `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, `all_time`. If `options.presets` is omitted, a default set is shown. Users can always pick "Custom range" for arbitrary dates.
 
+**Shareable URLs:** filter values are kept in the URL query string, so you can share a filtered dashboard as a link. Each filter becomes one query parameter named after it, for example `?region=Europe&date_range=last_30_days`. When a select has `multiple: true` the values are comma separated, and a `date-range` is either a preset key or `start..end`. Anything read from the URL is checked against the filter's type and options, and ignored if it doesn't match.
+
 ---
 
 ## Named Queries
