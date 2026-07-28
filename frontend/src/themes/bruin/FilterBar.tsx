@@ -197,22 +197,7 @@ function FilterControl({
       if (filter.multiple) {
         return <MultiSelectFilter filter={filter} value={value} onChange={onChange} label={label} />;
       }
-      return (
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]">
-            {label}
-          </label>
-          <select
-            className={inputClass}
-            value={String(value ?? filter.default ?? "")}
-            onChange={(e) => onChange(e.target.value)}
-          >
-            {filter.options?.values?.map((v) => (
-              <option key={v} value={v}>{v}</option>
-            ))}
-          </select>
-        </div>
-      );
+      return <SingleSelectFilter filter={filter} value={value} onChange={onChange} label={label} />;
 
     case "date-range":
       return <DateRangeFilter filter={filter} value={value} onChange={onChange} label={label} />;
@@ -438,6 +423,50 @@ interface Option {
   value: string;
 }
 
+function SingleSelectFilter({
+  filter,
+  value,
+  onChange,
+  label,
+}: {
+  filter: Filter;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  label: string;
+}) {
+  const options: Option[] = (filter.options?.values ?? []).map((v) => ({ label: v, value: v }));
+  const current = value ?? filter.default;
+  const selected = current != null && current !== ""
+    ? options.find((o) => o.value === String(current)) ?? null
+    : null;
+  const inputId = `select-${filter.name}`;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label
+        htmlFor={inputId}
+        className="text-[10px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)]"
+      >
+        {label}
+      </label>
+      <Select<Option, false>
+        inputId={inputId}
+        aria-label={label}
+        options={options}
+        value={selected}
+        onChange={(opt) => onChange(opt ? opt.value : "")}
+        placeholder="Select..."
+        isSearchable
+        menuPortalTarget={popoverPortalTarget() as HTMLElement}
+        menuPosition="fixed"
+        unstyled
+        classNames={selectClassNames}
+        styles={selectStyles}
+      />
+    </div>
+  );
+}
+
 function MultiSelectFilter({
   filter,
   value,
@@ -467,7 +496,7 @@ function MultiSelectFilter({
         inputId={inputId}
         aria-label={label}
         isMulti
-        isSearchable={false}
+        isSearchable
         options={options}
         value={selected}
         onChange={(opts) => onChange(opts.map((o) => o.value))}
@@ -488,6 +517,7 @@ function MultiSelectFilter({
 
 function CompactValueContainer({ children, ...props }: ValueContainerProps<Option, true>) {
   const count = props.getValue().length;
+  const isTyping = Boolean(props.selectProps.inputValue);
   if (count === 0) {
     return <components.ValueContainer {...props}>{children}</components.ValueContainer>;
   }
@@ -495,9 +525,12 @@ function CompactValueContainer({ children, ...props }: ValueContainerProps<Optio
   const input = childArray[childArray.length - 1];
   return (
     <components.ValueContainer {...props}>
-      <span className="text-[13px] text-[var(--dac-text-primary)] truncate">
-        {count === 1 ? props.getValue()[0].label : `${count} selected`}
-      </span>
+      {/* Hide the "N selected" summary while the user is typing a search. */}
+      {!isTyping && (
+        <span className="text-[13px] text-[var(--dac-text-primary)] truncate">
+          {count === 1 ? props.getValue()[0].label : `${count} selected`}
+        </span>
+      )}
       {input}
     </components.ValueContainer>
   );
@@ -513,6 +546,7 @@ const selectClassNames = {
     }`,
   valueContainer: () => "overflow-hidden",
   placeholder: () => "text-[var(--dac-text-muted)]",
+  singleValue: () => "text-[var(--dac-text-primary)] truncate",
   input: () => "text-[var(--dac-text-primary)]",
   indicatorsContainer: () => "text-[var(--dac-text-muted)]",
   indicatorSeparator: () => "hidden",
@@ -555,8 +589,6 @@ const selectStyles = {
     ...base,
     margin: 0,
     padding: 0,
-    height: 0,
-    width: 0,
   }),
   indicatorsContainer: (base: Record<string, unknown>) => ({
     ...base,

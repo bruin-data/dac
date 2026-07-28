@@ -117,6 +117,8 @@ Supported filter types:
 
 Date range presets include `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, and `all_time`.
 
+Both single and multiple `select` filters show a searchable dropdown, so you can type to find an option quickly when the list is long.
+
 Select filters support `multiple: true` for multi-select. The value is a list — render with `join` in Jinja and guard the empty case:
 
 ```sql
