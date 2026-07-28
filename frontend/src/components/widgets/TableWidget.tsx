@@ -1,13 +1,15 @@
 import { useMemo, useState, type CSSProperties } from "react";
-import type { ColorScale, SingleColorRule, Widget, WidgetData } from "../../types/dashboard";
-import {
-  applyRuleStyle,
-  cellColor,
-  matchRule,
-  resolveScale,
-  toNumber,
-  type ResolvedScale,
-} from "./conditionalFormat";
+import { format as d3Format } from "d3-format";
+import type { Format, Widget, WidgetData } from "../../types/dashboard";
+import { useTokens } from "../../themes/TemplateProvider";
+import { cellStyle, hasScale, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
+import { usePalettes } from "../../themes/PalettesContext";
+
+/** A column's `format` may be a bare number-format string; normalize to an object. */
+function toFormat(f?: Format | string): Format | undefined {
+  if (f == null) return undefined;
+  return typeof f === "string" ? { number: f } : f;
+}
 
 interface Props {
   widget: Widget;
@@ -24,38 +26,59 @@ interface SortState {
 interface TableColumn {
   name: string;
   label: string;
-  format?: string;
-  colorScale?: ColorScale;
-  singleColor?: SingleColorRule[];
-  idx: number;
+  format?: Format; // effective format (own, or the mirrored column's if `like`)
+  idx: number; // own data index (drives the displayed value)
+  colorIdx: number; // data index whose value drives coloring (own, or `like` source)
 }
 
 export function TableWidget({ widget, data }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
+  const tokens = useTokens();
+  const palettes = usePalettes();
 
   const columns: TableColumn[] = useMemo(() => {
     if (!data?.columns) return [];
 
-    return widget.columns?.length
+    const raw = widget.columns?.length
       ? widget.columns.map((col) => ({
           name: col.name,
           label: col.label || col.name,
-          format: col.format,
-          colorScale: col.colorScale,
-          singleColor: col.singleColor,
+          format: toFormat(col.format),
           idx: data.columns.findIndex((c) => c.name === col.name),
         }))
       : data.columns.map((col, idx) => ({
           name: col.name,
           label: col.name,
-          format: undefined as string | undefined,
-          colorScale: undefined as ColorScale | undefined,
-          singleColor: undefined as SingleColorRule[] | undefined,
+          format: undefined as Format | undefined,
           idx,
         }));
+
+    // Resolve `format.like`: adopt the referenced column's *coloring* and drive
+    // it from that column's per-row value (so cells match it exactly), while
+    // keeping this column's own `number` display format.
+    const byName = new Map(raw.map((c) => [c.name, c]));
+    return raw.map((c) => {
+      const src = c.format?.like ? byName.get(c.format.like) : undefined;
+      if (src?.format) {
+        return {
+          ...c,
+          format: { ...src.format, number: c.format?.number ?? src.format.number },
+          colorIdx: src.idx,
+        };
+      }
+      return { ...c, colorIdx: c.idx };
+    });
   }, [widget.columns, data?.columns]);
 
   const rows = data?.rows ?? [];
+
+  // All data columns by name → index, so cross-column rules can reference any
+  // column (even ones not shown).
+  const dataIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    data?.columns.forEach((c, i) => m.set(c.name, i));
+    return m;
+  }, [data?.columns]);
 
   const sortedRows = useMemo(() => {
     if (!sort || rows.length === 0) return rows;
@@ -66,22 +89,38 @@ export function TableWidget({ widget, data }: Props) {
     return sortRows(rows, col.idx, sort.direction, isNumericFormat(col.format));
   }, [columns, rows, sort]);
 
-  // Resolve a color scale per column against the full (unsorted) value range so
+  // Resolve a gradient per column against the full (unsorted) value range so
   // cell backgrounds stay stable regardless of the active sort.
-  const colorScales = useMemo(() => {
+  const scales = useMemo(() => {
     const map = new Map<string, ResolvedScale>();
     for (const col of columns) {
-      if (!col.colorScale || col.idx < 0) continue;
+      if (!col.format || col.colorIdx < 0 || !hasScale(col.format, palettes)) continue;
       const values: number[] = [];
       for (const row of rows) {
-        const n = toNumber(row[col.idx]);
+        const n = toNumber(row[col.colorIdx]);
         if (n !== null) values.push(n);
       }
-      const scale = resolveScale(col.colorScale, values);
+      const scale = resolveScale(col.format, values, tokens, palettes);
       if (scale) map.set(col.name, scale);
     }
     return map;
-  }, [columns, rows]);
+  }, [columns, rows, tokens, palettes]);
+
+  // Compile each column's d3-format spec once (currency/number are handled
+  // separately). Invalid specs are skipped so cells fall back to raw text.
+  const numberFormatters = useMemo(() => {
+    const m = new Map<string, (n: number) => string>();
+    for (const col of columns) {
+      const fmt = col.format?.number;
+      if (!fmt || fmt === "currency" || fmt === "number") continue;
+      try {
+        m.set(col.name, d3Format(fmt));
+      } catch {
+        // Invalid d3-format spec: leave unset; formatCell renders raw text.
+      }
+    }
+    return m;
+  }, [columns]);
 
   if (!rows.length) {
     return <div className="text-[var(--dac-text-muted)] text-xs py-4 text-center">No data</div>;
@@ -136,19 +175,17 @@ export function TableWidget({ widget, data }: Props) {
             >
               {columns.map((col) => {
                 const numeric = isNumericFormat(col.format);
-                const raw = col.idx >= 0 ? row[col.idx] : null;
-                const scale = colorScales.get(col.name);
-                const fill = scale ? cellColor(scale, toNumber(raw)) : undefined;
-                const style: CSSProperties = {};
-                if (numeric) style.fontFamily = '"Geist Mono", monospace';
-                if (fill) {
-                  style.backgroundColor = fill.background;
-                  style.color = fill.text;
+                const raw = col.idx >= 0 ? row[col.idx] : null; // displayed value (own column)
+                const style: CSSProperties = numeric ? { fontFamily: '"Geist Mono", monospace' } : {};
+                if (col.format) {
+                  const lookup = (name: string) => {
+                    const idx = dataIndex.get(name);
+                    return idx === undefined ? undefined : row[idx];
+                  };
+                  // Coloring reads the color-source column (own, or `like` source).
+                  const colorRaw = col.colorIdx >= 0 ? row[col.colorIdx] : null;
+                  Object.assign(style, cellStyle(col.format, scales.get(col.name) ?? null, colorRaw, tokens, lookup));
                 }
-                // Single-color rules override the scale where they overlap;
-                // the first matching rule wins.
-                const rule = col.singleColor?.find((r) => matchRule(r, raw));
-                if (rule) applyRuleStyle(style, rule);
                 return (
                   <td
                     key={col.name}
@@ -157,7 +194,7 @@ export function TableWidget({ widget, data }: Props) {
                     }`}
                     style={Object.keys(style).length ? style : undefined}
                   >
-                    {formatCell(raw, col.format)}
+                    {formatCell(raw, col.format?.number, numberFormatters.get(col.name))}
                   </td>
                 );
               })}
@@ -187,8 +224,10 @@ function SortIndicator({ direction }: { direction: SortDirection | null }) {
   );
 }
 
-function isNumericFormat(format?: string): boolean {
-  return format === "currency" || format === "number";
+function isNumericFormat(format?: Format): boolean {
+  // Any explicit number format (currency, number, or a d3-format string) marks
+  // the column as numeric for alignment and sorting.
+  return format?.number != null;
 }
 
 function nextSortState(current: SortState | null, column: string): SortState | null {
@@ -234,7 +273,7 @@ function compareValues(a: unknown, b: unknown, numeric: boolean): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
 }
 
-function formatCell(value: unknown, format?: string): string {
+function formatCell(value: unknown, format?: string, d3fmt?: (n: number) => string): string {
   if (value === null || value === undefined) return "—";
   if (format === "currency") {
     const num = Number(value);
@@ -243,6 +282,11 @@ function formatCell(value: unknown, format?: string): string {
   if (format === "number") {
     const num = Number(value);
     return isNaN(num) ? String(value) : num.toLocaleString();
+  }
+  if (d3fmt) {
+    // d3-format spec (e.g. "$,.2f", ".0%"); applies only to finite numbers.
+    const num = Number(value);
+    if (Number.isFinite(num)) return d3fmt(num);
   }
   const s = String(value);
   const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})T/);

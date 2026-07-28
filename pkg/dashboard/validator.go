@@ -46,6 +46,21 @@ func Validate(d *Dashboard) error {
 		errs = append(errs, "at least one row is required")
 	}
 
+	// Custom palettes: each is a reusable gradient, referenced by name via
+	// `format.scheme`.
+	for name, colors := range d.Palettes {
+		if name == "" {
+			errs = append(errs, "palettes: a palette name cannot be empty")
+			continue
+		}
+		if _, ok := validSchemes[name]; ok {
+			errs = append(errs, fmt.Sprintf("palettes: %q collides with a built-in scheme; pick a different name", name))
+		}
+		if len(colors) < 2 {
+			errs = append(errs, fmt.Sprintf("palettes: %q needs at least 2 colors to form a gradient", name))
+		}
+	}
+
 	for i, row := range d.Rows {
 		if len(row.Widgets) == 0 {
 			errs = append(errs, fmt.Sprintf("row %d: at least one widget is required", i+1))
@@ -73,7 +88,7 @@ func Validate(d *Dashboard) error {
 			case WidgetTypeTable:
 				// Table widgets just need a query source.
 				errs = append(errs, validateQuerySource(prefix, &w, d)...)
-				validateTableColumns(prefix, &w, &errs)
+				validateTableColumns(prefix, &w, d.Palettes, &errs)
 			case WidgetTypeText:
 				if w.Content == "" {
 					errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
@@ -447,7 +462,7 @@ func validateSemanticJob(job *SemanticJob) error {
 	return err
 }
 
-var validSingleColorOps = map[string]bool{
+var validFormatOps = map[string]bool{
 	CondIsEmpty: true, CondIsNotEmpty: true,
 	CondTextContains: true, CondTextNotContains: true, CondTextStartsWith: true,
 	CondTextEndsWith: true, CondTextIsExactly: true,
@@ -457,59 +472,95 @@ var validSingleColorOps = map[string]bool{
 	CondIsBetween: true, CondIsNotBetween: true,
 }
 
-func validateTableColumns(prefix string, w *Widget, errs *[]string) {
+// validSchemes maps each built-in gradient to its color count, so a domain's
+// value count can be checked against the gradient it anchors.
+var validSchemes = map[string]int{
+	"red-white-green": 3, "green-white-red": 3,
+	"red-amber-green": 3, "green-amber-red": 3,
+	"white-green": 2, "white-red": 2, "white-blue": 2,
+}
+
+func validateTableColumns(prefix string, w *Widget, palettes map[string][]string, errs *[]string) {
+	names := make(map[string]bool, len(w.Columns))
 	for _, c := range w.Columns {
+		names[c.Name] = true
+	}
+	for _, c := range w.Columns {
+		if c.Format == nil {
+			continue
+		}
 		cp := fmt.Sprintf("%s: column %q", prefix, c.Name)
-		if cs := c.ColorScale; cs != nil {
-			// The min stop may not use type "max" and the max stop may not use
-			// type "min"; the mid stop is number/percent/percentile only.
-			validateColorStop(cp, "min", cs.Min, []string{StopTypeMin, StopTypeNumber, StopTypePercent, StopTypePercentile}, StopTypeMin, errs)
-			validateColorStop(cp, "mid", cs.Mid, []string{StopTypeNumber, StopTypePercent, StopTypePercentile}, StopTypePercentile, errs)
-			validateColorStop(cp, "max", cs.Max, []string{StopTypeMax, StopTypeNumber, StopTypePercent, StopTypePercentile}, StopTypeMax, errs)
+		if c.Format.Like != "" {
+			if c.Format.Like == c.Name {
+				*errs = append(*errs, cp+".format.like: cannot reference itself")
+			} else if !names[c.Format.Like] {
+				*errs = append(*errs, fmt.Sprintf("%s.format.like: references unknown column %q", cp, c.Format.Like))
+			}
 		}
-		for i, r := range c.SingleColor {
-			validateSingleColorRule(fmt.Sprintf("%s singleColor[%d]", cp, i), r, errs)
-		}
+		validateFormat(cp, c.Format, palettes, errs)
 	}
 }
 
-func validateColorStop(prefix, role string, stop *ColorStop, allowed []string, defaultType string, errs *[]string) {
-	if stop == nil {
-		return
+func validateFormat(prefix string, f *Format, palettes map[string][]string, errs *[]string) {
+	if f.Scheme != "" {
+		_, isBuiltin := validSchemes[f.Scheme]
+		_, isPalette := palettes[f.Scheme]
+		if !isBuiltin && !isPalette {
+			*errs = append(*errs, fmt.Sprintf("%s.format.scheme: unknown scheme %q (not a built-in or a defined palette)", prefix, f.Scheme))
+		}
 	}
-	if stop.Type != "" && !containsString(allowed, stop.Type) {
-		*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: type %q not allowed (expected one of: %s)", prefix, role, stop.Type, strings.Join(allowed, ", ")))
-		return
+	// A gradient (array backgroundColor) needs at least two colors to blend.
+	if colors, ok := f.BackgroundColor.([]interface{}); ok && len(colors) < 2 {
+		*errs = append(*errs, fmt.Sprintf("%s.format.backgroundColor: a gradient needs at least 2 colors (use a single string for a flat fill)", prefix))
 	}
-	eff := stop.Type
-	if eff == "" {
-		eff = defaultType
+	if f.Domain != nil {
+		validateDomain(prefix, f, palettes, errs)
 	}
-	switch eff {
-	case StopTypeMin, StopTypeMax:
-		if stop.Value != nil {
-			*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: value is not allowed for type %q", prefix, role, eff))
-		}
-	case StopTypeNumber:
-		if stop.Type != "" && stop.Value == nil {
-			*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: value is required for type %q", prefix, role, eff))
-		}
-	case StopTypePercent, StopTypePercentile:
-		if stop.Type != "" && stop.Value == nil {
-			*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: value is required for type %q", prefix, role, eff))
-		}
-		if stop.Value != nil && (*stop.Value < 0 || *stop.Value > 100) {
-			*errs = append(*errs, fmt.Sprintf("%s.colorScale.%s: %s value must be between 0 and 100", prefix, role, eff))
-		}
+	for i, r := range f.Rules {
+		validateFormatRule(fmt.Sprintf("%s.format.rules[%d]", prefix, i), r, errs)
 	}
 }
 
-func validateSingleColorRule(prefix string, r SingleColorRule, errs *[]string) {
+func validateDomain(prefix string, f *Format, palettes map[string][]string, errs *[]string) {
+	d := f.Domain
+	// unit must be a known kind.
+	if d.Unit != "" && d.Unit != "value" && d.Unit != "percent" && d.Unit != "percentile" {
+		*errs = append(*errs, fmt.Sprintf("%s.format.domain.unit: unknown unit %q (expected value, percent, or percentile)", prefix, d.Unit))
+	}
+	// percent/percentile anchors are 0–100.
+	if d.Unit == "percent" || d.Unit == "percentile" {
+		for _, v := range d.Anchors {
+			if v < 0 || v > 100 {
+				*errs = append(*errs, fmt.Sprintf("%s.format.domain: %s anchors must be between 0 and 100", prefix, d.Unit))
+				break
+			}
+		}
+	}
+	// A domain pins the anchors of a gradient, whose colors come from an explicit
+	// backgroundColor array, a built-in scheme, or a custom palette.
+	colorCount := 0
+	if colors, ok := f.BackgroundColor.([]interface{}); ok {
+		colorCount = len(colors)
+	} else if c, ok := validSchemes[f.Scheme]; ok {
+		colorCount = c
+	} else if p, ok := palettes[f.Scheme]; ok {
+		colorCount = len(p)
+	} else {
+		*errs = append(*errs, fmt.Sprintf("%s.format.domain: requires a gradient (a backgroundColor list, a scheme, or a palette)", prefix))
+		return
+	}
+	// When explicit anchors are given they must match the gradient's color count.
+	if len(d.Anchors) > 0 && len(d.Anchors) != colorCount {
+		*errs = append(*errs, fmt.Sprintf("%s.format.domain: has %d anchors but the gradient has %d colors (must match)", prefix, len(d.Anchors), colorCount))
+	}
+}
+
+func validateFormatRule(prefix string, r FormatRule, errs *[]string) {
 	if r.If == "" {
 		*errs = append(*errs, fmt.Sprintf("%s: if (operator) is required", prefix))
 		return
 	}
-	if !validSingleColorOps[r.If] {
+	if !validFormatOps[r.If] {
 		*errs = append(*errs, fmt.Sprintf("%s: unknown operator %q", prefix, r.If))
 		return
 	}
@@ -525,21 +576,12 @@ func validateSingleColorRule(prefix string, r SingleColorRule, errs *[]string) {
 			*errs = append(*errs, fmt.Sprintf("%s: %q requires a value", prefix, r.If))
 		}
 	}
-	if !r.Bold && !r.Italic && !r.Underline && !r.Strikethrough && r.TextColor == "" && r.Background == "" {
-		*errs = append(*errs, fmt.Sprintf("%s: at least one style (background, textColor, bold, italic, underline, strikethrough) is required", prefix))
+	if !r.Bold && !r.Italic && !r.Underline && !r.Strikethrough && r.TextColor == "" && r.BackgroundColor == "" {
+		*errs = append(*errs, fmt.Sprintf("%s: at least one style (backgroundColor, textColor, bold, italic, underline, strikethrough) is required", prefix))
 	}
 }
 
 func isPairValue(v any) bool {
 	arr, ok := v.([]interface{})
 	return ok && len(arr) == 2
-}
-
-func containsString(list []string, s string) bool {
-	for _, item := range list {
-		if item == s {
-			return true
-		}
-	}
-	return false
 }

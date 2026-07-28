@@ -1,91 +1,145 @@
 name: Conditional Formatting
+
+# Custom palette: a reusable gradient, referenced by name with `scheme` below.
+palettes:
+  risk: [red, amber, green]
+
 rows:
+  # 1. Coloring: flat fill, auto gradient, pinned domain, built-in scheme, custom palette
   - widgets:
-      - name: Colour scale + single colour
+      - name: Coloring
         type: table
         col: 12
         data:
-          columns: [region, revenue, growth, status]
+          columns: [region, revenue, growth, health, rating]
           rows:
-            - [North, 1200, 12, closed]
-            - [South, 4800, -5, overdue]
-            - [East, 3100, 8, pending]
-            - [West, 900, 22, overdue]
-            - [Central, 2500, 0, closed]
+            - [North,   1200,  12, 0.98, 4]
+            - [South,   4800,  -5, 0.40, 2]
+            - [East,    3100,   8, 0.72, 3]
+            - [West,     900,  22, 0.15, 1]
+            - [Central, 2500,   0, 0.55, 5]
         columns:
           - name: region
             label: Region
+            format: { backgroundColor: "#F8FAFC", textColor: "#334155", bold: true }   # flat fill + text style
           - name: revenue
             label: Revenue
-            format: currency
-            colorScale: {}                   
+            format:
+              number: currency
+              backgroundColor: [red, white, green]                # gradient, auto min to max
           - name: growth
             label: Growth %
-            format: number
-            colorScale:
-              min: { type: number, value: -25, color: "#E67C73" }
-              mid: { type: number, value: 0,   color: "#FFFFFF" }
-              max: { type: number, value: 25,  color: "#57BB8A" }
-          - name: status
-            label: Status
-            singleColor:
-              - if: text_is_exactly
-                value: overdue
-                background: "#FEE2E2"
-                textColor: "#991B1B"
-                bold: true
-              - if: text_is_exactly
-                value: closed
-                background: "#DCFCE7"
+            format:
+              number: number
+              domain: [-25, 0, 25]                                # pinned anchors, 0 = neutral middle
+              backgroundColor: [red, white, green]
+          - name: health
+            label: Health
+            format:
+              number: ".0%"
+              scheme: red-white-green                             # built-in scheme
+          - name: rating
+            label: Rating
+            format:
+              number: number
+              scheme: risk                                        # custom palette, by name
+
+  # 2. Domain units: percent of the range vs percentile of the data
   - widgets:
-      - name: Single-colour operators
+      - name: Domain units
         type: table
         col: 12
         data:
-          columns: [task, note, score, due, owner]
+          columns: [item, percent, percentile]
           rows:
-            - [T1, "URGENT fix", 92, "2026-07-01", alice]
-            - [T2, "routine check", 45, "2026-07-20", ""]
-            - [T3, "urgent review", 68, "2026-08-01", bob]
-            - [T4, "cleanup", 30, "2026-07-22", ""]
-            - [T5, "normal task", 80, "2026-07-25", carol]
+            - [P1, 20,  20]
+            - [P2, 10,  10]
+            - [P3, 200,  200]
+            - [P4, 30,  30]
+            - [P5, 40, 40]      
+        columns:
+          - name: percent
+            label: "percent (white lands at mid-range = 105)"
+            format:
+              backgroundColor: [red, white, green]
+              domain: { unit: percent, anchors: [0, 50, 100] }
+          - name: percentile
+            label: "percentile (white lands at median = 30)"
+            format:
+              backgroundColor: [red, white, green]
+              domain: { unit: percentile, anchors: [0, 50, 100] }
+
+  # 3. Rules: text, numeric, range, empty, date, cross-column, and every text style
+  - widgets:
+      - name: Rules
+        type: table
+        col: 12
+        data:
+          columns: [task, note, score, actual, target, due, owner]
+          rows:
+            - [T1, "URGENT fix",    92, 920,  1000, "2026-07-01", alice]
+            - [T2, "routine check", 45, 1100, 1000, "2026-07-20", ""]
+            - [T3, "urgent review", 68, 680,  900,  "2026-08-01", bob]
+            - [T4, "cleanup",       30, 300,  500,  "2026-07-22", ""]
         columns:
           - name: task
             label: Task
           - name: note
-            label: "Note — text_contains 'urgent' (case-insensitive)"
-            singleColor:
-              - if: text_contains
-                value: urgent
-                background: "#FEF9C3"
-                bold: true
+            label: "Note (text_contains 'urgent')"
+            format:
+              rules:
+                - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
           - name: score
-            label: "Score — >=80 / <50 / between 50–79"
-            format: number
-            singleColor:
-              - if: greater_than_or_equal
-                value: 80
-                background: "#DCFCE7"
-              - if: less_than
-                value: 50
-                background: "#FEE2E2"
-                strikethrough: true
-              - if: is_between
-                value: [50, 79]
-                background: "#FEF9C3"
+            label: "Score (>=80 / 50-79 / <50)"
+            format:
+              number: number
+              rules:
+                - { if: greater_than_or_equal, value: 80, backgroundColor: green }
+                - { if: is_between, value: [50, 79], backgroundColor: indigo, textColor: white }
+                - { if: less_than, value: 50, textColor: red, strikethrough: true }
+          - name: actual
+            label: "Actual (cross-column vs target)"
+            format:
+              number: number
+              rules:
+                - { if: less_than, value: { column: target }, backgroundColor: red }
+                - { if: greater_than, value: { column: target }, backgroundColor: green }
+          - name: target
+            label: Target
+            format: { number: number }
           - name: due
-            label: "Due — date_before / date_after 2026-07-22"
-            singleColor:
-              - if: date_before
-                value: "2026-07-22"
-                textColor: "#DC2626"
-                bold: true
-              - if: date_after
-                value: "2026-07-22"
-                textColor: "#16A34A"
+            label: "Due (date_before / date_after)"
+            format:
+              rules:
+                - { if: date_before, value: "2026-07-22", textColor: red, underline: true }
+                - { if: date_after, value: "2026-07-22", textColor: green }
           - name: owner
-            label: "Owner — is_empty"
-            singleColor:
-              - if: is_empty
-                background: "#F3F4F6"
-                italic: true
+            label: "Owner (is_empty)"
+            format:
+              rules:
+                - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }
+
+  # 4. Mirror another column: amount is colored exactly like status, keeps its own currency
+  - widgets:
+      - name: Mirror (like)
+        type: table
+        col: 12
+        data:
+          columns: [status, amount]
+          rows:
+            - [overdue, 1200]
+            - [closed,  4800]
+            - [pending, 3100]
+            - [overdue,  900]
+        columns:
+          - name: status
+            label: Status
+            format:
+              rules:
+                - { if: text_is_exactly, value: overdue, backgroundColor: red, bold: true }
+                - { if: text_is_exactly, value: closed, backgroundColor: green }
+          - name: amount
+            label: "Amount (like: status)"
+            format:
+              number: currency
+              like: status

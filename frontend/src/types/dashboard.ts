@@ -15,6 +15,8 @@ export interface Dashboard {
   models?: Record<string, string>;
   filters?: Filter[];
   queries?: Record<string, Query>;
+  /** Reusable named gradients, referenced by a column's format.scheme. */
+  palettes?: Record<string, string[]>;
   rows: Row[];
   file_type?: "yaml" | "tsx";
 }
@@ -110,26 +112,11 @@ export interface Widget {
 export interface TableColumn {
   name: string;
   label?: string;
-  format?: string;
-  colorScale?: ColorScale;
-  singleColor?: SingleColorRule[];
+  /** Value display + conditional coloring. A bare string is shorthand for `{ number }`. */
+  format?: Format | string;
 }
 
-export type ColorStopType = "min" | "max" | "number" | "percent" | "percentile";
-
-export interface ColorStop {
-  type?: ColorStopType; // min | max | number | percent | percentile
-  value?: number; // for number | percent | percentile
-  color?: string;
-}
-
-export interface ColorScale {
-  min?: ColorStop | string;
-  mid?: ColorStop | string;
-  max?: ColorStop | string;
-}
-
-export type SingleColorOperator =
+export type FormatOperator =
   | "is_empty"
   | "is_not_empty"
   | "text_contains"
@@ -149,16 +136,53 @@ export type SingleColorOperator =
   | "is_between"
   | "is_not_between";
 
+/** Reference to another column in the same row, used as a rule comparison value. */
+export interface ColumnRef {
+  column: string;
+}
 
-export interface SingleColorRule {
-  if: SingleColorOperator;
-  value?: number | string | Array<number | string>; // scalar, or [low, high] for between
+export type RuleValue = number | string | ColumnRef | Array<number | string | ColumnRef>;
+
+export interface FormatRule {
+  if: FormatOperator;
+  value?: RuleValue;
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
   strikethrough?: boolean;
   textColor?: string;
-  background?: string;
+  backgroundColor?: string;
+}
+
+/**
+ * A column's value display and conditional coloring.
+ * `backgroundColor`: string = flat fill · array = gradient.
+ * `domain`: gradient anchor values (omit → auto min/max).
+ * `scheme`: a gradient by name (built-in or a dashboard `palettes` entry). `rules`: conditional styling (first match wins).
+ */
+export interface Format {
+  /** Mirror another column's format and per-row value, so cells get identical colors. */
+  like?: string;
+  number?: string;
+  backgroundColor?: string | string[];
+  textColor?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  /**
+   * Gradient anchors. Either a bare array of raw values, or `{ unit, anchors }`
+   * where `unit` is `value` (default), `percent`, or `percentile`. Omitting
+   * `anchors` spreads the colors evenly across the unit (percentile → median midpoint).
+   */
+  domain?: number[] | Domain;
+  scheme?: string;
+  rules?: FormatRule[];
+}
+
+export interface Domain {
+  unit?: "value" | "percent" | "percentile";
+  anchors?: number[];
 }
 
 /** Structured encoding for a chart axis. `y.field` may list several series columns. */

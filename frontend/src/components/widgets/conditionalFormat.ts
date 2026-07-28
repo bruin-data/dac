@@ -1,17 +1,11 @@
 import type { CSSProperties } from "react";
-import type { ColorScale, ColorStop, SingleColorRule } from "../../types/dashboard";
+import type { ColumnRef, Format, FormatRule, RuleValue } from "../../types/dashboard";
 
-// Pure logic for table conditional formatting — colour scales (gradient) and
-// single-colour rules (thresholds).
+// Pure logic for table conditional formatting: value scales (gradient) and
+// rules (thresholds/conditions). Colors are resolved against the theme token map so
+// named colors follow light/dark mode.
 
-// Default three-color scale: muted red (low) → white (mid) → muted green (high).
-// Going through white keeps mid-range cells calm; only the extremes get color.
-const DEFAULT_MIN_COLOR: RGB = [230, 124, 115]; // #E67C73
-const DEFAULT_MID_COLOR: RGB = [255, 255, 255]; // #FFFFFF
-const DEFAULT_MAX_COLOR: RGB = [87, 187, 138]; // #57BB8A
-
-export type RGB = [number, number, number];
-type StopRole = "min" | "mid" | "max";
+type RGB = [number, number, number];
 
 interface ScaleStop {
   value: number;
@@ -19,7 +13,47 @@ interface ScaleStop {
 }
 
 export interface ResolvedScale {
-  stops: ScaleStop[]; // sorted ascending by value; length 2 or 3
+  stops: ScaleStop[]; // sorted ascending by value
+}
+
+// Friendly color names → theme token key (the chart palette). Resolving through
+// tokens gives automatic light/dark values, and keeps table + chart colors identical.
+const NAMED_TOKEN: Record<string, string> = {
+  red: "chart-7",
+  green: "chart-6",
+  blue: "chart-8",
+  indigo: "chart-1",
+  cyan: "chart-2",
+  purple: "chart-3",
+  pink: "chart-4",
+  amber: "chart-5",
+  positive: "chart-6",
+  negative: "chart-7",
+  warning: "chart-5",
+};
+
+// Built-in gradient schemes. "background" is the theme surface, so the neutral
+// middle blends with the page in both light and dark mode.
+const SCHEMES: Record<string, string[]> = {
+  "red-white-green": ["red", "background", "green"],
+  "green-white-red": ["green", "background", "red"],
+  "red-amber-green": ["red", "amber", "green"],
+  "green-amber-red": ["green", "amber", "red"],
+  "white-green": ["background", "green"],
+  "white-red": ["background", "red"],
+  "white-blue": ["background", "blue"],
+};
+
+/** Resolve a color value (hex, named color, token, or raw CSS) to a CSS color string. */
+export function resolveColor(value: string | undefined, tokens: Record<string, string>): string | undefined {
+  if (!value) return undefined;
+  if (value.startsWith("#")) return value;
+  if (value === "white") return "#FFFFFF";
+  if (value === "black") return "#000000";
+  const named = NAMED_TOKEN[value];
+  if (named && tokens[named]) return tokens[named];
+  if (tokens[value]) return tokens[value]; // e.g. background, success, chart-3
+  return value; // raw CSS name / var(...)
 }
 
 export function toNumber(value: unknown): number | null {
@@ -28,69 +62,41 @@ export function toNumber(value: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
-function normalizeStop(stop?: ColorStop | string): ColorStop | undefined {
-  if (stop == null) return undefined;
-  return typeof stop === "string" ? { color: stop } : stop;
+// Custom palettes are dashboard-defined gradients, referenced by name via
+// `scheme`, and take the same shape as the built-ins.
+type Palettes = Record<string, string[]>;
+
+function gradientColorNames(format: Format, palettes?: Palettes): string[] | null {
+  if (Array.isArray(format.backgroundColor)) return format.backgroundColor;
+  if (format.scheme) return SCHEMES[format.scheme] ?? palettes?.[format.scheme] ?? null;
+  return null;
 }
 
-/** Resolve a stop's anchor value against the sorted column values, per its type. */
-function resolveAnchor(stop: ColorStop | undefined, role: StopRole, sorted: number[]): number {
+/** True when this format paints a gradient (needs the column's value range). */
+export function hasScale(format: Format, palettes?: Palettes): boolean {
+  return gradientColorNames(format, palettes) !== null;
+}
+
+/** Build the gradient stops for a column from its format and observed values. */
+export function resolveScale(
+  format: Format,
+  values: number[],
+  tokens: Record<string, string>,
+  palettes?: Palettes,
+): ResolvedScale | null {
+  const names = gradientColorNames(format, palettes);
+  if (!names || names.length < 2 || values.length === 0) return null;
+
+  const rgbs: RGB[] = names.map((n) => parseHex(resolveColor(n, tokens)) ?? [136, 136, 136]);
+  const sorted = [...values].sort((a, b) => a - b);
   const lo = sorted[0];
   const hi = sorted[sorted.length - 1];
-  const type = stop?.type ?? (role === "min" ? "min" : role === "max" ? "max" : "percentile");
-  const pctDefault = role === "min" ? 0 : role === "max" ? 100 : 50;
-  switch (type) {
-    case "min":
-      return lo;
-    case "max":
-      return hi;
-    case "number":
-      return stop?.value ?? (role === "max" ? hi : lo);
-    case "percent":
-      return lo + ((stop?.value ?? pctDefault) / 100) * (hi - lo);
-    case "percentile":
-      return percentileValue(sorted, stop?.value ?? pctDefault);
-    default:
-      return role === "max" ? hi : lo;
-  }
-}
 
-/** Linear-interpolated percentile of an ascending-sorted array (p in 0–100). */
-export function percentileValue(sorted: number[], p: number): number {
-  if (sorted.length === 1) return sorted[0];
-  const rank = (Math.max(0, Math.min(100, p)) / 100) * (sorted.length - 1);
-  const lo = Math.floor(rank);
-  const hi = Math.ceil(rank);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
-}
+  const k = names.length;
+  const anchors = resolveAnchors(format.domain, k, sorted, lo, hi);
+  const stops = rgbs.map((rgb, i) => ({ value: anchors[i], rgb })).sort((a, b) => a.value - b.value);
 
-/** Build the concrete color stops for a column from its config and observed values. */
-export function resolveScale(cs: ColorScale, values: number[]): ResolvedScale | null {
-  if (values.length === 0) return null;
-
-  const sorted = [...values].sort((a, b) => a - b);
-  const minStop = normalizeStop(cs.min);
-  const midStop = normalizeStop(cs.mid);
-  const maxStop = normalizeStop(cs.max);
-
-  const hasExplicitColor = Boolean(minStop?.color || midStop?.color || maxStop?.color);
-  // The mid stop is active when it is given, or when nothing is configured at
-  // all (the pure default is a three-color scale).
-  const useMid = cs.mid != null || !hasExplicitColor;
-
-  const minColor = parseHex(minStop?.color) ?? DEFAULT_MIN_COLOR;
-  const maxColor = parseHex(maxStop?.color) ?? DEFAULT_MAX_COLOR;
-
-  const stops: ScaleStop[] = [{ value: resolveAnchor(minStop, "min", sorted), rgb: minColor }];
-  if (useMid) {
-    stops.push({ value: resolveAnchor(midStop, "mid", sorted), rgb: parseHex(midStop?.color) ?? DEFAULT_MID_COLOR });
-  }
-  stops.push({ value: resolveAnchor(maxStop, "max", sorted), rgb: maxColor });
-  stops.sort((a, b) => a.value - b.value);
-
-  // Degenerate range (all anchors equal): paint every cell with the top color
-  // rather than dividing by zero.
+  // Degenerate range (all anchors equal): paint every cell the top color.
   if (!(stops[stops.length - 1].value > stops[0].value)) {
     const rgb = stops[stops.length - 1].rgb;
     return { stops: [{ value: 0, rgb }, { value: 0, rgb }] };
@@ -98,8 +104,51 @@ export function resolveScale(cs: ColorScale, values: number[]): ResolvedScale | 
   return { stops };
 }
 
+/**
+ * Turn a `domain` into `k` anchor values.
+ * - omitted → evenly spaced across the value range (auto min/max)
+ * - array → raw values
+ * - `{ unit, anchors }` → anchors (or, if omitted, evenly spaced in that unit)
+ *   read as raw values / percent of range / percentile of the data.
+ */
+function resolveAnchors(
+  domain: number[] | { unit?: string; anchors?: number[] } | undefined,
+  k: number,
+  sorted: number[],
+  lo: number,
+  hi: number,
+): number[] {
+  const evenValue = () => Array.from({ length: k }, (_, i) => (k === 1 ? lo : lo + (i / (k - 1)) * (hi - lo)));
+
+  if (!domain) return evenValue();
+  if (Array.isArray(domain)) {
+    return domain.length === k ? domain : evenValue();
+  }
+
+  const unit = domain.unit ?? "value";
+  if (unit === "value") {
+    return domain.anchors && domain.anchors.length === k ? domain.anchors : evenValue();
+  }
+  // percent / percentile: use given positions, or spread evenly 0..100.
+  const positions =
+    domain.anchors && domain.anchors.length === k
+      ? domain.anchors
+      : Array.from({ length: k }, (_, i) => (k === 1 ? 0 : (i / (k - 1)) * 100));
+  return positions.map((p) => (unit === "percent" ? lo + (p / 100) * (hi - lo) : percentileValue(sorted, p)));
+}
+
+/** Linear-interpolated percentile of an ascending-sorted array (p in 0–100). */
+function percentileValue(sorted: number[], p: number): number {
+  if (sorted.length <= 1) return sorted[0] ?? 0;
+  const rank = (Math.max(0, Math.min(100, p)) / 100) * (sorted.length - 1);
+  const lo = Math.floor(rank);
+  const hi = Math.ceil(rank);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (rank - lo);
+}
+
 /** Interpolate the background/text colors for a single cell value. */
-export function cellColor(scale: ResolvedScale, value: number | null): { background: string; text: string } | undefined {
+function cellColor(scale: ResolvedScale, value: number | null): { background: string; text: string } | undefined {
   if (value === null) return undefined;
 
   const { stops } = scale;
@@ -122,6 +171,58 @@ export function cellColor(scale: ResolvedScale, value: number | null): { backgro
     text: rgbLuminance(rgb) > 0.4 ? "#0A0D14" : "#FFFFFF",
   };
 }
+
+/**
+ * Compute the inline style for one cell: whole-column base → gradient → first
+ * matching rule (each layer overrides the properties it sets). `lookup` returns
+ * another column's value in the same row for cross-column rules.
+ */
+export function cellStyle(
+  format: Format,
+  scale: ResolvedScale | null,
+  raw: unknown,
+  tokens: Record<string, string>,
+  lookup: (column: string) => unknown,
+): CSSProperties {
+  const style: CSSProperties = {};
+
+  // 1. whole-column base (flat fill + text styles)
+  if (typeof format.backgroundColor === "string") style.backgroundColor = resolveColor(format.backgroundColor, tokens);
+  if (format.textColor) style.color = resolveColor(format.textColor, tokens);
+  applyTextStyles(style, format);
+
+  // 2. gradient (overrides background; sets contrasting text unless one is fixed)
+  if (scale) {
+    const fill = cellColor(scale, toNumber(raw));
+    if (fill) {
+      style.backgroundColor = fill.background;
+      if (!format.textColor) style.color = fill.text;
+    }
+  }
+
+  // 3. first matching rule
+  const rule = format.rules?.find((r) => matchRule(r, raw, lookup));
+  if (rule) applyRuleStyle(style, rule, tokens);
+
+  return style;
+}
+
+function applyTextStyles(style: CSSProperties, s: Format | FormatRule): void {
+  if (s.bold) style.fontWeight = 600;
+  if (s.italic) style.fontStyle = "italic";
+  const decoration: string[] = [];
+  if (s.underline) decoration.push("underline");
+  if (s.strikethrough) decoration.push("line-through");
+  if (decoration.length) style.textDecoration = decoration.join(" ");
+}
+
+function applyRuleStyle(style: CSSProperties, rule: FormatRule, tokens: Record<string, string>): void {
+  if (rule.backgroundColor) style.backgroundColor = resolveColor(rule.backgroundColor, tokens);
+  if (rule.textColor) style.color = resolveColor(rule.textColor, tokens);
+  applyTextStyles(style, rule);
+}
+
+// --- color helpers ---
 
 function lerpRGB(a: RGB, b: RGB, t: number): RGB {
   return [
@@ -146,38 +247,23 @@ function rgbLuminance([r, g, b]: RGB): number {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
-/** Turn a matched single-color rule into inline styles, merged onto `style`. */
-export function applyRuleStyle(style: CSSProperties, rule: SingleColorRule): void {
-  if (rule.background) style.backgroundColor = rule.background;
-  if (rule.textColor) style.color = rule.textColor;
-  if (rule.bold) style.fontWeight = 600;
-  if (rule.italic) style.fontStyle = "italic";
-  const decoration: string[] = [];
-  if (rule.underline) decoration.push("underline");
-  if (rule.strikethrough) decoration.push("line-through");
-  if (decoration.length) style.textDecoration = decoration.join(" ");
-}
+// --- rule matching ---
 
 const isEmpty = (v: unknown): boolean => v === null || v === undefined || v === "";
-
-// Lowercased text for case-insensitive comparison; arrays/nullish become "".
 const asText = (v: unknown): string => (v == null || Array.isArray(v) ? "" : String(v)).toLowerCase();
 
-// Numeric comparison that only matches when both sides parse as numbers.
 function numericCompare(cell: unknown, value: unknown, ok: (a: number, b: number) => boolean): boolean {
   const a = toNumber(cell);
   const b = toNumber(value);
   return a !== null && b !== null && ok(a, b);
 }
 
-// Numeric when both sides are numbers, otherwise a string comparison.
 function valuesEqual(cell: unknown, value: unknown): boolean {
   const a = toNumber(cell);
   const b = toNumber(value);
   return a !== null && b !== null ? a === b : String(cell) === String(value);
 }
 
-// true/false when the [low, high] range is valid, null when it is malformed.
 function betweenResult(cell: unknown, value: unknown): boolean | null {
   const pair = Array.isArray(value) ? value : [];
   const n = toNumber(cell);
@@ -187,9 +273,7 @@ function betweenResult(cell: unknown, value: unknown): boolean | null {
   return n >= Math.min(lo, hi) && n <= Math.max(lo, hi);
 }
 
-// Each operator is a predicate over (cell value, rule value). Empty cells are
-// handled in matchRule before this table is consulted.
-const CONDITIONS: Record<SingleColorRule["if"], (cell: unknown, value: unknown) => boolean> = {
+const CONDITIONS: Record<FormatRule["if"], (cell: unknown, value: unknown) => boolean> = {
   is_empty: (c) => isEmpty(c),
   is_not_empty: (c) => !isEmpty(c),
   text_contains: (c, v) => asText(c).includes(asText(v)),
@@ -210,21 +294,33 @@ const CONDITIONS: Record<SingleColorRule["if"], (cell: unknown, value: unknown) 
   is_not_between: (c, v) => betweenResult(c, v) === false,
 };
 
-/** Evaluate whether a cell value satisfies a single-color rule's condition. */
-export function matchRule(rule: SingleColorRule, raw: unknown): boolean {
+/** Resolve `{ column: X }` references (scalar or inside a list) to same-row values. */
+function resolveRuleValue(value: RuleValue | undefined, lookup: (column: string) => unknown): unknown {
+  if (Array.isArray(value)) return value.map((v) => resolveOne(v, lookup));
+  return resolveOne(value, lookup);
+}
+
+function resolveOne(v: unknown, lookup: (column: string) => unknown): unknown {
+  if (v !== null && typeof v === "object" && !Array.isArray(v) && "column" in (v as object)) {
+    return lookup((v as ColumnRef).column);
+  }
+  return v;
+}
+
+/** Evaluate whether a cell value satisfies a rule's condition. */
+function matchRule(rule: FormatRule, raw: unknown, lookup: (column: string) => unknown): boolean {
   if (rule.if === "is_empty") return isEmpty(raw);
   if (rule.if === "is_not_empty") return !isEmpty(raw);
-  // Every other operator treats an empty cell as a non-match.
-  if (isEmpty(raw)) return false;
-  return CONDITIONS[rule.if]?.(raw, rule.value) ?? false;
+  if (isEmpty(raw)) return false; // every other operator: empty is a non-match
+  const value = resolveRuleValue(rule.value, lookup);
+  return CONDITIONS[rule.if]?.(raw, value) ?? false;
 }
 
 function matchDate(op: "date_is" | "date_before" | "date_after", raw: unknown, value: unknown): boolean {
   const a = Date.parse(String(raw));
   const b = Date.parse(String(value));
   if (isNaN(a) || isNaN(b)) return false;
-  // Compare exact instants when the target value carries a time component;
-  // otherwise compare by calendar day.
+  // Exact instant when the value carries a time, otherwise by calendar day.
   const hasTime = /[T\s]\d{1,2}:/.test(String(value));
   const x = hasTime ? a : Math.floor(a / 86400000);
   const y = hasTime ? b : Math.floor(b / 86400000);

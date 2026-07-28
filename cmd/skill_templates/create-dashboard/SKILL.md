@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 3
+version: 5
 ---
 
 # Create Dashboard
@@ -103,10 +103,70 @@ rows:
 
 Widget types are `metric`, `chart`, `table`, `text`, `divider`, and `image`.
 
-A `table` column takes `name`, `label`, `format` (`number` or `currency`), and optional spreadsheet-style conditional formatting:
+A `table` column takes `name`, `label`, and `format`. `format` is a string (number format: `number`, `currency`, or a d3-format string), or an object combining number format and conditional coloring:
 
-- `colorScale` — gradient across `min`/`mid`/`max` stops, each `{ type, value, color }` (bare string = color; `colorScale: {}` = default red→white→green). Stop types: `min | max | number | percent | percentile`; the `min` stop can't be `max` and vice versa, `mid` is `number`/`percent`/`percentile` only, and `value` is required for number/percent/percentile (not min/max).
-- `singleColor` — list of threshold rules `{ if, value, background, textColor, bold, italic, underline, strikethrough }`; first match wins. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (compare by day for date-only values, or exact instant when the value includes a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between` (value is `[low, high]`).
+- `number`: the value format string.
+- `backgroundColor`: a **string** is a flat whole-column fill; an **array** is a gradient (2+ colors). `domain` pins gradient anchors: a raw array `[-25, 0, 25]`, or `{ unit, anchors }` where `unit` is `value` (default), `percent`, or `percentile` (0 to 100). Omit `domain` for auto min/max; omit `anchors` to spread evenly (percentile puts the midpoint at the median).
+- `scheme`: a gradient by name instead of listing colors. Either a built-in (`red-white-green`, `green-white-red`, `red-amber-green`, `green-amber-red`, `white-green`, `white-red`, `white-blue`) or a custom palette defined once at the dashboard top level under `palettes` (name to 2+ colors, reused by name, must not collide with a built-in). Works with `domain` too.
+- `textColor`, `bold`, `italic`, `underline`, `strikethrough`: whole-column text styling.
+- `rules`: a list of `{ if, value, ...styles }`; first match wins. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day for a date, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
+- `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
+
+Colors are **named** (`red green blue indigo cyan purple pink amber`, plus `white`/`black`, aliases `positive`/`negative`/`warning`) or hex. Named colors adapt to light and dark.
+
+Worked example:
+
+```yaml
+name: Regions
+
+palettes:
+  risk: [red, amber, green]                                       # custom palette, reused by name
+
+rows:
+  - widgets:
+      - name: Regions
+        type: table
+        col: 12
+        sql: SELECT region, revenue, growth, margin, score, status, actual, target, bonus, due FROM regions
+        columns:
+          - name: region
+            format: { backgroundColor: "#F8FAFC", bold: true }          # flat fill + text style
+          - name: revenue
+            format: { number: currency, scheme: red-white-green }       # built-in gradient
+          - name: growth
+            format:
+              number: number
+              domain: [-25, 0, 25]                                      # raw anchors (0 = neutral)
+              backgroundColor: [blue, white, amber]                     # custom gradient colors
+          - name: margin
+            format: { number: ".0%", scheme: risk, domain: { unit: percentile } }   # palette + percentile domain
+          - name: score
+            format:
+              number: number
+              rules:
+                - { if: greater_than_or_equal, value: 80, backgroundColor: green }   # scalar
+                - { if: is_between, value: [50, 79], backgroundColor: amber }         # [low, high]
+                - { if: less_than, value: 50, textColor: red, strikethrough: true }   # text style
+          - name: status
+            format:
+              rules:
+                - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
+                - { if: text_is_exactly, value: overdue, backgroundColor: red }
+                - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }          # no value
+          - name: actual
+            format:
+              number: number
+              rules:
+                - { if: less_than, value: { column: target }, backgroundColor: red }    # cross-column
+                - { if: greater_than, value: { column: target }, backgroundColor: green }
+          - name: bonus
+            format: { number: currency, like: score }                  # mirror score's colors, keep own number
+          - name: due
+            format:
+              rules:
+                - { if: date_before, value: "2026-07-22", textColor: red }
+                - { if: date_after, value: "2026-07-22", textColor: green }
+```
 
 ## Filters
 

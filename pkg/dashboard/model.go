@@ -24,15 +24,16 @@ const (
 
 // Dashboard represents a complete dashboard definition loaded from YAML.
 type Dashboard struct {
-	Schema      string            `yaml:"schema,omitempty" json:"schema,omitempty"`
-	Name        string            `yaml:"name" json:"name"`
-	Description string            `yaml:"description,omitempty" json:"description,omitempty"`
-	Connection  string            `yaml:"connection,omitempty" json:"connection,omitempty"`
-	Model       string            `yaml:"model,omitempty" json:"model,omitempty"`
-	Models      map[string]string `yaml:"models,omitempty" json:"models,omitempty"`
-	Filters     []Filter          `yaml:"filters,omitempty" json:"filters,omitempty"`
-	Queries     map[string]Query  `yaml:"queries,omitempty" json:"queries,omitempty"`
-	Rows        []Row             `yaml:"rows" json:"rows"`
+	Schema      string              `yaml:"schema,omitempty" json:"schema,omitempty"`
+	Name        string              `yaml:"name" json:"name"`
+	Description string              `yaml:"description,omitempty" json:"description,omitempty"`
+	Connection  string              `yaml:"connection,omitempty" json:"connection,omitempty"`
+	Model       string              `yaml:"model,omitempty" json:"model,omitempty"`
+	Models      map[string]string   `yaml:"models,omitempty" json:"models,omitempty"`
+	Filters     []Filter            `yaml:"filters,omitempty" json:"filters,omitempty"`
+	Queries     map[string]Query    `yaml:"queries,omitempty" json:"queries,omitempty"`
+	Palettes    map[string][]string `yaml:"palettes,omitempty" json:"palettes,omitempty"`
+	Rows        []Row               `yaml:"rows" json:"rows"`
 
 	// FilePath is the source file path, not serialized to JSON for API consumers.
 	FilePath string `yaml:"-" json:"-"`
@@ -147,62 +148,90 @@ type Widget struct {
 }
 
 type TableColumn struct {
-	Name   string `yaml:"name" json:"name"`
-	Label  string `yaml:"label,omitempty" json:"label,omitempty"`
-	Format string `yaml:"format,omitempty" json:"format,omitempty"`
-	ColorScale *ColorScale `yaml:"colorScale,omitempty" json:"colorScale,omitempty"`
-	SingleColor []SingleColorRule `yaml:"singleColor,omitempty" json:"singleColor,omitempty"`
+	Name   string  `yaml:"name" json:"name"`
+	Label  string  `yaml:"label,omitempty" json:"label,omitempty"`
+	Format *Format `yaml:"format,omitempty" json:"format,omitempty"`
 }
 
-type ColorScale struct {
-	Min *ColorStop `yaml:"min,omitempty" json:"min,omitempty"`
-	Mid *ColorStop `yaml:"mid,omitempty" json:"mid,omitempty"`
-	Max *ColorStop `yaml:"max,omitempty" json:"max,omitempty"`
+// Format controls a column's value display and conditional coloring.
+type Format struct {
+	Like            string       `yaml:"like,omitempty" json:"like,omitempty"` // mirror another column's format + per-row value
+	Number          string       `yaml:"number,omitempty" json:"number,omitempty"`
+	BackgroundColor any          `yaml:"backgroundColor,omitempty" json:"backgroundColor,omitempty"` // string | []string
+	TextColor       string       `yaml:"textColor,omitempty" json:"textColor,omitempty"`
+	Bold            bool         `yaml:"bold,omitempty" json:"bold,omitempty"`
+	Italic          bool         `yaml:"italic,omitempty" json:"italic,omitempty"`
+	Underline       bool         `yaml:"underline,omitempty" json:"underline,omitempty"`
+	Strikethrough   bool         `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
+	Domain          *Domain      `yaml:"domain,omitempty" json:"domain,omitempty"` // gradient anchors (array = raw values, or {unit, anchors})
+	Scheme          string       `yaml:"scheme,omitempty" json:"scheme,omitempty"` // named built-in palette
+	Rules           []FormatRule `yaml:"rules,omitempty" json:"rules,omitempty"`
 }
 
-const (
-	StopTypeMin        = "min"
-	StopTypeMax        = "max"
-	StopTypeNumber     = "number"
-	StopTypePercent    = "percent"
-	StopTypePercentile = "percentile"
-)
-
-type ColorStop struct {
-	Type  string   `yaml:"type,omitempty" json:"type,omitempty"`   // min|max|number|percent|percentile
-	Value *float64 `yaml:"value,omitempty" json:"value,omitempty"` // for number|percent|percentile
-	Color string   `yaml:"color,omitempty" json:"color,omitempty"`
+// Domain places gradient anchors.
+type Domain struct {
+	Unit    string    `yaml:"unit,omitempty" json:"unit,omitempty"`
+	Anchors []float64 `yaml:"anchors,omitempty" json:"anchors,omitempty"`
 }
 
-func (s *ColorStop) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind == yaml.ScalarNode {
-		s.Color = node.Value
-		return nil
+func (d *Domain) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.SequenceNode {
+		return node.Decode(&d.Anchors)
 	}
-	type raw ColorStop
+	type raw Domain
 	var r raw
 	if err := node.Decode(&r); err != nil {
 		return err
 	}
-	*s = ColorStop(r)
+	*d = Domain(r)
 	return nil
 }
 
-func (s *ColorStop) UnmarshalJSON(data []byte) error {
-	var str string
-	if err := json.Unmarshal(data, &str); err == nil {
-		s.Color = str
+func (d *Domain) UnmarshalJSON(data []byte) error {
+	var vals []float64
+	if err := json.Unmarshal(data, &vals); err == nil {
+		d.Anchors = vals
 		return nil
 	}
-	type raw ColorStop
+	type raw Domain
 	var r raw
 	if err := json.Unmarshal(data, &r); err != nil {
 		return err
 	}
-	*s = ColorStop(r)
+	*d = Domain(r)
 	return nil
 }
 
+func (f *Format) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		f.Number = node.Value
+		return nil
+	}
+	type raw Format
+	var r raw
+	if err := node.Decode(&r); err != nil {
+		return err
+	}
+	*f = Format(r)
+	return nil
+}
+
+func (f *Format) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		f.Number = s
+		return nil
+	}
+	type raw Format
+	var r raw
+	if err := json.Unmarshal(data, &r); err != nil {
+		return err
+	}
+	*f = Format(r)
+	return nil
+}
+
+// Condition operators for conditional-formatting rules.
 const (
 	CondIsEmpty            = "is_empty"
 	CondIsNotEmpty         = "is_not_empty"
@@ -224,15 +253,16 @@ const (
 	CondIsNotBetween       = "is_not_between"
 )
 
-type SingleColorRule struct {
-	If            string `yaml:"if" json:"if"`
-	Value         any    `yaml:"value,omitempty" json:"value,omitempty"`
-	Bold          bool   `yaml:"bold,omitempty" json:"bold,omitempty"`
-	Italic        bool   `yaml:"italic,omitempty" json:"italic,omitempty"`
-	Underline     bool   `yaml:"underline,omitempty" json:"underline,omitempty"`
-	Strikethrough bool   `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
-	TextColor     string `yaml:"textColor,omitempty" json:"textColor,omitempty"`
-	Background    string `yaml:"background,omitempty" json:"background,omitempty"`
+// FormatRule applies a fixed style to cells matching a condition.
+type FormatRule struct {
+	If              string `yaml:"if" json:"if"`
+	Value           any    `yaml:"value,omitempty" json:"value,omitempty"`
+	BackgroundColor string `yaml:"backgroundColor,omitempty" json:"backgroundColor,omitempty"`
+	TextColor       string `yaml:"textColor,omitempty" json:"textColor,omitempty"`
+	Bold            bool   `yaml:"bold,omitempty" json:"bold,omitempty"`
+	Italic          bool   `yaml:"italic,omitempty" json:"italic,omitempty"`
+	Underline       bool   `yaml:"underline,omitempty" json:"underline,omitempty"`
+	Strikethrough   bool   `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
 }
 
 // WidgetData holds inline result data for a widget so it can render without a
