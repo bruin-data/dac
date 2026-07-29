@@ -445,7 +445,7 @@ __INIT_CTE_WIDGET__
             label: Channel
           - name: amount
             label: Amount
-            format: currency
+            number: currency
 `)
 
 const initSemanticModel = `name: sales
@@ -639,10 +639,10 @@ rows:
             label: Channel
           - name: revenue
             label: Revenue
-            format: currency
+            number: currency
           - name: sales_count
             label: Sales
-            format: number
+            number: number
         col: 12
 `
 
