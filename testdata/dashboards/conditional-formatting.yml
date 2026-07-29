@@ -1,0 +1,174 @@
+name: Conditional Formatting
+
+rows:
+  # 1. Coloring: flat fill, auto gradient, and gradients.
+  - widgets:
+      - name: Coloring
+        type: table
+        col: 12
+        data:
+          columns: [region, revenue, growth, health, rating]
+          rows:
+            - [North,   1200,  12, 0.98, 4]
+            - [South,   4800,  -5, 0.40, 2]
+            - [East,    3100,   8, 0.72, 3]
+            - [West,     900,  22, 0.15, 1]
+            - [Central, 2500,   0, 0.55, 5]
+        columns:
+          - name: region
+            label: Region
+            format:
+              - { backgroundColor: "#F8FAFC", textColor: "#334155", bold: true }                # flat fill + text style
+          - name: revenue
+            label: Revenue
+            number: currency
+            format:
+              - { backgroundColor: [red, white, green] }                                        # gradient, no range → auto min→max
+          - name: growth
+            label: Growth %
+            number: number
+            format:
+              - { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }   # absolute anchors, 0 = neutral
+          - name: health
+            label: Health
+            number: ".0%"
+            format:
+              - { backgroundColor: [red, white, green], range: [0, 50, 100], unit: percent }    # percent of the min..max range
+          - name: rating
+            label: Rating
+            number: number
+            format:
+              - { backgroundColor: [red, amber, green], range: [0, 50, 100], unit: percentile } # percentile of the data
+
+  # 2. More range + unit examples: 2-stop gradients, custom absolute thresholds, reversed percentile
+  - widgets:
+      - name: More ranges
+        type: table
+        col: 12
+        data:
+          columns: [item, score, load, headroom, rank]
+          rows:
+            - [A, 20, 0.20,  40, 5]
+            - [B, 55, 0.50,  75, 12]
+            - [C, 80, 0.80,  90, 30]
+            - [D, 95, 0.95, 100, 48]
+            - [E, 40, 0.40,  55, 60]
+        columns:
+          - name: score
+            label: "Score (absolute 0/60/90)"
+            number: number
+            format:
+              - { backgroundColor: [red, amber, green], range: [0, 60, 90], unit: absolute }    # custom thresholds
+          - name: load
+            label: "Load (2-stop percent)"
+            number: ".0%"
+            format:
+              - { backgroundColor: [white, red], range: [0, 100], unit: percent }               # 2 colors, white → red
+          - name: headroom
+            label: "Headroom (2-stop absolute)"
+            number: number
+            format:
+              - { backgroundColor: [red, green], range: [40, 100], unit: absolute }             # 2 colors, absolute
+          - name: rank
+            label: "Rank (reversed percentile)"
+            number: number
+            format:
+              - { backgroundColor: [green, white, red], range: [0, 50, 100], unit: percentile } # low rank = good
+
+  # 3. Range units side by side: percent of the range vs percentile of the data
+  #    (the 200 outlier stretches the range but not the median)
+  - widgets:
+      - name: Range units
+        type: table
+        col: 12
+        data:
+          columns: [item, percent, percentile]
+          rows:
+            - [P1, 20,  20]
+            - [P2, 10,  10]
+            - [P3, 200, 200]
+            - [P4, 30,  30]
+            - [P5, 40,  40]
+        columns:
+          - name: percent
+            label: "percent (white lands at mid-range = 105)"
+            format:
+              - { backgroundColor: [red, white, green], range: [0, 50, 100], unit: percent }
+          - name: percentile
+            label: "percentile (white lands at median = 30)"
+            format:
+              - { backgroundColor: [red, white, green], range: [0, 50, 100], unit: percentile }
+
+  # 4. Conditions: text, numeric, range, empty, date, cross-column; first match wins
+  - widgets:
+      - name: Conditions
+        type: table
+        col: 12
+        data:
+          columns: [task, note, score, actual, target, due, owner]
+          rows:
+            - [T1, "URGENT fix",    92, 920,  1000, "2026-07-01", alice]
+            - [T2, "routine check", 45, 1100, 1000, "2026-07-20", ""]
+            - [T3, "urgent review", 68, 680,  900,  "2026-08-01", bob]
+            - [T4, "cleanup",       30, 300,  500,  "2026-07-22", ""]
+        columns:
+          - name: task
+            label: Task
+          - name: note
+            label: "Note (text_contains 'urgent')"
+            format:
+              - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
+          - name: score
+            label: "Score (fill + text styles)"
+            number: number
+            format:
+              - { if: greater_than_or_equal, value: 80, backgroundColor: green, textColor: white, bold: true }
+              - { if: is_between, value: [50, 79], backgroundColor: amber }
+              - { if: less_than, value: 50, backgroundColor: "#FEE2E2", textColor: red, strikethrough: true }
+          - name: actual
+            label: "Actual (cross-column vs target)"
+            number: number
+            format:
+              - { if: less_than, value: { column: target }, backgroundColor: red }
+              - { if: greater_than, value: { column: target }, backgroundColor: green }
+          - name: target
+            label: Target
+            number: number
+          - name: due
+            label: "Due (date_before / date_after)"
+            format:
+              - { if: date_before, value: "2026-07-22", backgroundColor: red, textColor: white, bold: true }
+              - { if: date_after, value: "2026-07-22", backgroundColor: green, textColor: white }
+          - name: owner
+            label: "Owner (is_empty)"
+            format:
+              - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }
+
+  # 5. Mirror another column (`like`), and first-match: a condition wins over the gradient base below it
+  - widgets:
+      - name: Mirror & first match
+        type: table
+        col: 12
+        data:
+          columns: [status, amount, score]
+          rows:
+            - [overdue, 1200, 95]
+            - [closed,  4800, 60]
+            - [pending, 3100, 40]
+            - [overdue,  900, 88]
+        columns:
+          - name: status
+            label: Status
+            format:
+              - { if: text_is_exactly, value: overdue, backgroundColor: red, bold: true }
+              - { backgroundColor: green }                                                      # no if → the rest (closed, pending)
+          - name: amount
+            label: "Amount (like: status)"
+            number: currency
+            like: status
+          - name: score
+            label: "Score (rule wins, else gradient)"
+            number: number
+            format:
+              - { if: greater_than_or_equal, value: 90, backgroundColor: green, bold: true }    # first match wins
+              - { backgroundColor: [red, white, green], range: [0, 50, 100], unit: percent }    # gradient base, last

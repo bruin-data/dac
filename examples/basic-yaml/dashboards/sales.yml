@@ -163,13 +163,13 @@ rows:
             label: Customer
           - name: orders
             label: Orders
-            format: number
+            number: number
           - name: total_spent
             label: Total Spent
-            format: currency
+            number: currency
           - name: avg_order
             label: Average Order
-            format: currency
+            number: currency
       - name: Revenue by Region & Month
         type: table
         col: 6
@@ -194,10 +194,10 @@ rows:
             label: Month
           - name: sales_count
             label: Sales
-            format: number
+            number: number
           - name: revenue
             label: Revenue
-            format: currency
+            number: currency
 
   # Recent orders
   - widgets:
@@ -217,7 +217,7 @@ rows:
             label: Customer
           - name: amount
             label: Amount
-            format: currency
+            number: currency
           - name: status
             label: Status
           - name: created_at

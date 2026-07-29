@@ -110,7 +110,64 @@ export interface Widget {
 export interface TableColumn {
   name: string;
   label?: string;
-  format?: string;
+  /** Value display: `currency`, `number`, or a d3-format spec. */
+  number?: string;
+  /** Mirror another column's coloring, driven by that column's per-row value. */
+  like?: string;
+  /** Ordered style layers; the first layer that matches a cell wins. */
+  format?: FormatLayer[];
+}
+
+export type FormatOperator =
+  | "is_empty"
+  | "is_not_empty"
+  | "text_contains"
+  | "text_does_not_contain"
+  | "text_starts_with"
+  | "text_ends_with"
+  | "text_is_exactly"
+  | "date_is"
+  | "date_before"
+  | "date_after"
+  | "greater_than"
+  | "greater_than_or_equal"
+  | "less_than"
+  | "less_than_or_equal"
+  | "is_equal_to"
+  | "is_not_equal_to"
+  | "is_between"
+  | "is_not_between";
+
+/** Reference to another column in the same row, used as a rule comparison value. */
+export interface ColumnRef {
+  column: string;
+}
+
+export type RuleValue = number | string | ColumnRef | Array<number | string | ColumnRef>;
+
+/**
+ * One entry in a column's `format` list. The first layer that matches a cell wins.
+ *
+ * - A layer with `if` is a **condition** (applies to matching cells).
+ * - A layer without `if` always matches — a **gradient** (`backgroundColor` array,
+ *   optional `range`/`unit`) or a **flat fill** (`backgroundColor` string). Place
+ *   it last as the fallback base.
+ *
+ * `backgroundColor`: string = flat/single fill · array = gradient.
+ * `range` + `unit` (`absolute` | `percent` | `percentile`) pin a gradient's
+ * anchors; omit `range` for an auto min/max gradient.
+ */
+export interface FormatLayer {
+  if?: FormatOperator;
+  value?: RuleValue;
+  backgroundColor?: string | string[];
+  range?: number[];
+  unit?: "absolute" | "percent" | "percentile";
+  textColor?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
 }
 
 /** Structured encoding for a chart axis. `y.field` may list several series columns. */

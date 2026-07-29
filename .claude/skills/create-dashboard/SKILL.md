@@ -767,6 +767,61 @@ Data table with optional column configuration.
 
 If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
+**Conditional formatting.** A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `like`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**.
+
+- With `if` (+ `value`), the layer styles only the cells that match. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
+- With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.
+- Styles on any layer: `backgroundColor`, `textColor`, `bold`, `italic`, `underline`, `strikethrough`.
+- `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
+
+Each layer is a YAML object, so `- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }` and the same keys written as an indented block are identical — use whichever reads better.
+
+Colors are **named** (`red green blue indigo cyan purple pink amber`, plus `white`/`black`, aliases `positive`/`negative`/`warning`) or hex. Named colors adapt to light and dark.
+
+Worked example:
+
+```yaml
+name: Regions
+
+rows:
+  - widgets:
+      - name: Regions
+        type: table
+        col: 12
+        sql: SELECT revenue, growth, score, status, actual, target, bonus, health FROM regions
+        columns:
+          - name: revenue
+            number: currency
+            format:
+              - { backgroundColor: [red, white, green] }                # gradient, auto min→max
+          - name: growth
+            number: number
+            format:
+              - { backgroundColor: [blue, white, amber], range: [-25, 0, 25], unit: absolute }   # fixed anchors; unit also percent/percentile
+          - name: score
+            number: number
+            format:                                                     # conditions, first match wins
+              - { if: greater_than_or_equal, value: 80, backgroundColor: green }
+              - { if: is_between, value: [50, 79], backgroundColor: amber }
+              - { if: less_than, value: 50, textColor: red, strikethrough: true }
+          - name: status
+            format:
+              - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
+              - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }   # flat fill (string)
+          - name: actual
+            number: number
+            format:                                                     # cross-column, same row (target need not be displayed)
+              - { if: greater_than, value: { column: target }, backgroundColor: green }
+          - name: bonus
+            number: currency
+            like: score                                                 # mirror score's colors, keep own number
+          - name: health
+            number: number
+            format:                                                     # a condition wins over the gradient base below
+              - { if: is_equal_to, value: 0, backgroundColor: red, bold: true }
+              - { backgroundColor: [red, white, green] }                # base, last (always matches)
+```
+
 ### Text Widget
 
 Static content with markdown formatting. No query needed.

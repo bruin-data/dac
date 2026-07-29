@@ -96,7 +96,7 @@ rows:
             label: Customer
           - name: amount
             label: Amount
-            format: currency
+            number: currency
           - name: status
             label: Status
           - name: created_at

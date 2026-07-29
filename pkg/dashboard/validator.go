@@ -73,6 +73,7 @@ func Validate(d *Dashboard) error {
 			case WidgetTypeTable:
 				// Table widgets just need a query source.
 				errs = append(errs, validateQuerySource(prefix, &w, d)...)
+				validateTableColumns(prefix, &w, &errs)
 			case WidgetTypeText:
 				if w.Content == "" {
 					errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
@@ -444,4 +445,94 @@ func validateSemanticJob(job *SemanticJob) error {
 	}
 	_, err = engine.GenerateSQL(&job.Query)
 	return err
+}
+
+var validFormatOps = map[string]bool{
+	CondIsEmpty: true, CondIsNotEmpty: true,
+	CondTextContains: true, CondTextNotContains: true, CondTextStartsWith: true,
+	CondTextEndsWith: true, CondTextIsExactly: true,
+	CondDateIs: true, CondDateBefore: true, CondDateAfter: true,
+	CondGreaterThan: true, CondGreaterThanOrEqual: true, CondLessThan: true,
+	CondLessThanOrEqual: true, CondIsEqualTo: true, CondIsNotEqualTo: true,
+	CondIsBetween: true, CondIsNotBetween: true,
+}
+
+func validateTableColumns(prefix string, w *Widget, errs *[]string) {
+	names := make(map[string]bool, len(w.Columns))
+	for _, c := range w.Columns {
+		names[c.Name] = true
+	}
+	for _, c := range w.Columns {
+		cp := fmt.Sprintf("%s: column %q", prefix, c.Name)
+		if c.Like != "" {
+			if c.Like == c.Name {
+				*errs = append(*errs, cp+".like: cannot reference itself")
+			} else if !names[c.Like] {
+				*errs = append(*errs, fmt.Sprintf("%s.like: references unknown column %q", cp, c.Like))
+			}
+		}
+		for i, layer := range c.Format {
+			validateFormatLayer(fmt.Sprintf("%s.format[%d]", cp, i), layer, errs)
+		}
+	}
+}
+
+// validateFormatLayer checks one entry of a column's `format` list. A layer is
+// either a condition (`if` set) or a base gradient/flat fill (no `if`).
+func validateFormatLayer(prefix string, l FormatLayer, errs *[]string) {
+	if l.If != "" {
+		if !validFormatOps[l.If] {
+			*errs = append(*errs, fmt.Sprintf("%s.if: unknown operator %q", prefix, l.If))
+		} else {
+			switch l.If {
+			case CondIsEmpty, CondIsNotEmpty:
+				// No value expected.
+			case CondIsBetween, CondIsNotBetween:
+				if !isPairValue(l.Value) {
+					*errs = append(*errs, fmt.Sprintf("%s: %q requires a two-element value list [low, high]", prefix, l.If))
+				}
+			default:
+				if l.Value == nil {
+					*errs = append(*errs, fmt.Sprintf("%s: %q requires a value", prefix, l.If))
+				}
+			}
+		}
+	}
+
+	// A gradient is an array backgroundColor (needs >= 2 colors); a string is a flat/single fill.
+	colors, isGradient := l.BackgroundColor.([]interface{})
+	if isGradient && len(colors) < 2 {
+		*errs = append(*errs, fmt.Sprintf("%s.backgroundColor: a gradient needs at least 2 colors (use a single string for a flat fill)", prefix))
+	}
+
+	// range/unit describe a gradient's anchors and only apply to a gradient.
+	if len(l.Range) > 0 || l.Unit != "" {
+		if !isGradient {
+			*errs = append(*errs, fmt.Sprintf("%s.range: requires a gradient (a backgroundColor list)", prefix))
+		} else {
+			if l.Unit != "" && l.Unit != "absolute" && l.Unit != "percent" && l.Unit != "percentile" {
+				*errs = append(*errs, fmt.Sprintf("%s.unit: unknown unit %q (expected absolute, percent, or percentile)", prefix, l.Unit))
+			}
+			if len(l.Range) > 0 && len(l.Range) != len(colors) {
+				*errs = append(*errs, fmt.Sprintf("%s.range: has %d anchors but the gradient has %d colors (must match)", prefix, len(l.Range), len(colors)))
+			}
+			if l.Unit == "percent" || l.Unit == "percentile" {
+				for _, v := range l.Range {
+					if v < 0 || v > 100 {
+						*errs = append(*errs, fmt.Sprintf("%s.range: %s anchors must be between 0 and 100", prefix, l.Unit))
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if !l.Bold && !l.Italic && !l.Underline && !l.Strikethrough && l.TextColor == "" && l.BackgroundColor == nil {
+		*errs = append(*errs, fmt.Sprintf("%s: a layer needs at least one style (backgroundColor, textColor, bold, italic, underline, strikethrough)", prefix))
+	}
+}
+
+func isPairValue(v any) bool {
+	arr, ok := v.([]interface{})
+	return ok && len(arr) == 2
 }

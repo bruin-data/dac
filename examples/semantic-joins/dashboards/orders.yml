@@ -75,8 +75,8 @@ rows:
             label: Category
           - name: revenue
             label: Revenue
-            format: currency
+            number: currency
           - name: order_count
             label: Orders
-            format: number
+            number: number
         col: 12

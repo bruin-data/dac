@@ -218,6 +218,6 @@ rows:
             label: Payment Method
           - name: amount
             label: Amount
-            format: currency
+            number: currency
           - name: created_at
             label: Order Date

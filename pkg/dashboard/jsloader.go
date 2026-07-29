@@ -829,11 +829,60 @@ func asTableColumns(v interface{}) []TableColumn {
 			cols = append(cols, TableColumn{
 				Name:   asString(m["name"]),
 				Label:  asString(m["label"]),
-				Format: asString(m["format"]),
+				Number: asString(m["number"]),
+				Like:   asString(m["like"]),
+				Format: asFormatLayers(m["format"]),
 			})
 		}
 	}
 	return cols
+}
+
+// asFormatLayers reads a column's ordered `format` list of style layers.
+func asFormatLayers(v interface{}) []FormatLayer {
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	var layers []FormatLayer
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		layers = append(layers, FormatLayer{
+			If:              asString(m["if"]),
+			Value:           m["value"],
+			BackgroundColor: m["backgroundColor"],
+			Range:           asFloatSlice(m["range"]),
+			Unit:            asString(m["unit"]),
+			TextColor:       asString(m["textColor"]),
+			Bold:            asBool(m["bold"]),
+			Italic:          asBool(m["italic"]),
+			Underline:       asBool(m["underline"]),
+			Strikethrough:   asBool(m["strikethrough"]),
+		})
+	}
+	return layers
+}
+
+func asFloatSlice(v interface{}) []float64 {
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]float64, 0, len(arr))
+	for _, item := range arr {
+		switch n := item.(type) {
+		case float64:
+			out = append(out, n)
+		case int:
+			out = append(out, float64(n))
+		case int64:
+			out = append(out, float64(n))
+		}
+	}
+	return out
 }
 
 // IsTSXFile checks if a filename matches the .dashboard.tsx convention.

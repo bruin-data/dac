@@ -147,9 +147,51 @@ type Widget struct {
 }
 
 type TableColumn struct {
-	Name   string `yaml:"name" json:"name"`
-	Label  string `yaml:"label,omitempty" json:"label,omitempty"`
-	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+	Name   string        `yaml:"name" json:"name"`
+	Label  string        `yaml:"label,omitempty" json:"label,omitempty"`
+	Number string        `yaml:"number,omitempty" json:"number,omitempty"` // value display: currency | number | d3-format spec
+	Like   string        `yaml:"like,omitempty" json:"like,omitempty"`     // mirror another column's coloring + per-row value
+	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered style layers; first match wins
+}
+
+// Condition operators for conditional-formatting rules.
+const (
+	CondIsEmpty            = "is_empty"
+	CondIsNotEmpty         = "is_not_empty"
+	CondTextContains       = "text_contains"
+	CondTextNotContains    = "text_does_not_contain"
+	CondTextStartsWith     = "text_starts_with"
+	CondTextEndsWith       = "text_ends_with"
+	CondTextIsExactly      = "text_is_exactly"
+	CondDateIs             = "date_is"
+	CondDateBefore         = "date_before"
+	CondDateAfter          = "date_after"
+	CondGreaterThan        = "greater_than"
+	CondGreaterThanOrEqual = "greater_than_or_equal"
+	CondLessThan           = "less_than"
+	CondLessThanOrEqual    = "less_than_or_equal"
+	CondIsEqualTo          = "is_equal_to"
+	CondIsNotEqualTo       = "is_not_equal_to"
+	CondIsBetween          = "is_between"
+	CondIsNotBetween       = "is_not_between"
+)
+
+// FormatLayer is one entry in a column's ordered `format` list; the first
+// layer that matches a cell wins. A layer with `If` set is a condition (applies
+// to matching cells). A layer without `If` always applies — a gradient (array
+// backgroundColor, optional range/unit) or a flat fill (string backgroundColor);
+// place it last as the fallback base.
+type FormatLayer struct {
+	If              string    `yaml:"if,omitempty" json:"if,omitempty"`
+	Value           any       `yaml:"value,omitempty" json:"value,omitempty"`                     // scalar, [low, high], or {column: X}
+	BackgroundColor any       `yaml:"backgroundColor,omitempty" json:"backgroundColor,omitempty"` // string (flat/single) | []string (gradient)
+	Range           []float64 `yaml:"range,omitempty" json:"range,omitempty"`                     // gradient anchors, paired with Unit
+	Unit            string    `yaml:"unit,omitempty" json:"unit,omitempty"`                       // absolute | percent | percentile
+	TextColor       string    `yaml:"textColor,omitempty" json:"textColor,omitempty"`
+	Bold            bool      `yaml:"bold,omitempty" json:"bold,omitempty"`
+	Italic          bool      `yaml:"italic,omitempty" json:"italic,omitempty"`
+	Underline       bool      `yaml:"underline,omitempty" json:"underline,omitempty"`
+	Strikethrough   bool      `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
 }
 
 // WidgetData holds inline result data for a widget so it can render without a

@@ -359,7 +359,7 @@ export default (
         sql="SELECT * FROM orders"
         columns={[
           { name: "id", label: "Order ID" },
-          { name: "amount", label: "Amount", format: "currency" },
+          { name: "amount", label: "Amount", number: "currency" },
         ]} />
     </Row>
   </Dashboard>
@@ -375,8 +375,8 @@ export default (
 	if w.Columns[0].Name != "id" || w.Columns[0].Label != "Order ID" {
 		t.Errorf("unexpected column 0: %+v", w.Columns[0])
 	}
-	if w.Columns[1].Format != "currency" {
-		t.Errorf("expected format %q, got %q", "currency", w.Columns[1].Format)
+	if w.Columns[1].Number != "currency" {
+		t.Errorf("expected number %q, got %+v", "currency", w.Columns[1].Number)
 	}
 }
 
@@ -465,13 +465,13 @@ func TestLoadDir_MixedYAMLAndTSX(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/dashboards")
 	assertNoErr(t, err)
 
-	// Should find 5 YAML + 2 TSX = 7 dashboards.
-	if len(dashboards) != 7 {
+	// Should find 6 YAML + 2 TSX = 8 dashboards.
+	if len(dashboards) != 8 {
 		names := make([]string, len(dashboards))
 		for i, d := range dashboards {
 			names[i] = d.Name
 		}
-		t.Fatalf("expected 7 dashboards, got %d: %v", len(dashboards), names)
+		t.Fatalf("expected 8 dashboards, got %d: %v", len(dashboards), names)
 	}
 
 	// Verify TSX dashboard was loaded.

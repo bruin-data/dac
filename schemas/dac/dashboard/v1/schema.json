@@ -445,9 +445,63 @@
         "label": {
           "type": "string"
         },
-        "format": {
+        "number": {
           "type": "string"
+        },
+        "like": {
+          "type": "string"
+        },
+        "format": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/formatLayer" }
         }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "formatLayer": {
+      "type": "object",
+      "properties": {
+        "if": {
+          "enum": [
+            "is_empty",
+            "is_not_empty",
+            "text_contains",
+            "text_does_not_contain",
+            "text_starts_with",
+            "text_ends_with",
+            "text_is_exactly",
+            "date_is",
+            "date_before",
+            "date_after",
+            "greater_than",
+            "greater_than_or_equal",
+            "less_than",
+            "less_than_or_equal",
+            "is_equal_to",
+            "is_not_equal_to",
+            "is_between",
+            "is_not_between"
+          ]
+        },
+        "value": true,
+        "backgroundColor": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "range": { "type": "array", "items": { "type": "number" } },
+        "unit": { "enum": ["absolute", "percent", "percentile"] },
+        "textColor": {
+          "type": "string"
+        },
+        "bold": { "type": "boolean" },
+        "italic": { "type": "boolean" },
+        "underline": { "type": "boolean" },
+        "strikethrough": { "type": "boolean" }
       },
       "patternProperties": {
         "^x-": true
