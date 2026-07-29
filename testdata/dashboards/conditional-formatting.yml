@@ -1,7 +1,7 @@
 name: Conditional Formatting
 
 rows:
-  # 1. Coloring: flat fill, auto gradient, pinned domain, built-in schemes
+  # 1. Coloring: flat fill, auto gradient, and gradients with an explicit range/unit
   - widgets:
       - name: Coloring
         type: table
@@ -17,32 +17,38 @@ rows:
         columns:
           - name: region
             label: Region
-            format: { backgroundColor: "#F8FAFC", textColor: "#334155", bold: true }   # flat fill + text style
+            format:
+              - { backgroundColor: "#F8FAFC", textColor: "#334155", bold: true }   # flat fill + text style
           - name: revenue
             label: Revenue
+            number: currency
             format:
-              number: currency
-              backgroundColor: [red, white, green]                # gradient, auto min to max
+              - { backgroundColor: [red, white, green] }        # gradient, range omitted → auto min→max
           - name: growth
             label: Growth %
+            number: number
             format:
-              number: number
-              domain: [-25, 0, 25]                                # pinned anchors, 0 = neutral middle
-              backgroundColor: [red, white, green]
+              - backgroundColor: [red, white, green]
+                range: [-25, 0, 25]
+                unit: absolute                                  # pinned anchors, 0 = neutral middle
           - name: health
             label: Health
+            number: ".0%"
             format:
-              number: ".0%"
-              scheme: red-white-green                             # built-in scheme
+              - backgroundColor: [red, white, green]
+                range: [0, 50, 100]
+                unit: percent                                   # percent of the min..max range
           - name: rating
             label: Rating
+            number: number
             format:
-              number: number
-              scheme: red-amber-green                             # built-in scheme
+              - backgroundColor: [red, amber, green]
+                range: [0, 50, 100]
+                unit: percentile                                # percentile of the data
 
-  # 2. Domain units: percent of the range vs percentile of the data
+  # 2. Range units: percent of the range vs percentile of the data (outlier shifts the range, not the median)
   - widgets:
-      - name: Domain units
+      - name: Range units
         type: table
         col: 12
         data:
@@ -50,24 +56,27 @@ rows:
           rows:
             - [P1, 20,  20]
             - [P2, 10,  10]
-            - [P3, 200,  200]
+            - [P3, 200, 200]
             - [P4, 30,  30]
-            - [P5, 40, 40]      
+            - [P5, 40,  40]
         columns:
           - name: percent
             label: "percent (white lands at mid-range = 105)"
             format:
-              backgroundColor: [red, white, green]
-              domain: { unit: percent, anchors: [0, 50, 100] }
+              - backgroundColor: [red, white, green]
+                range: [0, 50, 100]
+                unit: percent
           - name: percentile
             label: "percentile (white lands at median = 30)"
             format:
-              backgroundColor: [red, white, green]
-              domain: { unit: percentile, anchors: [0, 50, 100] }
+              - backgroundColor: [red, white, green]
+                range: [0, 50, 100]
+                unit: percentile
 
-  # 3. Rules: text, numeric, range, empty, date, cross-column, and every text style
+  # 3. Conditions: text, numeric, range, empty, date, cross-column, and every text style.
+  #    Layers are first-match-wins.
   - widgets:
-      - name: Rules
+      - name: Conditions
         type: table
         col: 12
         data:
@@ -83,59 +92,58 @@ rows:
           - name: note
             label: "Note (text_contains 'urgent')"
             format:
-              rules:
-                - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
+              - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
           - name: score
             label: "Score (>=80 / 50-79 / <50)"
+            number: number
             format:
-              number: number
-              rules:
-                - { if: greater_than_or_equal, value: 80, backgroundColor: green }
-                - { if: is_between, value: [50, 79], backgroundColor: indigo, textColor: white }
-                - { if: less_than, value: 50, textColor: red, strikethrough: true }
+              - { if: greater_than_or_equal, value: 80, backgroundColor: green }
+              - { if: is_between, value: [50, 79], backgroundColor: indigo, textColor: white }
+              - { if: less_than, value: 50, textColor: red, strikethrough: true }
           - name: actual
             label: "Actual (cross-column vs target)"
+            number: number
             format:
-              number: number
-              rules:
-                - { if: less_than, value: { column: target }, backgroundColor: red }
-                - { if: greater_than, value: { column: target }, backgroundColor: green }
+              - { if: less_than, value: { column: target }, backgroundColor: red }
+              - { if: greater_than, value: { column: target }, backgroundColor: green }
           - name: target
             label: Target
-            format: { number: number }
+            number: number
           - name: due
             label: "Due (date_before / date_after)"
             format:
-              rules:
-                - { if: date_before, value: "2026-07-22", textColor: red, underline: true }
-                - { if: date_after, value: "2026-07-22", textColor: green }
+              - { if: date_before, value: "2026-07-22", textColor: red, underline: true }
+              - { if: date_after, value: "2026-07-22", textColor: green }
           - name: owner
             label: "Owner (is_empty)"
             format:
-              rules:
-                - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }
+              - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }
 
-  # 4. Mirror another column: amount is colored exactly like status, keeps its own currency
+  # 4. Mirror another column (`like`), and first-match: a condition wins over the gradient base below it
   - widgets:
-      - name: Mirror (like)
+      - name: Mirror & first match
         type: table
         col: 12
         data:
-          columns: [status, amount]
+          columns: [status, amount, score]
           rows:
-            - [overdue, 1200]
-            - [closed,  4800]
-            - [pending, 3100]
-            - [overdue,  900]
+            - [overdue, 1200, 95]
+            - [closed,  4800, 60]
+            - [pending, 3100, 40]
+            - [overdue,  900, 88]
         columns:
           - name: status
             label: Status
             format:
-              rules:
-                - { if: text_is_exactly, value: overdue, backgroundColor: red, bold: true }
-                - { if: text_is_exactly, value: closed, backgroundColor: green }
+              - { if: text_is_exactly, value: overdue, backgroundColor: red, bold: true }
+              - { if: text_is_exactly, value: closed, backgroundColor: green }
           - name: amount
             label: "Amount (like: status)"
+            number: currency
+            like: status
+          - name: score
+            label: "Score (rule wins, else gradient)"
+            number: number
             format:
-              number: currency
-              like: status
+              - { if: greater_than_or_equal, value: 90, backgroundColor: green, bold: true }   # first match wins
+              - { backgroundColor: [red, white, green] }                                       # gradient base, last

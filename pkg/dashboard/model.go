@@ -147,87 +147,11 @@ type Widget struct {
 }
 
 type TableColumn struct {
-	Name   string  `yaml:"name" json:"name"`
-	Label  string  `yaml:"label,omitempty" json:"label,omitempty"`
-	Format *Format `yaml:"format,omitempty" json:"format,omitempty"`
-}
-
-// Format controls a column's value display and conditional coloring.
-type Format struct {
-	Like            string       `yaml:"like,omitempty" json:"like,omitempty"` // mirror another column's format + per-row value
-	Number          string       `yaml:"number,omitempty" json:"number,omitempty"`
-	BackgroundColor any          `yaml:"backgroundColor,omitempty" json:"backgroundColor,omitempty"` // string | []string
-	TextColor       string       `yaml:"textColor,omitempty" json:"textColor,omitempty"`
-	Bold            bool         `yaml:"bold,omitempty" json:"bold,omitempty"`
-	Italic          bool         `yaml:"italic,omitempty" json:"italic,omitempty"`
-	Underline       bool         `yaml:"underline,omitempty" json:"underline,omitempty"`
-	Strikethrough   bool         `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
-	Domain          *Domain      `yaml:"domain,omitempty" json:"domain,omitempty"` // gradient anchors (array = raw values, or {unit, anchors})
-	Scheme          string       `yaml:"scheme,omitempty" json:"scheme,omitempty"` // named built-in palette
-	Rules           []FormatRule `yaml:"rules,omitempty" json:"rules,omitempty"`
-}
-
-// Domain places gradient anchors.
-type Domain struct {
-	Unit    string    `yaml:"unit,omitempty" json:"unit,omitempty"`
-	Anchors []float64 `yaml:"anchors,omitempty" json:"anchors,omitempty"`
-}
-
-func (d *Domain) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind == yaml.SequenceNode {
-		return node.Decode(&d.Anchors)
-	}
-	type raw Domain
-	var r raw
-	if err := node.Decode(&r); err != nil {
-		return err
-	}
-	*d = Domain(r)
-	return nil
-}
-
-func (d *Domain) UnmarshalJSON(data []byte) error {
-	var vals []float64
-	if err := json.Unmarshal(data, &vals); err == nil {
-		d.Anchors = vals
-		return nil
-	}
-	type raw Domain
-	var r raw
-	if err := json.Unmarshal(data, &r); err != nil {
-		return err
-	}
-	*d = Domain(r)
-	return nil
-}
-
-func (f *Format) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind == yaml.ScalarNode {
-		f.Number = node.Value
-		return nil
-	}
-	type raw Format
-	var r raw
-	if err := node.Decode(&r); err != nil {
-		return err
-	}
-	*f = Format(r)
-	return nil
-}
-
-func (f *Format) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err == nil {
-		f.Number = s
-		return nil
-	}
-	type raw Format
-	var r raw
-	if err := json.Unmarshal(data, &r); err != nil {
-		return err
-	}
-	*f = Format(r)
-	return nil
+	Name   string        `yaml:"name" json:"name"`
+	Label  string        `yaml:"label,omitempty" json:"label,omitempty"`
+	Number string        `yaml:"number,omitempty" json:"number,omitempty"` // value display: currency | number | d3-format spec
+	Like   string        `yaml:"like,omitempty" json:"like,omitempty"`     // mirror another column's coloring + per-row value
+	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered style layers; first match wins
 }
 
 // Condition operators for conditional-formatting rules.
@@ -252,16 +176,22 @@ const (
 	CondIsNotBetween       = "is_not_between"
 )
 
-// FormatRule applies a fixed style to cells matching a condition.
-type FormatRule struct {
-	If              string `yaml:"if" json:"if"`
-	Value           any    `yaml:"value,omitempty" json:"value,omitempty"`
-	BackgroundColor string `yaml:"backgroundColor,omitempty" json:"backgroundColor,omitempty"`
-	TextColor       string `yaml:"textColor,omitempty" json:"textColor,omitempty"`
-	Bold            bool   `yaml:"bold,omitempty" json:"bold,omitempty"`
-	Italic          bool   `yaml:"italic,omitempty" json:"italic,omitempty"`
-	Underline       bool   `yaml:"underline,omitempty" json:"underline,omitempty"`
-	Strikethrough   bool   `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
+// FormatLayer is one entry in a column's ordered `format` list; the first
+// layer that matches a cell wins. A layer with `If` set is a condition (applies
+// to matching cells). A layer without `If` always applies — a gradient (array
+// backgroundColor, optional range/unit) or a flat fill (string backgroundColor);
+// place it last as the fallback base.
+type FormatLayer struct {
+	If              string    `yaml:"if,omitempty" json:"if,omitempty"`
+	Value           any       `yaml:"value,omitempty" json:"value,omitempty"`                    // scalar, [low, high], or {column: X}
+	BackgroundColor any       `yaml:"backgroundColor,omitempty" json:"backgroundColor,omitempty"` // string (flat/single) | []string (gradient)
+	Range           []float64 `yaml:"range,omitempty" json:"range,omitempty"`                    // gradient anchors, paired with Unit
+	Unit            string    `yaml:"unit,omitempty" json:"unit,omitempty"`                      // absolute | percent | percentile
+	TextColor       string    `yaml:"textColor,omitempty" json:"textColor,omitempty"`
+	Bold            bool      `yaml:"bold,omitempty" json:"bold,omitempty"`
+	Italic          bool      `yaml:"italic,omitempty" json:"italic,omitempty"`
+	Underline       bool      `yaml:"underline,omitempty" json:"underline,omitempty"`
+	Strikethrough   bool      `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
 }
 
 // WidgetData holds inline result data for a widget so it can render without a

@@ -457,108 +457,78 @@ var validFormatOps = map[string]bool{
 	CondIsBetween: true, CondIsNotBetween: true,
 }
 
-// validSchemes maps each built-in gradient to its color count, so a domain's
-// value count can be checked against the gradient it anchors.
-var validSchemes = map[string]int{
-	"red-white-green": 3, "green-white-red": 3,
-	"red-amber-green": 3, "green-amber-red": 3,
-	"white-green": 2, "white-red": 2, "white-blue": 2,
-}
-
 func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 	names := make(map[string]bool, len(w.Columns))
 	for _, c := range w.Columns {
 		names[c.Name] = true
 	}
 	for _, c := range w.Columns {
-		if c.Format == nil {
-			continue
-		}
 		cp := fmt.Sprintf("%s: column %q", prefix, c.Name)
-		if c.Format.Like != "" {
-			if c.Format.Like == c.Name {
-				*errs = append(*errs, cp+".format.like: cannot reference itself")
-			} else if !names[c.Format.Like] {
-				*errs = append(*errs, fmt.Sprintf("%s.format.like: references unknown column %q", cp, c.Format.Like))
+		if c.Like != "" {
+			if c.Like == c.Name {
+				*errs = append(*errs, cp+".like: cannot reference itself")
+			} else if !names[c.Like] {
+				*errs = append(*errs, fmt.Sprintf("%s.like: references unknown column %q", cp, c.Like))
 			}
 		}
-		validateFormat(cp, c.Format, errs)
-	}
-}
-
-func validateFormat(prefix string, f *Format, errs *[]string) {
-	if f.Scheme != "" {
-		if _, ok := validSchemes[f.Scheme]; !ok {
-			*errs = append(*errs, fmt.Sprintf("%s.format.scheme: unknown scheme %q", prefix, f.Scheme))
+		for i, layer := range c.Format {
+			validateFormatLayer(fmt.Sprintf("%s.format[%d]", cp, i), layer, errs)
 		}
 	}
-	// A gradient (array backgroundColor) needs at least two colors to blend.
-	if colors, ok := f.BackgroundColor.([]interface{}); ok && len(colors) < 2 {
-		*errs = append(*errs, fmt.Sprintf("%s.format.backgroundColor: a gradient needs at least 2 colors (use a single string for a flat fill)", prefix))
-	}
-	if f.Domain != nil {
-		validateDomain(prefix, f, errs)
-	}
-	for i, r := range f.Rules {
-		validateFormatRule(fmt.Sprintf("%s.format.rules[%d]", prefix, i), r, errs)
-	}
 }
 
-func validateDomain(prefix string, f *Format, errs *[]string) {
-	d := f.Domain
-	// unit must be a known kind.
-	if d.Unit != "" && d.Unit != "value" && d.Unit != "percent" && d.Unit != "percentile" {
-		*errs = append(*errs, fmt.Sprintf("%s.format.domain.unit: unknown unit %q (expected value, percent, or percentile)", prefix, d.Unit))
-	}
-	// percent/percentile anchors are 0–100.
-	if d.Unit == "percent" || d.Unit == "percentile" {
-		for _, v := range d.Anchors {
-			if v < 0 || v > 100 {
-				*errs = append(*errs, fmt.Sprintf("%s.format.domain: %s anchors must be between 0 and 100", prefix, d.Unit))
-				break
+// validateFormatLayer checks one entry of a column's `format` list. A layer is
+// either a condition (`if` set) or a base gradient/flat fill (no `if`).
+func validateFormatLayer(prefix string, l FormatLayer, errs *[]string) {
+	if l.If != "" {
+		if !validFormatOps[l.If] {
+			*errs = append(*errs, fmt.Sprintf("%s.if: unknown operator %q", prefix, l.If))
+		} else {
+			switch l.If {
+			case CondIsEmpty, CondIsNotEmpty:
+				// No value expected.
+			case CondIsBetween, CondIsNotBetween:
+				if !isPairValue(l.Value) {
+					*errs = append(*errs, fmt.Sprintf("%s: %q requires a two-element value list [low, high]", prefix, l.If))
+				}
+			default:
+				if l.Value == nil {
+					*errs = append(*errs, fmt.Sprintf("%s: %q requires a value", prefix, l.If))
+				}
 			}
 		}
 	}
-	// A domain pins the anchors of a gradient, whose colors come from an explicit
-	// backgroundColor array or a built-in scheme.
-	colorCount := 0
-	if colors, ok := f.BackgroundColor.([]interface{}); ok {
-		colorCount = len(colors)
-	} else if c, ok := validSchemes[f.Scheme]; ok {
-		colorCount = c
-	} else {
-		*errs = append(*errs, fmt.Sprintf("%s.format.domain: requires a gradient (a backgroundColor list or a scheme)", prefix))
-		return
-	}
-	// When explicit anchors are given they must match the gradient's color count.
-	if len(d.Anchors) > 0 && len(d.Anchors) != colorCount {
-		*errs = append(*errs, fmt.Sprintf("%s.format.domain: has %d anchors but the gradient has %d colors (must match)", prefix, len(d.Anchors), colorCount))
-	}
-}
 
-func validateFormatRule(prefix string, r FormatRule, errs *[]string) {
-	if r.If == "" {
-		*errs = append(*errs, fmt.Sprintf("%s: if (operator) is required", prefix))
-		return
+	// A gradient is an array backgroundColor (needs >= 2 colors); a string is a flat/single fill.
+	colors, isGradient := l.BackgroundColor.([]interface{})
+	if isGradient && len(colors) < 2 {
+		*errs = append(*errs, fmt.Sprintf("%s.backgroundColor: a gradient needs at least 2 colors (use a single string for a flat fill)", prefix))
 	}
-	if !validFormatOps[r.If] {
-		*errs = append(*errs, fmt.Sprintf("%s: unknown operator %q", prefix, r.If))
-		return
-	}
-	switch r.If {
-	case CondIsEmpty, CondIsNotEmpty:
-		// No value expected.
-	case CondIsBetween, CondIsNotBetween:
-		if !isPairValue(r.Value) {
-			*errs = append(*errs, fmt.Sprintf("%s: %q requires a two-element value list [low, high]", prefix, r.If))
+
+	// range/unit describe a gradient's anchors and only apply to a gradient.
+	if len(l.Range) > 0 || l.Unit != "" {
+		if !isGradient {
+			*errs = append(*errs, fmt.Sprintf("%s.range: requires a gradient (a backgroundColor list)", prefix))
+		} else {
+			if l.Unit != "" && l.Unit != "absolute" && l.Unit != "percent" && l.Unit != "percentile" {
+				*errs = append(*errs, fmt.Sprintf("%s.unit: unknown unit %q (expected absolute, percent, or percentile)", prefix, l.Unit))
+			}
+			if len(l.Range) > 0 && len(l.Range) != len(colors) {
+				*errs = append(*errs, fmt.Sprintf("%s.range: has %d anchors but the gradient has %d colors (must match)", prefix, len(l.Range), len(colors)))
+			}
+			if l.Unit == "percent" || l.Unit == "percentile" {
+				for _, v := range l.Range {
+					if v < 0 || v > 100 {
+						*errs = append(*errs, fmt.Sprintf("%s.range: %s anchors must be between 0 and 100", prefix, l.Unit))
+						break
+					}
+				}
+			}
 		}
-	default:
-		if r.Value == nil {
-			*errs = append(*errs, fmt.Sprintf("%s: %q requires a value", prefix, r.If))
-		}
 	}
-	if !r.Bold && !r.Italic && !r.Underline && !r.Strikethrough && r.TextColor == "" && r.BackgroundColor == "" {
-		*errs = append(*errs, fmt.Sprintf("%s: at least one style (backgroundColor, textColor, bold, italic, underline, strikethrough) is required", prefix))
+
+	if !l.Bold && !l.Italic && !l.Underline && !l.Strikethrough && l.TextColor == "" && l.BackgroundColor == nil {
+		*errs = append(*errs, fmt.Sprintf("%s: a layer needs at least one style (backgroundColor, textColor, bold, italic, underline, strikethrough)", prefix))
 	}
 }
 

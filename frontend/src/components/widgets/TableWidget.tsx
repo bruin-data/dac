@@ -1,14 +1,8 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { format as d3Format } from "d3-format";
-import type { Format, Widget, WidgetData } from "../../types/dashboard";
+import type { FormatLayer, Widget, WidgetData } from "../../types/dashboard";
 import { useTokens } from "../../themes/TemplateProvider";
-import { cellStyle, hasScale, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
-
-/** A column's `format` may be a bare number-format string; normalize to an object. */
-function toFormat(f?: Format | string): Format | undefined {
-  if (f == null) return undefined;
-  return typeof f === "string" ? { number: f } : f;
-}
+import { cellStyle, isGradient, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
 
 interface Props {
   widget: Widget;
@@ -25,7 +19,8 @@ interface SortState {
 interface TableColumn {
   name: string;
   label: string;
-  format?: Format; // effective format (own, or the mirrored column's if `like`)
+  number?: string; // value display (currency | number | d3-format)
+  format?: FormatLayer[]; // effective layers (own, or the mirrored column's if `like`)
   idx: number; // own data index (drives the displayed value)
   colorIdx: number; // data index whose value drives coloring (own, or `like` source)
 }
@@ -41,38 +36,37 @@ export function TableWidget({ widget, data }: Props) {
       ? widget.columns.map((col) => ({
           name: col.name,
           label: col.label || col.name,
-          format: toFormat(col.format),
+          number: col.number,
+          like: col.like,
+          format: col.format,
           idx: data.columns.findIndex((c) => c.name === col.name),
         }))
       : data.columns.map((col, idx) => ({
           name: col.name,
           label: col.name,
-          format: undefined as Format | undefined,
+          number: undefined as string | undefined,
+          like: undefined as string | undefined,
+          format: undefined as FormatLayer[] | undefined,
           idx,
         }));
 
-    // `format.like`: adopt the source's coloring driven by its per-row value,
+    // `like`: adopt the source column's coloring driven by its per-row value,
     // keeping own `number`. Followed transitively (cycle-guarded) to the terminal source.
     const byName = new Map(raw.map((c) => [c.name, c]));
     const likeSource = (col: (typeof raw)[number]) => {
-      let src = col.format?.like ? byName.get(col.format.like) : undefined;
+      let src = col.like ? byName.get(col.like) : undefined;
       const seen = new Set([col.name]);
-      while (src && src.format?.like && !seen.has(src.name)) {
+      while (src && src.like && !seen.has(src.name)) {
         seen.add(src.name);
-        src = byName.get(src.format.like);
+        src = byName.get(src.like);
       }
-      // Exited on a cycle (src still points at a `like` column) → no valid
-      // terminal source; the column falls back to its own format.
-      return src?.format?.like ? undefined : src;
+      // Exited on a cycle (src still points at a `like` column) → no valid source.
+      return src?.like ? undefined : src;
     };
     return raw.map((c) => {
-      const src = c.format?.like ? likeSource(c) : undefined;
-      if (src?.format) {
-        return {
-          ...c,
-          format: { ...src.format, number: c.format?.number ?? src.format.number },
-          colorIdx: src.idx,
-        };
+      const src = c.like ? likeSource(c) : undefined;
+      if (src) {
+        return { ...c, format: src.format, colorIdx: src.idx };
       }
       return { ...c, colorIdx: c.idx };
     });
@@ -94,22 +88,25 @@ export function TableWidget({ widget, data }: Props) {
     const col = columns.find((c) => c.name === sort.column);
     if (!col || col.idx < 0) return rows;
 
-    return sortRows(rows, col.idx, sort.direction, isNumericFormat(col.format));
+    return sortRows(rows, col.idx, sort.direction, col.number != null);
   }, [columns, rows, sort]);
 
-  // Resolve a gradient per column against the full (unsorted) value range so
-  // cell backgrounds stay stable regardless of the active sort.
+  // Resolve gradient scales per column against the full (unsorted) value range,
+  // one entry per layer (null for non-gradient layers) so cell colors stay stable
+  // regardless of the active sort.
   const scales = useMemo(() => {
-    const map = new Map<string, ResolvedScale>();
+    const map = new Map<string, (ResolvedScale | null)[]>();
     for (const col of columns) {
-      if (!col.format || col.colorIdx < 0 || !hasScale(col.format)) continue;
+      if (!col.format || col.colorIdx < 0) continue;
       const values: number[] = [];
       for (const row of rows) {
         const n = toNumber(row[col.colorIdx]);
         if (n !== null) values.push(n);
       }
-      const scale = resolveScale(col.format, values, tokens);
-      if (scale) map.set(col.name, scale);
+      map.set(
+        col.name,
+        col.format.map((layer) => (isGradient(layer) ? resolveScale(layer, values, tokens) : null)),
+      );
     }
     return map;
   }, [columns, rows, tokens]);
@@ -119,7 +116,7 @@ export function TableWidget({ widget, data }: Props) {
   const numberFormatters = useMemo(() => {
     const m = new Map<string, (n: number) => string>();
     for (const col of columns) {
-      const fmt = col.format?.number;
+      const fmt = col.number;
       if (!fmt || fmt === "currency" || fmt === "number") continue;
       try {
         m.set(col.name, d3Format(fmt));
@@ -140,11 +137,11 @@ export function TableWidget({ widget, data }: Props) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:3px_4px]">
+      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:2px_3px]">
         <thead>
           <tr className="bg-[var(--dac-surface)]">
             {columns.map((col) => {
-              const numeric = isNumericFormat(col.format);
+              const numeric = col.number != null;
               const active = sort?.column === col.name;
               return (
                 <th
@@ -182,7 +179,7 @@ export function TableWidget({ widget, data }: Props) {
               className="hover:bg-[var(--dac-surface)] transition-colors duration-75"
             >
               {columns.map((col) => {
-                const numeric = isNumericFormat(col.format);
+                const numeric = col.number != null;
                 const raw = col.idx >= 0 ? row[col.idx] : null; // displayed value (own column)
                 const style: CSSProperties = numeric ? { fontFamily: '"Geist Mono", monospace' } : {};
                 if (col.format) {
@@ -192,17 +189,17 @@ export function TableWidget({ widget, data }: Props) {
                   };
                   // Coloring reads the color-source column (own, or `like` source).
                   const colorRaw = col.colorIdx >= 0 ? row[col.colorIdx] : null;
-                  Object.assign(style, cellStyle(col.format, scales.get(col.name) ?? null, colorRaw, tokens, lookup));
+                  Object.assign(style, cellStyle(col.format, scales.get(col.name) ?? [], colorRaw, tokens, lookup));
                 }
                 return (
                   <td
                     key={col.name}
-                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-[2px] ${
+                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-[3px] ${
                       numeric ? "text-right tabular-nums text-[12px]" : ""
                     }`}
                     style={Object.keys(style).length ? style : undefined}
                   >
-                    {formatCell(raw, col.format?.number, numberFormatters.get(col.name))}
+                    {formatCell(raw, col.number, numberFormatters.get(col.name))}
                   </td>
                 );
               })}
@@ -230,12 +227,6 @@ function SortIndicator({ direction }: { direction: SortDirection | null }) {
       </span>
     </span>
   );
-}
-
-function isNumericFormat(format?: Format): boolean {
-  // Any explicit number format (currency, number, or a d3-format string) marks
-  // the column as numeric for alignment and sorting.
-  return format?.number != null;
 }
 
 function nextSortState(current: SortState | null, column: string): SortState | null {

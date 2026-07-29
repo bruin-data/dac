@@ -359,7 +359,7 @@ export default (
         sql="SELECT * FROM orders"
         columns={[
           { name: "id", label: "Order ID" },
-          { name: "amount", label: "Amount", format: "currency" },
+          { name: "amount", label: "Amount", number: "currency" },
         ]} />
     </Row>
   </Dashboard>
@@ -375,8 +375,8 @@ export default (
 	if w.Columns[0].Name != "id" || w.Columns[0].Label != "Order ID" {
 		t.Errorf("unexpected column 0: %+v", w.Columns[0])
 	}
-	if w.Columns[1].Format == nil || w.Columns[1].Format.Number != "currency" {
-		t.Errorf("expected format number %q, got %+v", "currency", w.Columns[1].Format)
+	if w.Columns[1].Number != "currency" {
+		t.Errorf("expected number %q, got %+v", "currency", w.Columns[1].Number)
 	}
 }
 

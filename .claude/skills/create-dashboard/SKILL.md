@@ -763,20 +763,28 @@ Data table with optional column configuration.
 
 If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
-**Conditional formatting** lives in the column's `format`. The object handles the number format **and** coloring together. The keys and options are below; a full worked example follows at the end.
+**Conditional formatting.** A column sets value display with `number` and coloring with `format`. `number` is `currency`, `number`, or a d3-format string. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**.
 
-**`format` keys**
+A layer is either a **condition** (`if` set), or a **base** with no `if` that always applies: a **gradient** (`backgroundColor` list, optional `range`/`unit`) or a **flat fill** (`backgroundColor` string). A base always matches, so put it **last** as the fallback.
+
+**Column keys**
 
 | Key | What it does |
 |-----|--------------|
 | `number` | Value display: `currency`, `number`, or a d3-format string. |
-| `backgroundColor` | **string** = flat fill for the whole column. **array** = gradient (at least 2 colors). |
-| `domain` | Gradient anchors. A raw array `[-25, 0, 25]`, or `{ unit, anchors }` where `unit` is `value` (default) / `percent` / `percentile`. Omit for auto min/max; omit `anchors` to spread evenly (percentile puts the midpoint at the median). |
-| `scheme` | A built-in gradient by name instead of listing colors. |
+| `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |
+| `format` | Ordered list of style layers; first match wins. |
+
+**Layer keys**
+
+| Key | What it does |
+|-----|--------------|
+| `if` | Condition operator (below). Omit for a base layer (gradient or flat fill) that always applies. |
+| `value` | Comparison value: scalar, `[low, high]` for between, `{ column: X }` for cross-column, omitted for empty checks. |
+| `backgroundColor` | **string** = flat/single fill. **list** = gradient (at least 2 colors). |
+| `range` + `unit` | Gradient anchors. `range` is a list of numbers; `unit` is `absolute`, `percent`, or `percentile`. Omit `range` for an auto min/max gradient. |
 | `textColor` | Text color. |
 | `bold` / `italic` / `underline` / `strikethrough` | Text styling (booleans). |
-| `rules` | Conditional styling, evaluated in order, first match wins. |
-| `like` | Copy another column's coloring, driven by that column's value. |
 
 **Colors** (any color field)
 
@@ -787,20 +795,9 @@ If `columns` is omitted, all result columns are shown with their SQL names as he
 | Aliases | `positive` (green), `negative` (red), `warning` (amber) |
 | Hex | any `"#rrggbb"` |
 
-Named colors match the chart palette and adapt to light/dark; `white` and `black` are fixed literals that stay the same in both themes.
+Named colors match the chart palette and adapt to light/dark; `white` and `black` are fixed literals. Named fills are softened toward the theme surface.
 
-**Built in `scheme`s:** `red-white-green`, `green-white-red`, `red-amber-green`, `green-amber-red`, `white-green`, `white-red`, `white-blue`.
-
-**Rule fields** (each rule = one condition + one or more styles)
-
-| Field | What it does |
-|-------|--------------|
-| `if` | Operator (required). See the table below. |
-| `value` | Scalar to compare against. Use `[low, high]` for between, `{ column: X }` for cross column, omit for empty checks. |
-| `backgroundColor` / `textColor` | Cell colors. |
-| `bold` / `italic` / `underline` / `strikethrough` | Text styling. At least one style is required. |
-
-**Operators**
+**Operators** (a layer's `if`)
 
 | Group | Operators |
 |-------|-----------|
@@ -810,7 +807,7 @@ Named colors match the chart palette and adapt to light/dark; `white` and `black
 | Range | `is_between`, `is_not_between` |
 | Date | `date_is`, `date_before`, `date_after` (by day for a date, or exact instant if the value has a time) |
 
-**Worked example** (a full dashboard exercising every feature above):
+**Worked example** (every feature):
 
 ```yaml
 name: Regions
@@ -823,75 +820,72 @@ rows:
         sql: SELECT region, revenue, growth, margin, score, status, actual, target, bonus, due FROM regions
         columns:
           - name: region
-            format: { backgroundColor: "#F8FAFC", bold: true }          # flat fill + text style
+            format:
+              - { backgroundColor: "#F8FAFC", bold: true }              # flat fill + text style
 
           - name: revenue
+            number: currency
             format:
-              number: currency                                          # value display: currency
-              scheme: red-white-green                                   # built-in gradient
+              - { backgroundColor: [red, white, green] }                # gradient, auto min→max
 
           - name: growth
+            number: number
             format:
-              number: number
-              domain: [-25, 0, 25]                                      # raw anchors (0 = neutral middle)
-              backgroundColor: [blue, white, amber]                     # custom gradient colors
+              - { backgroundColor: [blue, white, amber], range: [-25, 0, 25], unit: absolute }   # 0 = neutral
 
           - name: margin
+            number: ".0%"
             format:
-              number: ".0%"                                             # d3-format string
-              scheme: red-amber-green                                   # built-in scheme
-              domain: { unit: percentile }                              # anchor by percentile (midpoint = median)
+              - { backgroundColor: [red, amber, green], range: [0, 50, 100], unit: percentile }  # midpoint = median
 
           - name: score
-            format:
-              number: number
-              rules:                                                    # numeric rules, first match wins
-                - { if: greater_than_or_equal, value: 80, backgroundColor: green }    # scalar value
-                - { if: is_between, value: [50, 79], backgroundColor: amber }          # [low, high] for between
-                - { if: less_than, value: 50, textColor: red, strikethrough: true }    # text style
+            number: number
+            format:                                                     # conditions, first match wins
+              - { if: greater_than_or_equal, value: 80, backgroundColor: green }
+              - { if: is_between, value: [50, 79], backgroundColor: amber }
+              - { if: less_than, value: 50, textColor: red, strikethrough: true }
 
           - name: status
-            format:
-              rules:                                                    # text rules
-                - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
-                - { if: text_is_exactly, value: overdue, backgroundColor: red }
-                - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }           # no value for empty checks
+            format:                                                     # text conditions
+              - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
+              - { if: text_is_exactly, value: overdue, backgroundColor: red }
+              - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }
 
           - name: actual
-            format:
-              number: number
-              rules:
-                - { if: less_than, value: { column: target }, backgroundColor: red }    # cross-column, same row
-                - { if: greater_than, value: { column: target }, backgroundColor: green }
+            number: number
+            format:                                                     # cross-column, same row
+              - { if: less_than, value: { column: target }, backgroundColor: red }
+              - { if: greater_than, value: { column: target }, backgroundColor: green }
 
           - name: bonus
-            format: { number: currency, like: score }                  # mirror score's colors, keep own number
+            number: currency
+            like: score                                                 # mirror score's colors, keep own number
 
           - name: due
-            format:
-              rules:                                                    # date rules
-                - { if: date_before, value: "2026-07-22", textColor: red }
-                - { if: date_after, value: "2026-07-22", textColor: green }
+            format:                                                     # date conditions
+              - { if: date_before, value: "2026-07-22", textColor: red }
+              - { if: date_after, value: "2026-07-22", textColor: green }
+
+          - name: health
+            number: number
+            format:                                                     # a condition wins over the gradient base below
+              - { if: is_equal_to, value: 0, backgroundColor: red, bold: true }
+              - { backgroundColor: [red, white, green] }                # gradient base, last (always matches)
 ```
 
-How the example reads, column by column:
-- `region`: one flat color on every cell, bold text (a plain string fill plus a text style).
-- `revenue`: currency, colored by the built-in `red-white-green` gradient.
-- `growth`: a custom blue/white/amber gradient with the neutral point pinned to 0 via a raw `domain`.
-- `margin`: a percentage, colored by the built-in `red-amber-green` scheme, anchored by `percentile` so the midpoint sits at the median.
-- `score`: numeric rules covering two `value` forms, a scalar (`>= 80`) and a `[low, high]` range (`50 to 79`), plus a text style (`< 50` struck through in red).
-- `status`: text rules checked in order, first match wins (contains "urgent", exactly "overdue", or empty).
-- `actual`: cross-column rules, compared to `target` in the same row (explained next).
-- `bonus`: `like: score`, so it takes score's colors per row but keeps its own currency display.
-- `due`: date rules, before or after a cutoff day.
+How it reads:
+- `region`: one flat fill, bold (a single base layer).
+- `revenue`: currency, auto min→max gradient.
+- `growth`: gradient with `range` + `unit: absolute`, neutral pinned to 0.
+- `margin`: gradient anchored by `percentile` (midpoint = median).
+- `score`: numeric conditions, first match wins (a scalar, a `[low, high]` range, and a text style).
+- `status`: text conditions, first match wins.
+- `actual`: cross-column conditions vs `target` in the same row.
+- `bonus`: `like: score`, takes score's colors, keeps its own currency.
+- `due`: date conditions.
+- `health`: a condition checked first, then a gradient base as the fallback for every other value.
 
-Cross column, step by step. Look at the `actual` rule:
-
-```yaml
-{ if: less_than, value: { column: target }, backgroundColor: red }
-```
-
-The cell being colored is `actual`. `value: { column: target }` means "compare it to the `target` column in the same row", not to a fixed number. So for every row independently: if that row's `actual` is less than that row's `target`, the `actual` cell turns red. Row 1 uses row 1's target, row 2 uses row 2's target, and so on. `target` can even be a column you do not display in the table, because its data is still available for the comparison. (Writing `value: 100` instead would compare against the constant 100.)
+Cross-column: in `{ if: less_than, value: { column: target }, backgroundColor: red }`, the `actual` cell compares to that row's `target` (not a constant), so each row uses its own target. `target` can be a column you do not display; its data is still available. (`value: 100` would compare against the constant 100.)
 
 ### Text Widget
 

@@ -829,54 +829,33 @@ func asTableColumns(v interface{}) []TableColumn {
 			cols = append(cols, TableColumn{
 				Name:   asString(m["name"]),
 				Label:  asString(m["label"]),
-				Format: asFormat(m["format"]),
+				Number: asString(m["number"]),
+				Like:   asString(m["like"]),
+				Format: asFormatLayers(m["format"]),
 			})
 		}
 	}
 	return cols
 }
 
-// asFormat accepts a bare string (value format shorthand) or a full object.
-func asFormat(v interface{}) *Format {
-	switch val := v.(type) {
-	case nil:
-		return nil
-	case string:
-		return &Format{Number: val}
-	case map[string]interface{}:
-		return &Format{
-			Like:            asString(val["like"]),
-			Number:          asString(val["number"]),
-			BackgroundColor: val["backgroundColor"],
-			TextColor:       asString(val["textColor"]),
-			Bold:            asBool(val["bold"]),
-			Italic:          asBool(val["italic"]),
-			Underline:       asBool(val["underline"]),
-			Strikethrough:   asBool(val["strikethrough"]),
-			Domain:          asDomain(val["domain"]),
-			Scheme:          asString(val["scheme"]),
-			Rules:           asFormatRules(val["rules"]),
-		}
-	default:
-		return nil
-	}
-}
-
-func asFormatRules(v interface{}) []FormatRule {
+// asFormatLayers reads a column's ordered `format` list of style layers.
+func asFormatLayers(v interface{}) []FormatLayer {
 	arr, ok := v.([]interface{})
 	if !ok {
 		return nil
 	}
-	var rules []FormatRule
+	var layers []FormatLayer
 	for _, item := range arr {
 		m, ok := item.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		rules = append(rules, FormatRule{
+		layers = append(layers, FormatLayer{
 			If:              asString(m["if"]),
 			Value:           m["value"],
-			BackgroundColor: asString(m["backgroundColor"]),
+			BackgroundColor: m["backgroundColor"],
+			Range:           asFloatSlice(m["range"]),
+			Unit:            asString(m["unit"]),
 			TextColor:       asString(m["textColor"]),
 			Bold:            asBool(m["bold"]),
 			Italic:          asBool(m["italic"]),
@@ -884,21 +863,7 @@ func asFormatRules(v interface{}) []FormatRule {
 			Strikethrough:   asBool(m["strikethrough"]),
 		})
 	}
-	return rules
-}
-
-// asDomain accepts a bare array of raw values or a { unit, anchors } object.
-func asDomain(v interface{}) *Domain {
-	switch val := v.(type) {
-	case nil:
-		return nil
-	case []interface{}:
-		return &Domain{Anchors: asFloatSlice(val)}
-	case map[string]interface{}:
-		return &Domain{Unit: asString(val["unit"]), Anchors: asFloatSlice(val["anchors"])}
-	default:
-		return nil
-	}
+	return layers
 }
 
 func asFloatSlice(v interface{}) []float64 {

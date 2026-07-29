@@ -103,13 +103,11 @@ rows:
 
 Widget types are `metric`, `chart`, `table`, `text`, `divider`, and `image`.
 
-A `table` column takes `name`, `label`, and `format`. `format` is a string (number format: `number`, `currency`, or a d3-format string), or an object combining number format and conditional coloring:
+A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `like`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**.
 
-- `number`: the value format string.
-- `backgroundColor`: a **string** is a flat whole-column fill; an **array** is a gradient (2+ colors). `domain` pins gradient anchors: a raw array `[-25, 0, 25]`, or `{ unit, anchors }` where `unit` is `value` (default), `percent`, or `percentile` (0 to 100). Omit `domain` for auto min/max; omit `anchors` to spread evenly (percentile puts the midpoint at the median).
-- `scheme`: a built-in gradient by name instead of listing colors (`red-white-green`, `green-white-red`, `red-amber-green`, `green-amber-red`, `white-green`, `white-red`, `white-blue`). Works with `domain` too.
-- `textColor`, `bold`, `italic`, `underline`, `strikethrough`: whole-column text styling.
-- `rules`: a list of `{ if, value, ...styles }`; first match wins. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day for a date, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
+- A **condition** layer has `if` (+ `value`) and one or more styles. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
+- A **base** layer has no `if` and always applies: a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put the base last as the fallback.
+- Styles on any layer: `backgroundColor`, `textColor`, `bold`, `italic`, `underline`, `strikethrough`.
 - `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
 
 Colors are **named** (`red green blue indigo cyan purple pink amber`, plus `white`/`black`, aliases `positive`/`negative`/`warning`) or hex. Named colors adapt to light and dark.
@@ -127,42 +125,48 @@ rows:
         sql: SELECT region, revenue, growth, margin, score, status, actual, target, bonus, due FROM regions
         columns:
           - name: region
-            format: { backgroundColor: "#F8FAFC", bold: true }          # flat fill + text style
+            format:
+              - { backgroundColor: "#F8FAFC", bold: true }              # flat fill + text style
           - name: revenue
-            format: { number: currency, scheme: red-white-green }       # built-in gradient
+            number: currency
+            format:
+              - { backgroundColor: [red, white, green] }                # gradient, auto min→max
           - name: growth
+            number: number
             format:
-              number: number
-              domain: [-25, 0, 25]                                      # raw anchors (0 = neutral)
-              backgroundColor: [blue, white, amber]                     # custom gradient colors
+              - { backgroundColor: [blue, white, amber], range: [-25, 0, 25], unit: absolute }   # 0 = neutral
           - name: margin
-            format: { number: ".0%", scheme: red-amber-green, domain: { unit: percentile } }   # built-in scheme + percentile domain
-          - name: score
+            number: ".0%"
             format:
-              number: number
-              rules:
-                - { if: greater_than_or_equal, value: 80, backgroundColor: green }   # scalar
-                - { if: is_between, value: [50, 79], backgroundColor: amber }         # [low, high]
-                - { if: less_than, value: 50, textColor: red, strikethrough: true }   # text style
+              - { backgroundColor: [red, amber, green], range: [0, 50, 100], unit: percentile }  # midpoint = median
+          - name: score
+            number: number
+            format:                                                     # conditions, first match wins
+              - { if: greater_than_or_equal, value: 80, backgroundColor: green }
+              - { if: is_between, value: [50, 79], backgroundColor: amber }
+              - { if: less_than, value: 50, textColor: red, strikethrough: true }
           - name: status
             format:
-              rules:
-                - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
-                - { if: text_is_exactly, value: overdue, backgroundColor: red }
-                - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }          # no value
+              - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
+              - { if: text_is_exactly, value: overdue, backgroundColor: red }
+              - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }
           - name: actual
-            format:
-              number: number
-              rules:
-                - { if: less_than, value: { column: target }, backgroundColor: red }    # cross-column
-                - { if: greater_than, value: { column: target }, backgroundColor: green }
+            number: number
+            format:                                                     # cross-column, same row
+              - { if: less_than, value: { column: target }, backgroundColor: red }
+              - { if: greater_than, value: { column: target }, backgroundColor: green }
           - name: bonus
-            format: { number: currency, like: score }                  # mirror score's colors, keep own number
+            number: currency
+            like: score                                                 # mirror score's colors, keep own number
           - name: due
             format:
-              rules:
-                - { if: date_before, value: "2026-07-22", textColor: red }
-                - { if: date_after, value: "2026-07-22", textColor: green }
+              - { if: date_before, value: "2026-07-22", textColor: red }
+              - { if: date_after, value: "2026-07-22", textColor: green }
+          - name: health
+            number: number
+            format:                                                     # a condition wins over the gradient base below
+              - { if: is_equal_to, value: 0, backgroundColor: red, bold: true }
+              - { backgroundColor: [red, white, green] }
 ```
 
 ## Filters

@@ -445,8 +445,15 @@
         "label": {
           "type": "string"
         },
+        "number": {
+          "type": "string"
+        },
+        "like": {
+          "type": "string"
+        },
         "format": {
-          "$ref": "#/$defs/format"
+          "type": "array",
+          "items": { "$ref": "#/$defs/formatLayer" }
         }
       },
       "patternProperties": {
@@ -454,73 +461,8 @@
       },
       "additionalProperties": false
     },
-    "format": {
-      "oneOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "object",
-          "properties": {
-            "like": {
-              "type": "string"
-            },
-            "number": {
-              "type": "string"
-            },
-            "backgroundColor": {
-              "oneOf": [
-                { "type": "string" },
-                { "type": "array", "items": { "type": "string" } }
-              ]
-            },
-            "textColor": {
-              "type": "string"
-            },
-            "bold": { "type": "boolean" },
-            "italic": { "type": "boolean" },
-            "underline": { "type": "boolean" },
-            "strikethrough": { "type": "boolean" },
-            "domain": {
-              "oneOf": [
-                { "type": "array", "items": { "type": "number" } },
-                {
-                  "type": "object",
-                  "properties": {
-                    "unit": { "enum": ["value", "percent", "percentile"] },
-                    "anchors": { "type": "array", "items": { "type": "number" } }
-                  },
-                  "patternProperties": { "^x-": true },
-                  "additionalProperties": false
-                }
-              ]
-            },
-            "scheme": {
-              "enum": [
-                "red-white-green",
-                "green-white-red",
-                "red-amber-green",
-                "green-amber-red",
-                "white-green",
-                "white-red",
-                "white-blue"
-              ]
-            },
-            "rules": {
-              "type": "array",
-              "items": { "$ref": "#/$defs/formatRule" }
-            }
-          },
-          "patternProperties": {
-            "^x-": true
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "formatRule": {
+    "formatLayer": {
       "type": "object",
-      "required": ["if"],
       "properties": {
         "if": {
           "enum": [
@@ -545,16 +487,21 @@
           ]
         },
         "value": true,
-        "bold": { "type": "boolean" },
-        "italic": { "type": "boolean" },
-        "underline": { "type": "boolean" },
-        "strikethrough": { "type": "boolean" },
+        "backgroundColor": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "range": { "type": "array", "items": { "type": "number" } },
+        "unit": { "enum": ["absolute", "percent", "percentile"] },
         "textColor": {
           "type": "string"
         },
-        "backgroundColor": {
-          "type": "string"
-        }
+        "bold": { "type": "boolean" },
+        "italic": { "type": "boolean" },
+        "underline": { "type": "boolean" },
+        "strikethrough": { "type": "boolean" }
       },
       "patternProperties": {
         "^x-": true

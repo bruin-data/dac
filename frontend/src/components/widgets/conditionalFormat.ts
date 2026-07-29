@@ -1,9 +1,11 @@
 import type { CSSProperties } from "react";
-import type { ColumnRef, Format, FormatRule, RuleValue } from "../../types/dashboard";
+import type { ColumnRef, FormatLayer, RuleValue } from "../../types/dashboard";
 
-// Pure logic for table conditional formatting: value scales (gradient) and
-// rules (thresholds/conditions). Colors are resolved against the theme token map so
-// named colors follow light/dark mode.
+// Pure logic for table conditional formatting. A column's `format` is an ordered
+// list of layers; the first layer that matches a cell wins. A layer with `if` is
+// a condition; a layer without `if` always matches (a gradient or flat base —
+// place it last). Colors resolve against the theme token map so named colors
+// follow light/dark mode.
 
 type RGB = [number, number, number];
 
@@ -33,18 +35,6 @@ const NAMED_TOKEN: Record<string, string> = {
   warning: "chart-5",
 };
 
-// Built-in gradient schemes. "background" is the theme surface, so the neutral
-// middle blends with the page in both light and dark mode.
-const SCHEMES: Record<string, string[]> = {
-  "red-white-green": ["red", "background", "green"],
-  "green-white-red": ["green", "background", "red"],
-  "red-amber-green": ["red", "amber", "green"],
-  "green-amber-red": ["green", "amber", "red"],
-  "white-green": ["background", "green"],
-  "white-red": ["background", "red"],
-  "white-blue": ["background", "blue"],
-};
-
 /** Resolve a color value (hex, named color, token, or raw CSS) to a CSS color string. */
 export function resolveColor(value: string | undefined, tokens: Record<string, string>): string | undefined {
   if (!value) return undefined;
@@ -63,30 +53,23 @@ export function toNumber(value: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
-function gradientColorNames(format: Format): string[] | null {
-  if (Array.isArray(format.backgroundColor)) return format.backgroundColor;
-  if (format.scheme) return SCHEMES[format.scheme] ?? null;
-  return null;
+/** True when this layer paints a gradient (an array backgroundColor). */
+export function isGradient(layer: FormatLayer): boolean {
+  return Array.isArray(layer.backgroundColor);
 }
 
-/** True when this format paints a gradient (needs the column's value range). */
-export function hasScale(format: Format): boolean {
-  return gradientColorNames(format) !== null;
-}
-
-/** Build the gradient stops for a column from its format and observed values. */
+/** Build a gradient's stops for one layer, resolved against the column's values. */
 export function resolveScale(
-  format: Format,
+  layer: FormatLayer,
   values: number[],
   tokens: Record<string, string>,
 ): ResolvedScale | null {
-  const names = gradientColorNames(format);
+  const names = Array.isArray(layer.backgroundColor) ? layer.backgroundColor : null;
   if (!names || names.length < 2 || values.length === 0) return null;
 
   const surface = surfaceRGB(tokens);
   const rgbs: RGB[] = names.map((n) => {
     const base = parseHex(resolveColor(n, tokens)) ?? [136, 136, 136];
-    // Soften only the semantic palette colors; leave surface/white/hex stops as-is.
     return n in NAMED_TOKEN ? soften(base, surface) : base;
   });
   const sorted = [...values].sort((a, b) => a - b);
@@ -94,7 +77,7 @@ export function resolveScale(
   const hi = sorted[sorted.length - 1];
 
   const k = names.length;
-  const anchors = resolveAnchors(format.domain, k, sorted, lo, hi);
+  const anchors = resolveAnchors(layer.range, layer.unit, k, sorted, lo, hi);
   const stops = rgbs.map((rgb, i) => ({ value: anchors[i], rgb })).sort((a, b) => a.value - b.value);
 
   // Degenerate range (all anchors equal): paint every cell the top color.
@@ -106,36 +89,25 @@ export function resolveScale(
 }
 
 /**
- * Turn a `domain` into `k` anchor values.
- * - omitted → evenly spaced across the value range (auto min/max)
- * - array → raw values
- * - `{ unit, anchors }` → anchors (or, if omitted, evenly spaced in that unit)
- *   read as raw values / percent of range / percentile of the data.
+ * Turn a `range` + `unit` into `k` anchor values.
+ * - omitted (or wrong length) → evenly spaced across the value range (auto min/max)
+ * - unit `absolute` → raw values
+ * - unit `percent` → percent of the min..max range
+ * - unit `percentile` → percentile of the data
  */
 function resolveAnchors(
-  domain: number[] | { unit?: string; anchors?: number[] } | undefined,
+  range: number[] | undefined,
+  unit: string | undefined,
   k: number,
   sorted: number[],
   lo: number,
   hi: number,
 ): number[] {
-  const evenValue = () => Array.from({ length: k }, (_, i) => (k === 1 ? lo : lo + (i / (k - 1)) * (hi - lo)));
-
-  if (!domain) return evenValue();
-  if (Array.isArray(domain)) {
-    return domain.length === k ? domain : evenValue();
-  }
-
-  const unit = domain.unit ?? "value";
-  if (unit === "value") {
-    return domain.anchors && domain.anchors.length === k ? domain.anchors : evenValue();
-  }
-  // percent / percentile: use given positions, or spread evenly 0..100.
-  const positions =
-    domain.anchors && domain.anchors.length === k
-      ? domain.anchors
-      : Array.from({ length: k }, (_, i) => (k === 1 ? 0 : (i / (k - 1)) * 100));
-  return positions.map((p) => (unit === "percent" ? lo + (p / 100) * (hi - lo) : percentileValue(sorted, p)));
+  const even = () => Array.from({ length: k }, (_, i) => (k === 1 ? lo : lo + (i / (k - 1)) * (hi - lo)));
+  if (!range || range.length !== k) return even();
+  const u = unit || "absolute";
+  if (u === "absolute") return range;
+  return range.map((p) => (u === "percent" ? lo + (p / 100) * (hi - lo) : percentileValue(sorted, p)));
 }
 
 /** Linear-interpolated percentile of an ascending-sorted array (p in 0–100). */
@@ -174,53 +146,59 @@ function cellColor(scale: ResolvedScale, value: number | null): { background: st
 }
 
 /**
- * Compute the inline style for one cell: whole-column base → gradient → first
- * matching rule (each layer overrides the properties it sets). `lookup` returns
- * another column's value in the same row for cross-column rules.
+ * Compute the inline style for one cell: the first matching layer wins. `scales`
+ * is aligned to `layers` (one resolved gradient scale per layer, or null).
+ * `lookup` returns another column's value in the same row for cross-column rules.
  */
 export function cellStyle(
-  format: Format,
-  scale: ResolvedScale | null,
+  layers: FormatLayer[] | undefined,
+  scales: (ResolvedScale | null)[],
   raw: unknown,
   tokens: Record<string, string>,
   lookup: (column: string) => unknown,
 ): CSSProperties {
   const style: CSSProperties = {};
+  if (!layers) return style;
 
-  // 1. whole-column base (flat fill + text styles)
-  if (typeof format.backgroundColor === "string") setFill(style, format.backgroundColor, tokens);
-  if (format.textColor) style.color = resolveColor(format.textColor, tokens);
-  applyTextStyles(style, format);
+  for (let i = 0; i < layers.length; i++) {
+    const layer = layers[i];
+    if (!matchLayer(layer, raw, lookup)) continue;
 
-  // 2. gradient (overrides background; sets contrasting text unless one is fixed)
-  if (scale) {
-    const fill = cellColor(scale, toNumber(raw));
-    if (fill) {
-      style.backgroundColor = fill.background;
-      if (!format.textColor) style.color = fill.text;
+    // Matched — apply this layer and stop (first match wins).
+    if (Array.isArray(layer.backgroundColor)) {
+      const scale = scales[i];
+      const fill = scale ? cellColor(scale, toNumber(raw)) : undefined;
+      if (fill) {
+        style.backgroundColor = fill.background;
+        if (!layer.textColor) style.color = fill.text;
+      }
+    } else if (typeof layer.backgroundColor === "string") {
+      setFill(style, layer.backgroundColor, tokens);
     }
+    if (layer.textColor) style.color = resolveColor(layer.textColor, tokens);
+    applyTextStyles(style, layer);
+    return style;
   }
-
-  // 3. first matching rule
-  const rule = format.rules?.find((r) => matchRule(r, raw, lookup));
-  if (rule) applyRuleStyle(style, rule, tokens);
-
   return style;
 }
 
-function applyTextStyles(style: CSSProperties, s: Format | FormatRule): void {
+/** A layer matches a cell when it has no `if` (base) or its condition holds. */
+function matchLayer(layer: FormatLayer, raw: unknown, lookup: (column: string) => unknown): boolean {
+  if (!layer.if) return true;
+  if (layer.if === "is_empty") return isEmpty(raw);
+  if (layer.if === "is_not_empty") return !isEmpty(raw);
+  if (isEmpty(raw)) return false; // every other operator: empty is a non-match
+  const value = resolveRuleValue(layer.value, lookup);
+  return CONDITIONS[layer.if]?.(raw, value) ?? false;
+}
+
+function applyTextStyles(style: CSSProperties, s: FormatLayer): void {
   if (s.bold) style.fontWeight = 600;
   if (s.italic) style.fontStyle = "italic";
   const decoration: string[] = [];
   if (s.underline) decoration.push("underline");
   if (s.strikethrough) decoration.push("line-through");
   if (decoration.length) style.textDecoration = decoration.join(" ");
-}
-
-function applyRuleStyle(style: CSSProperties, rule: FormatRule, tokens: Record<string, string>): void {
-  if (rule.backgroundColor) setFill(style, rule.backgroundColor, tokens);
-  if (rule.textColor) style.color = resolveColor(rule.textColor, tokens);
-  applyTextStyles(style, rule);
 }
 
 /**
@@ -280,7 +258,7 @@ function rgbLuminance([r, g, b]: RGB): number {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
-// --- rule matching ---
+// --- condition matching ---
 
 const isEmpty = (v: unknown): boolean => v === null || v === undefined || v === "";
 const asText = (v: unknown): string => (v == null || Array.isArray(v) ? "" : String(v)).toLowerCase();
@@ -306,7 +284,7 @@ function betweenResult(cell: unknown, value: unknown): boolean | null {
   return n >= Math.min(lo, hi) && n <= Math.max(lo, hi);
 }
 
-const CONDITIONS: Record<FormatRule["if"], (cell: unknown, value: unknown) => boolean> = {
+const CONDITIONS: Record<string, (cell: unknown, value: unknown) => boolean> = {
   is_empty: (c) => isEmpty(c),
   is_not_empty: (c) => !isEmpty(c),
   text_contains: (c, v) => asText(c).includes(asText(v)),
@@ -338,15 +316,6 @@ function resolveOne(v: unknown, lookup: (column: string) => unknown): unknown {
     return lookup((v as ColumnRef).column);
   }
   return v;
-}
-
-/** Evaluate whether a cell value satisfies a rule's condition. */
-function matchRule(rule: FormatRule, raw: unknown, lookup: (column: string) => unknown): boolean {
-  if (rule.if === "is_empty") return isEmpty(raw);
-  if (rule.if === "is_not_empty") return !isEmpty(raw);
-  if (isEmpty(raw)) return false; // every other operator: empty is a non-match
-  const value = resolveRuleValue(rule.value, lookup);
-  return CONDITIONS[rule.if]?.(raw, value) ?? false;
 }
 
 function matchDate(op: "date_is" | "date_before" | "date_after", raw: unknown, value: unknown): boolean {

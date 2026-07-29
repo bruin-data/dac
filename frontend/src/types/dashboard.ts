@@ -110,8 +110,12 @@ export interface Widget {
 export interface TableColumn {
   name: string;
   label?: string;
-  /** Value display + conditional coloring. A bare string is shorthand for `{ number }`. */
-  format?: Format | string;
+  /** Value display: `currency`, `number`, or a d3-format spec. */
+  number?: string;
+  /** Mirror another column's coloring, driven by that column's per-row value. */
+  like?: string;
+  /** Ordered style layers; the first layer that matches a cell wins. */
+  format?: FormatLayer[];
 }
 
 export type FormatOperator =
@@ -141,46 +145,29 @@ export interface ColumnRef {
 
 export type RuleValue = number | string | ColumnRef | Array<number | string | ColumnRef>;
 
-export interface FormatRule {
-  if: FormatOperator;
-  value?: RuleValue;
-  bold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  strikethrough?: boolean;
-  textColor?: string;
-  backgroundColor?: string;
-}
-
 /**
- * A column's value display and conditional coloring.
- * `backgroundColor`: string = flat fill · array = gradient.
- * `domain`: gradient anchor values (omit → auto min/max).
- * `scheme`: a built-in gradient by name. `rules`: conditional styling (first match wins).
+ * One entry in a column's `format` list. The first layer that matches a cell wins.
+ *
+ * - A layer with `if` is a **condition** (applies to matching cells).
+ * - A layer without `if` always matches — a **gradient** (`backgroundColor` array,
+ *   optional `range`/`unit`) or a **flat fill** (`backgroundColor` string). Place
+ *   it last as the fallback base.
+ *
+ * `backgroundColor`: string = flat/single fill · array = gradient.
+ * `range` + `unit` (`absolute` | `percent` | `percentile`) pin a gradient's
+ * anchors; omit `range` for an auto min/max gradient.
  */
-export interface Format {
-  /** Mirror another column's format and per-row value, so cells get identical colors. */
-  like?: string;
-  number?: string;
+export interface FormatLayer {
+  if?: FormatOperator;
+  value?: RuleValue;
   backgroundColor?: string | string[];
+  range?: number[];
+  unit?: "absolute" | "percent" | "percentile";
   textColor?: string;
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
   strikethrough?: boolean;
-  /**
-   * Gradient anchors. Either a bare array of raw values, or `{ unit, anchors }`
-   * where `unit` is `value` (default), `percent`, or `percentile`. Omitting
-   * `anchors` spreads the colors evenly across the unit (percentile → median midpoint).
-   */
-  domain?: number[] | Domain;
-  scheme?: string;
-  rules?: FormatRule[];
-}
-
-export interface Domain {
-  unit?: "value" | "percent" | "percentile";
-  anchors?: number[];
 }
 
 /** Structured encoding for a chart axis. `y.field` may list several series columns. */
