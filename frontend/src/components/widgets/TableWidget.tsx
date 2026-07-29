@@ -61,7 +61,9 @@ export function TableWidget({ widget, data }: Props) {
         seen.add(src.name);
         src = byName.get(src.format.like);
       }
-      return src;
+      // Exited on a cycle (src still points at a `like` column) → no valid
+      // terminal source; the column falls back to its own format.
+      return src?.format?.like ? undefined : src;
     };
     return raw.map((c) => {
       const src = c.format?.like ? likeSource(c) : undefined;
