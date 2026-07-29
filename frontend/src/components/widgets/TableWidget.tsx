@@ -137,7 +137,7 @@ export function TableWidget({ widget, data }: Props) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:1px_2px]">
+      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:1px_1px]">
         <thead>
           <tr className="bg-[var(--dac-surface)]">
             {columns.map((col) => {
@@ -194,7 +194,7 @@ export function TableWidget({ widget, data }: Props) {
                 return (
                   <td
                     key={col.name}
-                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-[3px] ${
+                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${
                       numeric ? "text-right tabular-nums text-[12px]" : ""
                     }`}
                     style={Object.keys(style).length ? style : undefined}
