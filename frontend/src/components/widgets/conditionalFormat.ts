@@ -17,7 +17,8 @@ export interface ResolvedScale {
 }
 
 // Friendly color names → theme token key (the chart palette). Resolving through
-// tokens gives automatic light/dark values, and keeps table + chart colors identical.
+// tokens gives automatic light/dark values; as table fills these are softened
+// toward the surface (see `setFill`) so cells read gentler than solid chart marks.
 const NAMED_TOKEN: Record<string, string> = {
   red: "chart-7",
   green: "chart-6",
@@ -82,7 +83,12 @@ export function resolveScale(
   const names = gradientColorNames(format);
   if (!names || names.length < 2 || values.length === 0) return null;
 
-  const rgbs: RGB[] = names.map((n) => parseHex(resolveColor(n, tokens)) ?? [136, 136, 136]);
+  const surface = surfaceRGB(tokens);
+  const rgbs: RGB[] = names.map((n) => {
+    const base = parseHex(resolveColor(n, tokens)) ?? [136, 136, 136];
+    // Soften only the semantic palette colors; leave surface/white/hex stops as-is.
+    return n in NAMED_TOKEN ? soften(base, surface) : base;
+  });
   const sorted = [...values].sort((a, b) => a - b);
   const lo = sorted[0];
   const hi = sorted[sorted.length - 1];
@@ -182,7 +188,7 @@ export function cellStyle(
   const style: CSSProperties = {};
 
   // 1. whole-column base (flat fill + text styles)
-  if (typeof format.backgroundColor === "string") style.backgroundColor = resolveColor(format.backgroundColor, tokens);
+  if (typeof format.backgroundColor === "string") setFill(style, format.backgroundColor, tokens);
   if (format.textColor) style.color = resolveColor(format.textColor, tokens);
   applyTextStyles(style, format);
 
@@ -212,9 +218,41 @@ function applyTextStyles(style: CSSProperties, s: Format | FormatRule): void {
 }
 
 function applyRuleStyle(style: CSSProperties, rule: FormatRule, tokens: Record<string, string>): void {
-  if (rule.backgroundColor) style.backgroundColor = resolveColor(rule.backgroundColor, tokens);
+  if (rule.backgroundColor) setFill(style, rule.backgroundColor, tokens);
   if (rule.textColor) style.color = resolveColor(rule.textColor, tokens);
   applyTextStyles(style, rule);
+}
+
+/**
+ * Paint a background fill. Semantic palette colors (red/green/amber/…) are
+ * softened toward the theme surface and get contrast-aware text unless a text
+ * color is set later; explicit hex/white/raw fills are left exactly as given.
+ */
+function setFill(style: CSSProperties, name: string, tokens: Record<string, string>): void {
+  const resolved = resolveColor(name, tokens);
+  if (!resolved) return;
+  const rgb = name in NAMED_TOKEN ? parseHex(resolved) : null;
+  if (!rgb) {
+    style.backgroundColor = resolved;
+    return;
+  }
+  const s = soften(rgb, surfaceRGB(tokens));
+  style.backgroundColor = `rgb(${s[0]}, ${s[1]}, ${s[2]})`;
+  style.color = rgbLuminance(s) > 0.4 ? "#0A0D14" : "#FFFFFF";
+}
+
+/** Mix a color toward another by `ratio` (0 = unchanged, 1 = fully the target). */
+function soften(rgb: RGB, toward: RGB, ratio = 0.32): RGB {
+  return [
+    Math.round(rgb[0] + (toward[0] - rgb[0]) * ratio),
+    Math.round(rgb[1] + (toward[1] - rgb[1]) * ratio),
+    Math.round(rgb[2] + (toward[2] - rgb[2]) * ratio),
+  ];
+}
+
+/** The theme surface color as RGB, so softening is light/dark aware. Falls back to white. */
+function surfaceRGB(tokens: Record<string, string>): RGB {
+  return parseHex(resolveColor("background", tokens)) ?? [255, 255, 255];
 }
 
 // --- color helpers ---

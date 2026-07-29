@@ -138,7 +138,7 @@ export function TableWidget({ widget, data }: Props) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[13px] min-w-[400px]">
+      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:3px_4px]">
         <thead>
           <tr className="bg-[var(--dac-surface)]">
             {columns.map((col) => {
@@ -154,7 +154,7 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`py-0 px-0 border-b border-[var(--dac-border)] whitespace-nowrap ${
+                  className={`py-0 px-0 whitespace-nowrap ${
                     numeric ? "text-right" : "text-left"
                   }`}
                 >
@@ -177,7 +177,7 @@ export function TableWidget({ widget, data }: Props) {
           {sortedRows.map((row, i) => (
             <tr
               key={i}
-              className="border-b border-[var(--dac-border)] border-opacity-40 last:border-0 hover:bg-[var(--dac-surface)] transition-colors duration-75"
+              className="hover:bg-[var(--dac-surface)] transition-colors duration-75"
             >
               {columns.map((col) => {
                 const numeric = isNumericFormat(col.format);
@@ -195,7 +195,7 @@ export function TableWidget({ widget, data }: Props) {
                 return (
                   <td
                     key={col.name}
-                    className={`py-1.5 px-4 whitespace-nowrap ${
+                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-[2px] ${
                       numeric ? "text-right tabular-nums text-[12px]" : ""
                     }`}
                     style={Object.keys(style).length ? style : undefined}
