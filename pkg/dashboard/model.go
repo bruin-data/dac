@@ -183,10 +183,10 @@ const (
 // place it last as the fallback base.
 type FormatLayer struct {
 	If              string    `yaml:"if,omitempty" json:"if,omitempty"`
-	Value           any       `yaml:"value,omitempty" json:"value,omitempty"`                    // scalar, [low, high], or {column: X}
+	Value           any       `yaml:"value,omitempty" json:"value,omitempty"`                     // scalar, [low, high], or {column: X}
 	BackgroundColor any       `yaml:"backgroundColor,omitempty" json:"backgroundColor,omitempty"` // string (flat/single) | []string (gradient)
-	Range           []float64 `yaml:"range,omitempty" json:"range,omitempty"`                    // gradient anchors, paired with Unit
-	Unit            string    `yaml:"unit,omitempty" json:"unit,omitempty"`                      // absolute | percent | percentile
+	Range           []float64 `yaml:"range,omitempty" json:"range,omitempty"`                     // gradient anchors, paired with Unit
+	Unit            string    `yaml:"unit,omitempty" json:"unit,omitempty"`                       // absolute | percent | percentile
 	TextColor       string    `yaml:"textColor,omitempty" json:"textColor,omitempty"`
 	Bold            bool      `yaml:"bold,omitempty" json:"bold,omitempty"`
 	Italic          bool      `yaml:"italic,omitempty" json:"italic,omitempty"`
