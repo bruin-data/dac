@@ -124,11 +124,8 @@ rows:
       - name: Regions
         type: table
         col: 12
-        sql: SELECT region, revenue, growth, margin, score, status, actual, target, bonus, due FROM regions
+        sql: SELECT revenue, growth, score, status, actual, target, bonus, health FROM regions
         columns:
-          - name: region
-            format:
-              - { backgroundColor: "#F8FAFC", bold: true }              # flat fill + text style
           - name: revenue
             number: currency
             format:
@@ -136,11 +133,7 @@ rows:
           - name: growth
             number: number
             format:
-              - { backgroundColor: [blue, white, amber], range: [-25, 0, 25], unit: absolute }   # 0 = neutral
-          - name: margin
-            number: ".0%"
-            format:
-              - { backgroundColor: [red, amber, green], range: [0, 50, 100], unit: percentile }  # midpoint = median
+              - { backgroundColor: [blue, white, amber], range: [-25, 0, 25], unit: absolute }   # fixed anchors; unit also percent/percentile
           - name: score
             number: number
             format:                                                     # conditions, first match wins
@@ -150,25 +143,19 @@ rows:
           - name: status
             format:
               - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
-              - { if: text_is_exactly, value: overdue, backgroundColor: red }
-              - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }
+              - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }   # flat fill (string)
           - name: actual
             number: number
-            format:                                                     # cross-column, same row
-              - { if: less_than, value: { column: target }, backgroundColor: red }
+            format:                                                     # cross-column, same row (target need not be displayed)
               - { if: greater_than, value: { column: target }, backgroundColor: green }
           - name: bonus
             number: currency
             like: score                                                 # mirror score's colors, keep own number
-          - name: due
-            format:
-              - { if: date_before, value: "2026-07-22", textColor: red }
-              - { if: date_after, value: "2026-07-22", textColor: green }
           - name: health
             number: number
             format:                                                     # a condition wins over the gradient base below
               - { if: is_equal_to, value: 0, backgroundColor: red, bold: true }
-              - { backgroundColor: [red, white, green] }
+              - { backgroundColor: [red, white, green] }                # base, last (always matches)
 ```
 
 ## Filters
