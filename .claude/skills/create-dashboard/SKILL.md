@@ -763,61 +763,18 @@ Data table with optional column configuration.
 
 If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
-**Conditional formatting.** A column sets value display with `number` and coloring with `format`. `number` is `currency`, `number`, or a d3-format string. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**.
+**Conditional formatting.** A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `like`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**.
 
-A layer's `if` is optional: with `if`, the layer styles only the cells that match; without `if`, the layer styles every cell, so put it **last** as the fallback.
+- With `if` (+ `value`), the layer styles only the cells that match. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
+- With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.
+- Styles on any layer: `backgroundColor`, `textColor`, `bold`, `italic`, `underline`, `strikethrough`.
+- `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
 
-**Column keys**
+Each layer is a YAML object, so `- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }` and the same keys written as an indented block are identical — use whichever reads better.
 
-| Key | What it does |
-|-----|--------------|
-| `number` | Value display: `currency`, `number`, or a d3-format string. |
-| `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |
-| `format` | Ordered list of style layers; first match wins. |
+Colors are **named** (`red green blue indigo cyan purple pink amber`, plus `white`/`black`, aliases `positive`/`negative`/`warning`) or hex. Named colors adapt to light and dark.
 
-**Layer keys** (the `Group` column shows which keys belong together):
-
-| Group | Key | What it does |
-|-------|-----|--------------|
-| Condition | `if` | The operator (below). Omit to apply the layer to every cell. |
-| Condition | `value` | What `if` compares against: scalar, `[low, high]` for between, `{ column: X }` for cross-column, omitted for empty checks. |
-| Fill | `backgroundColor` | **string** = flat/single fill. **list** = gradient (at least 2 colors). |
-| Fill | `range` + `unit` | Gradient only. `range` is a list of numbers; `unit` is `absolute`, `percent`, or `percentile`. Omit `range` for an auto min/max gradient. |
-| Text | `textColor` | Text color. |
-| Text | `bold` / `italic` / `underline` / `strikethrough` | Text styling (booleans). |
-
-Each layer is a YAML object, so these two forms are identical — use whichever reads better:
-
-```yaml
-- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }   # compact (flow)
-
-- backgroundColor: [red, white, green]                                            # block
-  range: [-25, 0, 25]
-  unit: absolute
-```
-
-**Colors** (any color field)
-
-| Kind | Values |
-|------|--------|
-| Named | `red` `green` `blue` `indigo` `cyan` `purple` `pink` `amber` |
-| Fixed | `white` `black` |
-| Aliases | `positive` (green), `negative` (red), `warning` (amber) |
-| Hex | any `"#rrggbb"` |
-
-Named colors match the chart palette and adapt to light/dark; `white` and `black` are fixed literals. Named fills are softened toward the theme surface.
-
-**Operators** (a layer's `if`)
-
-| Group | Operators |
-|-------|-----------|
-| Empty | `is_empty`, `is_not_empty` |
-| Text (case insensitive) | `text_contains`, `text_does_not_contain`, `text_starts_with`, `text_ends_with`, `text_is_exactly` |
-| Number | `greater_than`, `greater_than_or_equal`, `less_than`, `less_than_or_equal`, `is_equal_to`, `is_not_equal_to` |
-| Range | `is_between`, `is_not_between` |
-| Date | `date_is`, `date_before`, `date_after` (by day for a date, or exact instant if the value has a time) |
-
-**Worked example** (every feature):
+Worked example:
 
 ```yaml
 name: Regions
@@ -832,70 +789,47 @@ rows:
           - name: region
             format:
               - { backgroundColor: "#F8FAFC", bold: true }              # flat fill + text style
-
           - name: revenue
             number: currency
             format:
               - { backgroundColor: [red, white, green] }                # gradient, auto min→max
-
           - name: growth
             number: number
             format:
               - { backgroundColor: [blue, white, amber], range: [-25, 0, 25], unit: absolute }   # 0 = neutral
-
           - name: margin
             number: ".0%"
             format:
               - { backgroundColor: [red, amber, green], range: [0, 50, 100], unit: percentile }  # midpoint = median
-
           - name: score
             number: number
             format:                                                     # conditions, first match wins
               - { if: greater_than_or_equal, value: 80, backgroundColor: green }
               - { if: is_between, value: [50, 79], backgroundColor: amber }
               - { if: less_than, value: 50, textColor: red, strikethrough: true }
-
           - name: status
-            format:                                                     # text conditions
+            format:
               - { if: text_contains, value: urgent, backgroundColor: amber, bold: true }
               - { if: text_is_exactly, value: overdue, backgroundColor: red }
               - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }
-
           - name: actual
             number: number
             format:                                                     # cross-column, same row
               - { if: less_than, value: { column: target }, backgroundColor: red }
               - { if: greater_than, value: { column: target }, backgroundColor: green }
-
           - name: bonus
             number: currency
             like: score                                                 # mirror score's colors, keep own number
-
           - name: due
-            format:                                                     # date conditions
+            format:
               - { if: date_before, value: "2026-07-22", textColor: red }
               - { if: date_after, value: "2026-07-22", textColor: green }
-
           - name: health
             number: number
             format:                                                     # a condition wins over the gradient base below
               - { if: is_equal_to, value: 0, backgroundColor: red, bold: true }
-              - { backgroundColor: [red, white, green] }                # gradient base, last (always matches)
+              - { backgroundColor: [red, white, green] }
 ```
-
-How it reads:
-- `region`: one flat fill, bold (a single base layer).
-- `revenue`: currency, auto min→max gradient.
-- `growth`: gradient with `range` + `unit: absolute`, neutral pinned to 0.
-- `margin`: gradient anchored by `percentile` (midpoint = median).
-- `score`: numeric conditions, first match wins (a scalar, a `[low, high]` range, and a text style).
-- `status`: text conditions, first match wins.
-- `actual`: cross-column conditions vs `target` in the same row.
-- `bonus`: `like: score`, takes score's colors, keeps its own currency.
-- `due`: date conditions.
-- `health`: a condition checked first, then a gradient base as the fallback for every other value.
-
-Cross-column: in `{ if: less_than, value: { column: target }, backgroundColor: red }`, the `actual` cell compares to that row's `target` (not a constant), so each row uses its own target. `target` can be a column you do not display; its data is still available. (`value: 100` would compare against the constant 100.)
 
 ### Text Widget
 
