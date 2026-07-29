@@ -263,18 +263,15 @@ A column sets value display with `number` and coloring with `format`. `number`
 is `currency`, `number`, or a d3-format string. `format` is an **ordered list of
 layers**, and for each cell the **first layer that matches wins**.
 
-A layer is one of two kinds:
-- a **condition** (`if` is set), applied to the cells that satisfy it, or
-- a **base** (no `if`), which always applies: a **gradient** (`backgroundColor`
-  is a list, with optional `range`/`unit`) or a **flat fill** (`backgroundColor`
-  is a string). A base always matches, so put it **last** as the fallback.
+A layer's `if` is optional: with `if`, the layer styles only the cells that match
+the condition; without `if`, the layer styles every cell.
 
 ```yaml
 - name: score
   number: number
   format:
-    - { if: greater_than_or_equal, value: 80, backgroundColor: green }   # condition, checked first
-    - { backgroundColor: [red, white, green] }                           # gradient base, last
+    - { if: greater_than_or_equal, value: 80, backgroundColor: green }   # matches only score >= 80
+    - { backgroundColor: [red, white, green] }                           # no if → every other cell, so last
 ```
 
 **Column keys**
@@ -285,16 +282,26 @@ A layer is one of two kinds:
 | `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |
 | `format` | Ordered list of style layers; first match wins. |
 
-**Layer keys**
+**Layer keys** (the `Group` column shows which keys belong together):
 
-| Key | What it does |
-|-----|--------------|
-| `if` | Condition operator (see below). Omit for a base layer (gradient or flat fill) that always applies. |
-| `value` | Comparison value: a scalar, `[low, high]` for between, `{ column: X }` for cross-column, omitted for empty checks. |
-| `backgroundColor` | **string** = flat/single fill. **list** = gradient (at least 2 colors). |
-| `range` + `unit` | Gradient anchors. `range` is a list of numbers; `unit` is `absolute`, `percent`, or `percentile`. Omit `range` for an auto min/max gradient. |
-| `textColor` | Text color. |
-| `bold` / `italic` / `underline` / `strikethrough` | Text styling (booleans). |
+| Group | Key | What it does |
+|-------|-----|--------------|
+| Condition | `if` | The operator (see the table below). Omit to apply the layer to every cell. |
+| Condition | `value` | What `if` compares against: a scalar, `[low, high]` for between, `{ column: X }` for cross-column, omitted for empty checks. |
+| Fill | `backgroundColor` | A **string** (flat fill) or a **list** of colors (gradient, at least 2). |
+| Fill | `range` + `unit` | Gradient only. `range` is a list of anchor numbers; `unit` is `absolute`, `percent`, or `percentile`. Omit `range` for an auto min/max gradient. |
+| Text | `textColor` | Text color. |
+| Text | `bold` / `italic` / `underline` / `strikethrough` | Text styling (booleans). |
+
+Each layer is a YAML object, so these two forms are identical — use whichever reads better:
+
+```yaml
+- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }   # compact (flow)
+
+- backgroundColor: [red, white, green]                                            # block
+  range: [-25, 0, 25]
+  unit: absolute
+```
 
 **Colors** (any color field)
 
@@ -340,13 +347,11 @@ rows:
 
           - name: growth
             number: number
-            format:
-              - backgroundColor: [blue, white, amber]                   # gradient colors
-                range: [-25, 0, 25]                                     # pinned anchors, 0 = neutral middle
-                unit: absolute
+            format:                                                     # compact form (0 = neutral middle)
+              - { backgroundColor: [blue, white, amber], range: [-25, 0, 25], unit: absolute }
 
           - name: margin
-            number: ".0%"                                               # d3-format string
+            number: ".0%"                                               # d3-format string; same layer, block form
             format:
               - backgroundColor: [red, amber, green]
                 range: [0, 50, 100]
@@ -355,9 +360,9 @@ rows:
           - name: score
             number: number
             format:                                                     # conditions, first match wins
-              - { if: greater_than_or_equal, value: 80, backgroundColor: green }    # scalar value
+              - { if: greater_than_or_equal, value: 80, backgroundColor: green, textColor: white, bold: true }   # fill + text styles together
               - { if: is_between, value: [50, 79], backgroundColor: amber }         # [low, high] for between
-              - { if: less_than, value: 50, textColor: red, strikethrough: true }   # text style
+              - { if: less_than, value: 50, backgroundColor: "#FEE2E2", textColor: red, strikethrough: true }    # fill + text style
 
           - name: status
             format:                                                     # text conditions
@@ -376,28 +381,33 @@ rows:
             like: score                                                 # mirror score's colors, keep own number
 
           - name: due
-            format:                                                     # date conditions
-              - { if: date_before, value: "2026-07-22", textColor: red }
-              - { if: date_after, value: "2026-07-22", textColor: green }
+            format:                                                     # date conditions (fill + text)
+              - { if: date_before, value: "2026-07-22", backgroundColor: red, textColor: white, bold: true }
+              - { if: date_after, value: "2026-07-22", backgroundColor: green, textColor: white }
 
           - name: health
             number: number
-            format:                                                     # a condition wins over the gradient base below it
+            format:                                                     # order matters: this wins over the layer below
               - { if: is_equal_to, value: 0, backgroundColor: red, bold: true }
-              - { backgroundColor: [red, white, green] }                # gradient base, last (always matches)
+              - { backgroundColor: [red, white, green], range: [0, 50, 100], unit: percent }  
 ```
 
+**Order matters.** Layers are checked top to bottom and the first match wins, so
+list the specific conditions first and any catch-all (a gradient or flat fill with
+no `if`) last. `growth` is written in the compact one-line form and `margin` as an
+indented block; both are the same layer shape.
+
 How the example reads, column by column:
-- `region`: one flat color on every cell, bold text (a single base layer with a string fill plus a text style).
+- `region`: one flat color on every cell, bold text (a single layer, string fill plus a text style).
 - `revenue`: currency, colored by an auto min→max gradient.
 - `growth`: a blue/white/amber gradient with the neutral point pinned to 0 via `range` + `unit: absolute`.
 - `margin`: a percentage, colored by a gradient anchored by `percentile` so the midpoint sits at the median.
-- `score`: numeric conditions covering two `value` forms, a scalar (`>= 80`) and a `[low, high]` range (`50 to 79`), plus a text style (`< 50` struck through in red).
+- `score`: numeric conditions covering two `value` forms, a scalar (`>= 80`) and a `[low, high]` range (`50 to 79`); each layer combines a `backgroundColor` fill with text styles (`< 50` gets a light-red fill plus red struck-through text).
 - `status`: text conditions checked in order, first match wins (contains "urgent", exactly "overdue", or empty).
 - `actual`: cross-column conditions, compared to `target` in the same row (explained next).
 - `bonus`: `like: score`, so it takes score's colors per row but keeps its own currency display.
 - `due`: date conditions, before or after a cutoff day.
-- `health`: a condition (`= 0` turns red) checked first, then a gradient base last as the fallback for every other value.
+- `health`: a condition (`= 0` turns red) checked first, then a `percent`-range gradient with no `if` last, for every other value.
 
 Cross column, step by step. Look at the `actual` rule:
 

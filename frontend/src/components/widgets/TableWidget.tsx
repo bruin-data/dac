@@ -137,7 +137,7 @@ export function TableWidget({ widget, data }: Props) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:2px_3px]">
+      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:1px_2px]">
         <thead>
           <tr className="bg-[var(--dac-surface)]">
             {columns.map((col) => {

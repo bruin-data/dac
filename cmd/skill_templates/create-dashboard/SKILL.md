@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 5
+version: 6
 ---
 
 # Create Dashboard
@@ -105,10 +105,12 @@ Widget types are `metric`, `chart`, `table`, `text`, `divider`, and `image`.
 
 A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `like`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**.
 
-- A **condition** layer has `if` (+ `value`) and one or more styles. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
-- A **base** layer has no `if` and always applies: a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put the base last as the fallback.
+- With `if` (+ `value`), the layer styles only the cells that match. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
+- With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.
 - Styles on any layer: `backgroundColor`, `textColor`, `bold`, `italic`, `underline`, `strikethrough`.
 - `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
+
+Each layer is a YAML object, so `- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }` and the same keys written as an indented block are identical — use whichever reads better.
 
 Colors are **named** (`red green blue indigo cyan purple pink amber`, plus `white`/`black`, aliases `positive`/`negative`/`warning`) or hex. Named colors adapt to light and dark.
 

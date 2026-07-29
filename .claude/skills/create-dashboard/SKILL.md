@@ -765,7 +765,7 @@ If `columns` is omitted, all result columns are shown with their SQL names as he
 
 **Conditional formatting.** A column sets value display with `number` and coloring with `format`. `number` is `currency`, `number`, or a d3-format string. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**.
 
-A layer is either a **condition** (`if` set), or a **base** with no `if` that always applies: a **gradient** (`backgroundColor` list, optional `range`/`unit`) or a **flat fill** (`backgroundColor` string). A base always matches, so put it **last** as the fallback.
+A layer's `if` is optional: with `if`, the layer styles only the cells that match; without `if`, the layer styles every cell, so put it **last** as the fallback.
 
 **Column keys**
 
@@ -775,16 +775,26 @@ A layer is either a **condition** (`if` set), or a **base** with no `if` that al
 | `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |
 | `format` | Ordered list of style layers; first match wins. |
 
-**Layer keys**
+**Layer keys** (the `Group` column shows which keys belong together):
 
-| Key | What it does |
-|-----|--------------|
-| `if` | Condition operator (below). Omit for a base layer (gradient or flat fill) that always applies. |
-| `value` | Comparison value: scalar, `[low, high]` for between, `{ column: X }` for cross-column, omitted for empty checks. |
-| `backgroundColor` | **string** = flat/single fill. **list** = gradient (at least 2 colors). |
-| `range` + `unit` | Gradient anchors. `range` is a list of numbers; `unit` is `absolute`, `percent`, or `percentile`. Omit `range` for an auto min/max gradient. |
-| `textColor` | Text color. |
-| `bold` / `italic` / `underline` / `strikethrough` | Text styling (booleans). |
+| Group | Key | What it does |
+|-------|-----|--------------|
+| Condition | `if` | The operator (below). Omit to apply the layer to every cell. |
+| Condition | `value` | What `if` compares against: scalar, `[low, high]` for between, `{ column: X }` for cross-column, omitted for empty checks. |
+| Fill | `backgroundColor` | **string** = flat/single fill. **list** = gradient (at least 2 colors). |
+| Fill | `range` + `unit` | Gradient only. `range` is a list of numbers; `unit` is `absolute`, `percent`, or `percentile`. Omit `range` for an auto min/max gradient. |
+| Text | `textColor` | Text color. |
+| Text | `bold` / `italic` / `underline` / `strikethrough` | Text styling (booleans). |
+
+Each layer is a YAML object, so these two forms are identical — use whichever reads better:
+
+```yaml
+- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }   # compact (flow)
+
+- backgroundColor: [red, white, green]                                            # block
+  range: [-25, 0, 25]
+  unit: absolute
+```
 
 **Colors** (any color field)
 
