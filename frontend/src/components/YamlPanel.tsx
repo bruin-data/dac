@@ -40,10 +40,13 @@ export function YamlPanel({ dashboardName, fileType, isOpen, onClose, onResize, 
 
   useEffect(() => {
     if (!isOpen || !dashboardName) return;
+    let cancelled = false;
     setError(null);
+    setYaml(null);
     getDashboardRaw(dashboardName)
-      .then(setYaml)
-      .catch((err) => setError(err.message));
+      .then((raw) => { if (!cancelled) setYaml(raw); })
+      .catch((err) => { if (!cancelled) setError(err.message); });
+    return () => { cancelled = true; };
   }, [isOpen, dashboardName]);
 
   const handleCopy = () => {
