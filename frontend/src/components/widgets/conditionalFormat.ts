@@ -225,8 +225,9 @@ function applyRuleStyle(style: CSSProperties, rule: FormatRule, tokens: Record<s
 
 /**
  * Paint a background fill. Semantic palette colors (red/green/amber/…) are
- * softened toward the theme surface and get contrast-aware text unless a text
- * color is set later; explicit hex/white/raw fills are left exactly as given.
+ * softened toward the theme surface so the theme's own text color stays legible;
+ * explicit hex/white/raw fills are left exactly as given. Text color is never
+ * forced here — it follows the theme, or an explicit `textColor`.
  */
 function setFill(style: CSSProperties, name: string, tokens: Record<string, string>): void {
   const resolved = resolveColor(name, tokens);
@@ -238,7 +239,6 @@ function setFill(style: CSSProperties, name: string, tokens: Record<string, stri
   }
   const s = soften(rgb, surfaceRGB(tokens));
   style.backgroundColor = `rgb(${s[0]}, ${s[1]}, ${s[2]})`;
-  style.color = rgbLuminance(s) > 0.4 ? "#0A0D14" : "#FFFFFF";
 }
 
 /** Mix a color toward another by `ratio` (0 = unchanged, 1 = fully the target). */
