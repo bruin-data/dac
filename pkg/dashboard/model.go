@@ -151,7 +151,51 @@ type TableColumn struct {
 	Label  string        `yaml:"label,omitempty" json:"label,omitempty"`
 	Number string        `yaml:"number,omitempty" json:"number,omitempty"` // value display: currency | number | d3-format spec
 	Like   string        `yaml:"like,omitempty" json:"like,omitempty"`     // mirror another column's coloring + per-row value
-	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered style layers; first match wins
+	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered conditional-format style layers; first match wins
+}
+
+// UnmarshalYAML makes a column's `format` polymorphic for backward compatibility.
+// Originally `format` was a scalar value-display shorthand (`format: currency`);
+// that role is now `number`, and `format` is an ordered list of style layers. So
+// a scalar `format` is read as the legacy value format and folded into Number
+// (unless Number is set explicitly); a list is decoded as the style layers. Value
+// display (`number`, or a scalar `format`) and coloring (`format: [...]`) coexist.
+func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("table column must be a mapping")
+	}
+	type tableColumnFields struct {
+		Name   string    `yaml:"name"`
+		Label  string    `yaml:"label,omitempty"`
+		Number string    `yaml:"number,omitempty"`
+		Like   string    `yaml:"like,omitempty"`
+		Format yaml.Node `yaml:"format,omitempty"`
+	}
+	var tmp tableColumnFields
+	if err := node.Decode(&tmp); err != nil {
+		return err
+	}
+	c.Name = tmp.Name
+	c.Label = tmp.Label
+	c.Number = tmp.Number
+	c.Like = tmp.Like
+	c.Format = nil
+	switch tmp.Format.Kind {
+	case 0:
+		// no `format` key
+	case yaml.ScalarNode:
+		// Legacy `format: <string>` == value display, which is now `number`.
+		if c.Number == "" {
+			c.Number = tmp.Format.Value
+		}
+	case yaml.SequenceNode:
+		if err := tmp.Format.Decode(&c.Format); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("table column %q: format must be a string (value display) or a list of style layers", tmp.Name)
+	}
+	return nil
 }
 
 // Condition operators for conditional-formatting rules.

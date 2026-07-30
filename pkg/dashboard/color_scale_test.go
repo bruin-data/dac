@@ -8,6 +8,34 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func TestFormat_YAML_LegacyScalar(t *testing.T) {
+	// Backward compatibility: a scalar `format` is the old value-display
+	// shorthand, now equivalent to `number`. It maps into Number with no layers.
+	// `number` and an array `format` may coexist (value display + coloring).
+	yamlBody := `
+columns:
+  - name: revenue
+    format: currency
+  - name: score
+    number: number
+    format:
+      - { if: greater_than_or_equal, value: 80, backgroundColor: green }
+`
+	var w Widget
+	if err := yaml.Unmarshal([]byte(yamlBody), &w); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if w.Columns[0].Number != "currency" {
+		t.Fatalf("scalar format should map to Number, got %q", w.Columns[0].Number)
+	}
+	if len(w.Columns[0].Format) != 0 {
+		t.Fatalf("scalar format should not populate layers, got %d", len(w.Columns[0].Format))
+	}
+	if w.Columns[1].Number != "number" || len(w.Columns[1].Format) != 1 {
+		t.Fatalf("number+layers should coexist: number=%q layers=%d", w.Columns[1].Number, len(w.Columns[1].Format))
+	}
+}
+
 func TestFormat_YAML_Layers(t *testing.T) {
 	yamlBody := `
 columns:

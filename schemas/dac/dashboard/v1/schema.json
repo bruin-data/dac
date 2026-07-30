@@ -452,8 +452,10 @@
           "type": "string"
         },
         "format": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/formatLayer" }
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "$ref": "#/$defs/formatLayer" } }
+          ]
         }
       },
       "patternProperties": {
