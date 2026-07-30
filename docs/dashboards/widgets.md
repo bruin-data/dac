@@ -263,6 +263,11 @@ A column sets value display with `number` and coloring with `format`. `number`
 is `currency`, `number`, or a d3-format string. `format` is an **ordered list of
 layers**, and for each cell the **first layer that matches wins**.
 
+`format` is polymorphic for backward compatibility: a scalar string (e.g.
+`format: currency`) is the older value-display shorthand and is treated as an
+alias for `number`; a list is the conditional-format layers. Prefer `number`
+in new dashboards, and use a list `format` for coloring (the two can coexist).
+
 A layer's `if` is optional: with `if`, the layer styles only the cells that match
 the condition; without `if`, the layer styles every cell.
 

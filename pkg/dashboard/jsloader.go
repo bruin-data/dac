@@ -826,13 +826,22 @@ func asTableColumns(v interface{}) []TableColumn {
 	var cols []TableColumn
 	for _, item := range arr {
 		if m, ok := item.(map[string]interface{}); ok {
-			cols = append(cols, TableColumn{
+			col := TableColumn{
 				Name:   asString(m["name"]),
 				Label:  asString(m["label"]),
 				Number: asString(m["number"]),
 				Like:   asString(m["like"]),
-				Format: asFormatLayers(m["format"]),
-			})
+			}
+			// `format` is polymorphic: a string is the legacy value-display
+			// shorthand (== `number`), a list is the style layers.
+			if s, ok := m["format"].(string); ok {
+				if col.Number == "" {
+					col.Number = s
+				}
+			} else {
+				col.Format = asFormatLayers(m["format"])
+			}
+			cols = append(cols, col)
 		}
 	}
 	return cols
