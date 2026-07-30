@@ -161,39 +161,33 @@ type TableColumn struct {
 // (unless Number is set explicitly); a list is decoded as the style layers. Value
 // display (`number`, or a scalar `format`) and coloring (`format: [...]`) coexist.
 func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind != yaml.MappingNode {
-		return fmt.Errorf("table column must be a mapping")
-	}
-	type tableColumnFields struct {
+	// Decode the plain fields, capturing `format` as a raw node (a nested struct
+	// with no UnmarshalYAML, so this doesn't recurse).
+	var tmp struct {
 		Name   string    `yaml:"name"`
 		Label  string    `yaml:"label,omitempty"`
 		Number string    `yaml:"number,omitempty"`
 		Like   string    `yaml:"like,omitempty"`
 		Format yaml.Node `yaml:"format,omitempty"`
 	}
-	var tmp tableColumnFields
 	if err := node.Decode(&tmp); err != nil {
 		return err
 	}
-	c.Name = tmp.Name
-	c.Label = tmp.Label
-	c.Number = tmp.Number
-	c.Like = tmp.Like
-	c.Format = nil
-	switch tmp.Format.Kind {
-	case 0:
-		// no `format` key
+	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Number: tmp.Number, Like: tmp.Like}
+
+	// Follow a YAML alias to its target, then: a scalar is the legacy value-display
+	// shorthand (folds into `number`); a list is the style layers.
+	f := &tmp.Format
+	for f.Kind == yaml.AliasNode && f.Alias != nil {
+		f = f.Alias
+	}
+	switch f.Kind {
 	case yaml.ScalarNode:
-		// Legacy `format: <string>` == value display, which is now `number`.
 		if c.Number == "" {
-			c.Number = tmp.Format.Value
+			c.Number = f.Value
 		}
 	case yaml.SequenceNode:
-		if err := tmp.Format.Decode(&c.Format); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("table column %q: format must be a string (value display) or a list of style layers", tmp.Name)
+		return f.Decode(&c.Format)
 	}
 	return nil
 }

@@ -36,6 +36,33 @@ columns:
 	}
 }
 
+func TestFormat_YAML_Alias(t *testing.T) {
+	// A YAML alias (`format: *anchor`) to an anchored scalar or sequence must
+	// resolve to its target, not be rejected.
+	yamlBody := `
+columns:
+  - name: a
+    format: &fmt currency
+  - name: b
+    format: *fmt
+  - name: c
+    format: &layers
+      - { if: greater_than, value: 0, backgroundColor: green }
+  - name: d
+    format: *layers
+`
+	var w Widget
+	if err := yaml.Unmarshal([]byte(yamlBody), &w); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if w.Columns[1].Number != "currency" {
+		t.Fatalf("aliased scalar format should map to Number, got %q", w.Columns[1].Number)
+	}
+	if len(w.Columns[3].Format) != 1 {
+		t.Fatalf("aliased sequence format should decode to layers, got %d", len(w.Columns[3].Format))
+	}
+}
+
 func TestFormat_YAML_Layers(t *testing.T) {
 	yamlBody := `
 columns:
