@@ -99,7 +99,7 @@ rows:
             format:
               - { backgroundColor: [red, white, green], range: [0, 50, 100], unit: percentile }
 
-  # 4. Conditions: text, numeric, range, empty, date, cross-column; first match wins
+  # 4. Conditions: text, numeric, range, empty, date, cross-column (target hidden); first match wins
   - widgets:
       - name: Conditions
         type: table
@@ -126,14 +126,14 @@ rows:
               - { if: is_between, value: [50, 79], backgroundColor: amber }
               - { if: less_than, value: 50, backgroundColor: "#FEE2E2", textColor: red, strikethrough: true }
           - name: actual
-            label: "Actual (cross-column vs target)"
+            label: "Actual (cross-column vs hidden target)"
             number: number
             format:
               - { if: less_than, value: { column: target }, backgroundColor: red }
               - { if: greater_than, value: { column: target }, backgroundColor: green }
           - name: target
             label: Target
-            number: number
+            number: number                                                 
           - name: due
             label: "Due (date_before / date_after)"
             format:

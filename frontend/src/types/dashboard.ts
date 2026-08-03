@@ -114,6 +114,8 @@ export interface TableColumn {
   number?: string;
   /** Mirror another column's coloring, driven by that column's per-row value. */
   like?: string;
+  /** Keep the column in the result (for cross-column rules / `like`) but don't render it. */
+  hidden?: boolean;
   /** Ordered style layers; the first layer that matches a cell wins. */
   format?: FormatLayer[];
 }

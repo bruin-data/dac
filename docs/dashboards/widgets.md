@@ -255,6 +255,7 @@ Table column fields:
 |-------|------|-------------|
 | `name` | string | Result column name (must match the SQL output) |
 | `label` | string | Display header (defaults to `name`) |
+| `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
 | `format` | string \| object | Value display and conditional coloring, see below |
 
 ## Conditional formatting
@@ -285,6 +286,7 @@ the condition; without `if`, the layer styles every cell.
 |-----|--------------|
 | `number` | Value display: `currency`, `number`, or a d3-format string. |
 | `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |
+| `hidden` | Keep the column in the result (so it can drive cross-column rules or be a `like` source) but don't render it. |
 | `format` | Ordered list of style layers; first match wins. |
 
 **Layer keys** (the `Group` column shows which keys belong together):
@@ -381,6 +383,9 @@ rows:
               - { if: less_than, value: { column: target }, backgroundColor: red }   # cross-column, same row
               - { if: greater_than, value: { column: target }, backgroundColor: green }
 
+          - name: target
+            hidden: true                                                # in the result for the rule above, not rendered
+
           - name: bonus
             number: currency
             like: score                                                 # mirror score's colors, keep own number
@@ -410,6 +415,7 @@ How the example reads, column by column:
 - `score`: numeric conditions covering two `value` forms, a scalar (`>= 80`) and a `[low, high]` range (`50 to 79`); each layer combines a `backgroundColor` fill with text styles (`< 50` gets a light-red fill plus red struck-through text).
 - `status`: text conditions checked in order, first match wins (contains "urgent", exactly "overdue", or empty).
 - `actual`: cross-column conditions, compared to `target` in the same row (explained next).
+- `target`: `hidden: true`, so it stays in the result to drive `actual`'s comparison but is not rendered as its own column.
 - `bonus`: `like: score`, so it takes score's colors per row but keeps its own currency display.
 - `due`: date conditions, before or after a cutoff day.
 - `health`: a condition (`= 0` turns red) checked first, then a `percent`-range gradient with no `if` last, for every other value.
@@ -420,7 +426,23 @@ Cross column, step by step. Look at the `actual` rule:
 { if: less_than, value: { column: target }, backgroundColor: red }
 ```
 
-The cell being colored is `actual`. `value: { column: target }` means "compare it to the `target` column in the same row", not to a fixed number. So for every row independently: if that row's `actual` is less than that row's `target`, the `actual` cell turns red. Row 1 uses row 1's target, row 2 uses row 2's target, and so on. `target` can even be a column you do not display in the table, because its data is still available for the comparison. (Writing `value: 100` instead would compare against the constant 100.)
+The cell being colored is `actual`. `value: { column: target }` means "compare it to the `target` column in the same row", not to a fixed number. So for every row independently: if that row's `actual` is less than that row's `target`, the `actual` cell turns red. Row 1 uses row 1's target, row 2 uses row 2's target, and so on. `target` is marked `hidden: true` here, so it drives the comparison without taking up a column of its own. (Writing `value: 100` instead would compare against the constant 100.)
+
+## Hidden columns
+
+A column with `hidden: true` stays in the query result but is not rendered. It is optional: coloring reads a column whether or not it's shown. Hide only to drop a column from the display.
+
+```yaml
+columns:
+  - name: actual
+    number: number
+    format:
+      - { if: less_than, value: { column: target }, backgroundColor: red }
+  - name: target
+    hidden: true      # feeds the rule above, never rendered
+```
+
+Hidden columns are still in the underlying data, so they appear in CSV exports. `hidden` has no effect on non-table widgets.
 
 ## Inline data
 

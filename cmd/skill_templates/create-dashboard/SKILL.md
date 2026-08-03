@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 6
+version: 7
 ---
 
 # Create Dashboard
@@ -103,12 +103,13 @@ rows:
 
 Widget types are `metric`, `chart`, `table`, `text`, `divider`, and `image`.
 
-A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `like`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
+A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `like`, `hidden`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
 
 - With `if` (+ `value`), the layer styles only the cells that match. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
 - With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.
 - Styles on any layer: `backgroundColor`, `textColor`, `bold`, `italic`, `underline`, `strikethrough`.
 - `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
+- `hidden: true`: keep the column in the result but don't render it. Optional. Coloring reads a column whether or not it's shown, so hide only to drop it from the display, e.g. a `like` source you must declare but don't want visible.
 
 Each layer is a YAML object, so `- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }` and the same keys written as an indented block are identical — use whichever reads better.
 
@@ -146,8 +147,10 @@ rows:
               - { if: is_empty, backgroundColor: "#F3F4F6", italic: true }   # flat fill (string)
           - name: actual
             number: number
-            format:                                                     # cross-column, same row (target need not be displayed)
+            format:                                                     # cross-column, same row
               - { if: greater_than, value: { column: target }, backgroundColor: green }
+          - name: target
+            hidden: true                                                # in the result for the rule above, not rendered
           - name: bonus
             number: currency
             like: score                                                 # mirror score's colors, keep own number
