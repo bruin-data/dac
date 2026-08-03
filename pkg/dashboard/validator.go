@@ -415,8 +415,8 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	if w.Normalized && w.Chart != "bar" {
 		errs = append(errs, fmt.Sprintf("%s: normalized is only valid on bar charts", prefix))
 	}
-	if w.Horizontal && w.Chart != "bar" {
-		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar charts", prefix))
+	if w.Horizontal && w.Chart != "bar" && w.Chart != "funnel" {
+		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar and funnel charts", prefix))
 	}
 
 	return errs

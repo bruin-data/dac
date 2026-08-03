@@ -162,7 +162,7 @@ func TestParseSkillVersion(t *testing.T) {
 		content string
 		want    int
 	}{
-		{"bundled skill", createDashboardSkill, 5},
+		{"bundled skill", createDashboardSkill, 6},
 		{"explicit version", "---\nname: x\nversion: 7\n---\nbody", 7},
 		{"missing version", "---\nname: x\n---\nbody", 0},
 		{"no frontmatter", "# just a heading\n", 0},

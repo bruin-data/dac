@@ -2,7 +2,7 @@ import { useContext, useMemo, useState } from "react";
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   ScatterChart, Scatter, ZAxis,
-  ComposedChart, FunnelChart, Funnel, LabelList, Sankey,
+  ComposedChart, Sankey,
   Treemap,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -810,6 +810,161 @@ function CandlestickChart({
   );
 }
 
+// --- Funnel rendering ---
+
+/**
+ * A conversion funnel: one centered, tapering bar per stage. Unlike a plain
+ * funnel chart, this surfaces the two numbers that matter for an onboarding
+ * funnel — each stage's share of the top of the funnel (overall conversion)
+ * and the step-to-step conversion between consecutive stages (drop-off).
+ *
+ * Rows are taken in the order the query returns them (top of funnel first);
+ * no sorting is applied so stages stay in their intended sequence.
+ *
+ * Orientation follows the widget's `horizontal` flag: the default stacks
+ * stages top-to-bottom (bars taper by width); `horizontal: true` lays them
+ * left-to-right (bars taper by height, like a column funnel).
+ */
+function FunnelChart({
+  data,
+  labelKey,
+  valueKey,
+  colors,
+  tokens,
+  height,
+  horizontal = false,
+  valueFmt,
+}: {
+  data: Record<string, unknown>[];
+  labelKey: string;
+  valueKey: string;
+  colors: string[];
+  tokens: Record<string, string>;
+  height: number;
+  horizontal?: boolean;
+  valueFmt: (val: unknown) => string;
+}) {
+  const raw = data
+    .map((d) => ({ label: String(d[labelKey] ?? ""), value: Number(d[valueKey]) || 0 }))
+    .filter((s) => s.label !== "");
+
+  if (raw.length === 0) {
+    return <div className="text-[var(--dac-text-muted)] text-xs py-6 text-center">No data</div>;
+  }
+
+  const topValue = raw[0].value || 1;
+  const maxValue = Math.max(...raw.map((s) => s.value)) || 1;
+  const textPrimary = tokens["text-primary"] || "#0A0D14";
+  const textMuted = tokens["text-muted"] || "#868C98";
+  const barColor = colors[0] || "#4338CA";
+
+  // Per-stage derived numbers, shared by both orientations. `extent` is the
+  // bar's share of the largest stage (width when vertical, height when
+  // horizontal); a floor keeps thin stages readable.
+  const stages = raw.map((s, i) => ({
+    ...s,
+    extent: Math.max(8, (s.value / maxValue) * 100),
+    pctOfTop: topValue > 0 ? (s.value / topValue) * 100 : 0,
+    stepConv: i === 0 ? null : raw[i - 1].value > 0 ? (s.value / raw[i - 1].value) * 100 : 0,
+    // Fade successive stages so depth reads without extra chrome.
+    opacity: 1 - (i / Math.max(raw.length, 1)) * 0.55,
+  }));
+
+  if (horizontal) {
+    return (
+      <div className="flex items-stretch overflow-x-auto px-1" style={{ height }}>
+        {stages.map((s, i) => (
+          <div key={i} className="flex min-w-0 flex-1 items-stretch">
+            {i > 0 && s.stepConv !== null && (
+              <div
+                className="flex shrink-0 flex-col items-center justify-center px-0.5 text-[10px] font-medium leading-tight tabular-nums"
+                style={{ color: textMuted }}
+                title={`${s.stepConv.toFixed(1)}% of the previous stage continued`}
+              >
+                <span aria-hidden>→</span>
+                <span>{s.stepConv.toFixed(1)}%</span>
+              </div>
+            )}
+            <div className="flex min-w-0 flex-1 flex-col items-center">
+              <span
+                className="w-full truncate text-center text-[11px] font-medium leading-tight"
+                style={{ color: textPrimary }}
+                title={s.label}
+              >
+                {s.label}
+              </span>
+              <div className="flex w-full flex-1 items-center justify-center py-1">
+                <div
+                  className="flex w-[72%] items-center justify-center rounded-[3px]"
+                  style={{ height: `${s.extent}%`, background: barColor, opacity: s.opacity }}
+                >
+                  <span
+                    className="px-1 text-[11px] font-semibold tabular-nums text-white"
+                    style={{ textShadow: "0 1px 2px rgba(0,0,0,0.25)" }}
+                  >
+                    {valueFmt(s.value)}
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] tabular-nums leading-tight" style={{ color: textMuted }}>
+                {Math.round(s.pctOfTop)}%
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col overflow-y-auto px-1" style={{ height }}>
+      {/* my-auto centers the stages when they fit; when they exceed the height
+          the container scrolls instead of clipping later stages. */}
+      <div className="my-auto flex flex-col gap-0.5">
+        {stages.map((s, i) => (
+        <div key={i} className="flex flex-col items-center">
+          {i > 0 && s.stepConv !== null && (
+            <div
+              className="flex items-center gap-1 py-[3px] text-[10px] font-medium tabular-nums"
+              style={{ color: textMuted }}
+              title={`${s.stepConv.toFixed(1)}% of the previous stage continued`}
+            >
+              <span aria-hidden>↓</span>
+              <span>{s.stepConv.toFixed(1)}%</span>
+            </div>
+          )}
+          <div className="flex w-full items-baseline justify-between gap-2 leading-none">
+            <span
+              className="truncate text-[11px] font-medium"
+              style={{ color: textPrimary }}
+              title={s.label}
+            >
+              {s.label}
+            </span>
+            <span className="shrink-0 text-[10px] tabular-nums" style={{ color: textMuted }}>
+              {Math.round(s.pctOfTop)}%
+            </span>
+          </div>
+          <div className="mt-1 flex w-full justify-center">
+            <div
+              className="flex h-7 items-center justify-center rounded-[3px]"
+              style={{ width: `${s.extent}%`, background: barColor, opacity: s.opacity }}
+            >
+              <span
+                className="px-2 text-[11px] font-semibold tabular-nums text-white"
+                style={{ textShadow: "0 1px 2px rgba(0,0,0,0.25)" }}
+              >
+                {valueFmt(s.value)}
+              </span>
+            </div>
+          </div>
+        </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // --- Main chart component ---
 
 // Height consumed by the y-axis title line rendered above the plot.
@@ -1129,27 +1284,16 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
 
     case "funnel":
       return (
-        <ResponsiveContainer width="100%" height={chartHeight}>
-          <FunnelChart>
-            <Tooltip content={<CustomTooltip />} />
-            <Funnel
-              data={chartData.map((d, i) => ({
-                ...d,
-                fill: colors[i % colors.length],
-              }))}
-              dataKey={valueField(widget.value) || "value"}
-              nameKey={widget.label || "label"}
-              isAnimationActive={false}
-            >
-              <LabelList
-                position="center"
-                fill="#fff"
-                style={{ fontSize: 11, fontFamily: '"Geist", system-ui', fontWeight: 500 }}
-                formatter={(v: unknown) => formatTooltipValue(v)}
-              />
-            </Funnel>
-          </FunnelChart>
-        </ResponsiveContainer>
+        <FunnelChart
+          data={chartData}
+          labelKey={widget.label || "label"}
+          valueKey={valueField(widget.value) || "value"}
+          colors={colors}
+          tokens={tokens}
+          height={chartHeight}
+          horizontal={widget.horizontal}
+          valueFmt={buildAxisFormatter(widget.value, formatTooltipValue)}
+        />
       );
 
     case "sankey": {

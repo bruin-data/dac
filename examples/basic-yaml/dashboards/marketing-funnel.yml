@@ -1,0 +1,109 @@
+schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Marketing Onboarding Funnel
+description: Signup-to-activation funnel with per-stage conversion and drop-off
+connection: local_duckdb
+
+# Most widgets here carry inline `data`, so the onboarding story renders without
+# a warehouse. The funnel chart is source-agnostic, though — it just needs a
+# `label` column and a `value` column. The last row runs live SQL against the
+# example DuckDB to show the exact same widget backed by a query.
+
+rows:
+  # Headline funnel — the full onboarding journey, top of funnel first.
+  - widgets:
+      - name: Onboarding Funnel
+        type: chart
+        chart: funnel
+        col: 8
+        description: Visitors → paid, last 30 days. Rows are top-of-funnel first.
+        label: stage
+        value: { field: users }
+        data:
+          columns: [stage, users]
+          rows:
+            - ["Visited site", 48200]
+            - ["Signed up", 18640]
+            - ["Verified email", 14210]
+            - ["Completed setup", 9080]
+            - ["Activated (first value)", 5720]
+            - ["Upgraded to paid", 1890]
+
+      # Overall conversion headline next to the funnel.
+      - name: Visitor → Paid
+        type: metric
+        col: 4
+        description: End-to-end onboarding conversion
+        value: { field: rate, format: ".1%" }
+        data:
+          columns: [rate]
+          rows:
+            - [0.0392]
+
+  # Segmented funnels — compare where each acquisition channel loses people.
+  - widgets:
+      - name: Organic Signups
+        type: chart
+        chart: funnel
+        col: 6
+        label: stage
+        value: { field: users }
+        data:
+          columns: [stage, users]
+          rows:
+            - ["Signed up", 9200]
+            - ["Verified email", 7360]
+            - ["Completed setup", 5150]
+            - ["Activated", 3480]
+
+      - name: Paid Ads Signups
+        type: chart
+        chart: funnel
+        col: 6
+        label: stage
+        value: { field: users }
+        data:
+          columns: [stage, users]
+          rows:
+            - ["Signed up", 9440]
+            - ["Verified email", 6850]
+            - ["Completed setup", 3930]
+            - ["Activated", 2240]
+
+  # Formatted funnel 
+  - widgets:
+      - name: Pipeline Value
+        type: chart
+        chart: funnel
+        col: 12
+        description: Revenue reaching each pipeline stage, formatted as currency
+        label: stage
+        value: { field: amount, format: "$,.0f" }
+        data:
+          columns: [stage, amount]
+          rows:
+            - ["Qualified", 4820000]
+            - ["Proposal sent", 2610000]
+            - ["Negotiation", 1340000]
+            - ["Closed won", 612000]
+
+  # SQL-backed funnel — same widget, but the stages come from a live query
+  # against the example DuckDB. The query returns (stage, value) rows already
+  # ordered top-of-funnel first; the funnel does the rest.
+  - widgets:
+      - name: Order Value Funnel (SQL)
+        type: chart
+        chart: funnel
+        col: 12
+        description: Orders surviving each spend threshold, queried from DuckDB
+        connection: local_duckdb
+        horizontal: true # lay stages left-to-right; well suited to a wide widget
+        label: stage
+        value: { field: orders }
+        sql: |
+          SELECT stage, orders FROM (
+            SELECT 'All orders' AS stage, COUNT(*) AS orders, 1 AS ord FROM orders
+            UNION ALL SELECT 'Over $50',  COUNT(*), 2 FROM orders WHERE amount >= 50
+            UNION ALL SELECT 'Over $100', COUNT(*), 3 FROM orders WHERE amount >= 100
+            UNION ALL SELECT 'Over $250', COUNT(*), 4 FROM orders WHERE amount >= 250
+            UNION ALL SELECT 'Over $500', COUNT(*), 5 FROM orders WHERE amount >= 500
+          ) ORDER BY ord

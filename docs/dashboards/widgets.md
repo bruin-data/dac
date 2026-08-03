@@ -86,7 +86,7 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 | `combo` | `x`, `y` | `lines` | Mixed bar + line chart (y series in `lines` render as lines, the rest as bars) |
 | `histogram` | `x` | `bins` | Histogram (client-side binning) |
 | `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
-| `funnel` | `label`, `value` | | Funnel chart |
+| `funnel` | `label`, `value` | `horizontal` | Conversion funnel: one bar per stage with each stage's share of the top and step-to-step conversion. Rows render in query order — put the top of the funnel first. `horizontal: true` lays stages left-to-right |
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
 | `heatmap` | `x`, `y`, `value` | | Grid heatmap |
 | `calendar` | `x`, `value` | | GitHub-style calendar heatmap |
@@ -188,7 +188,7 @@ Common chart fields:
 | `color` | object | Category column (`{ field: ... }`) that splits the single `y` series into one series per category — bar, line, and area charts |
 | `stacked` | boolean | Stack the color series (bar charts only; requires `color`) |
 | `normalized` | boolean | Render stacked bars as percentages of the row total (requires `stacked`) |
-| `horizontal` | boolean | Horizontal bars: categories on the vertical axis (bar charts only) |
+| `horizontal` | boolean | Horizontal layout: bar charts put categories on the vertical axis; funnel charts lay stages left-to-right |
 | `size` | string | Bubble size column for bubble charts |
 | `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
 | `bins` | integer | Number of bins for histogram charts (default 10) |
