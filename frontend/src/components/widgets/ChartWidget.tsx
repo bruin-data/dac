@@ -917,11 +917,11 @@ function FunnelChart({
   }
 
   return (
-    <div
-      className="flex flex-col justify-center gap-0.5 overflow-hidden px-1"
-      style={{ minHeight: height }}
-    >
-      {stages.map((s, i) => (
+    <div className="flex flex-col overflow-y-auto px-1" style={{ height }}>
+      {/* my-auto centers the stages when they fit; when they exceed the height
+          the container scrolls instead of clipping later stages. */}
+      <div className="my-auto flex flex-col gap-0.5">
+        {stages.map((s, i) => (
         <div key={i} className="flex flex-col items-center">
           {i > 0 && s.stepConv !== null && (
             <div
@@ -959,7 +959,8 @@ function FunnelChart({
             </div>
           </div>
         </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
