@@ -8,6 +8,11 @@ jobs:
     name: Bump Version (minor)
     runs-on: ubuntu-latest
     steps:
+      - name: Ensure dispatched from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Bump Version must be dispatched from main (got ${{ github.ref }})."
+          exit 1
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: "0"
