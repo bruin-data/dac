@@ -188,7 +188,7 @@ Common chart fields:
 | `color` | object | Category column (`{ field: ... }`) that splits the single `y` series into one series per category — bar, line, and area charts |
 | `stacked` | boolean | Stack the color series (bar charts only; requires `color`) |
 | `normalized` | boolean | Render stacked bars as percentages of the row total (requires `stacked`) |
-| `horizontal` | boolean | Horizontal bars: categories on the vertical axis (bar charts only) |
+| `horizontal` | boolean | Horizontal layout: bar charts put categories on the vertical axis; funnel charts lay stages left-to-right |
 | `size` | string | Bubble size column for bubble charts |
 | `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
 | `bins` | integer | Number of bins for histogram charts (default 10) |

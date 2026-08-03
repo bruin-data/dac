@@ -833,6 +833,7 @@ function FunnelChart({
   tokens,
   height,
   horizontal = false,
+  valueFmt,
 }: {
   data: Record<string, unknown>[];
   labelKey: string;
@@ -841,6 +842,7 @@ function FunnelChart({
   tokens: Record<string, string>;
   height: number;
   horizontal?: boolean;
+  valueFmt: (val: unknown) => string;
 }) {
   const raw = data
     .map((d) => ({ label: String(d[labelKey] ?? ""), value: Number(d[valueKey]) || 0 }))
@@ -880,7 +882,7 @@ function FunnelChart({
                 title={`${s.stepConv.toFixed(1)}% of the previous stage continued`}
               >
                 <span aria-hidden>→</span>
-                <span>{s.stepConv.toFixed(0)}%</span>
+                <span>{s.stepConv.toFixed(1)}%</span>
               </div>
             )}
             <div className="flex min-w-0 flex-1 flex-col items-center">
@@ -895,13 +897,12 @@ function FunnelChart({
                 <div
                   className="flex w-[72%] items-center justify-center rounded-[3px]"
                   style={{ height: `${s.extent}%`, background: barColor, opacity: s.opacity }}
-                  title={`${s.label}: ${formatTooltipValue(s.value)}`}
                 >
                   <span
                     className="px-1 text-[11px] font-semibold tabular-nums text-white"
                     style={{ textShadow: "0 1px 2px rgba(0,0,0,0.25)" }}
                   >
-                    {formatTooltipValue(s.value)}
+                    {valueFmt(s.value)}
                   </span>
                 </div>
               </div>
@@ -948,13 +949,12 @@ function FunnelChart({
             <div
               className="flex h-7 items-center justify-center rounded-[3px]"
               style={{ width: `${s.extent}%`, background: barColor, opacity: s.opacity }}
-              title={`${s.label}: ${formatTooltipValue(s.value)}`}
             >
               <span
                 className="px-2 text-[11px] font-semibold tabular-nums text-white"
                 style={{ textShadow: "0 1px 2px rgba(0,0,0,0.25)" }}
               >
-                {formatTooltipValue(s.value)}
+                {valueFmt(s.value)}
               </span>
             </div>
           </div>
@@ -1291,6 +1291,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           tokens={tokens}
           height={chartHeight}
           horizontal={widget.horizontal}
+          valueFmt={buildAxisFormatter(widget.value, formatTooltipValue)}
         />
       );
 

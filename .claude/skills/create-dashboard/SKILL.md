@@ -570,6 +570,12 @@ Client-side quartile computation from raw data rows.
 
 #### Funnel
 
+Conversion funnel: one bar per stage showing each stage's share of the top of
+the funnel and the step-to-step conversion between stages. Rows render in query
+order, so put the top of the funnel first (`ORDER BY count DESC`). Bar labels
+honor `value.format`, so a revenue funnel can render currency. Set
+`horizontal: true` to lay the stages left-to-right instead of top-to-bottom.
+
 ```yaml
 - name: Conversion Funnel
   type: chart
@@ -1560,7 +1566,7 @@ rows:
 | `combo` | `x`, `y`, `lines` | | Mixed bar + line chart |
 | `histogram` | `x` | `bins` | Histogram (client-side binning) |
 | `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
-| `funnel` | `label`, `value` | | Funnel chart |
+| `funnel` | `label`, `value` | `horizontal` | Conversion funnel: one bar per stage with its share of the top and step-to-step conversion; bar labels honor `value.format`; `horizontal: true` lays stages left-to-right |
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
 | `heatmap` | `x`, `y`, `value` | | Grid heatmap |
 | `calendar` | `x`, `value` | | Calendar heatmap (GitHub-style) |

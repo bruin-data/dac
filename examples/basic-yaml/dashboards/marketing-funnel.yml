@@ -69,6 +69,23 @@ rows:
             - ["Completed setup", 3930]
             - ["Activated", 2240]
 
+  # Formatted funnel 
+  - widgets:
+      - name: Pipeline Value
+        type: chart
+        chart: funnel
+        col: 12
+        description: Revenue reaching each pipeline stage, formatted as currency
+        label: stage
+        value: { field: amount, format: "$,.0f" }
+        data:
+          columns: [stage, amount]
+          rows:
+            - ["Qualified", 4820000]
+            - ["Proposal sent", 2610000]
+            - ["Negotiation", 1340000]
+            - ["Closed won", 612000]
+
   # SQL-backed funnel — same widget, but the stages come from a live query
   # against the example DuckDB. The query returns (stage, value) rows already
   # ordered top-of-funnel first; the funnel does the rest.
