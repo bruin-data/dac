@@ -872,7 +872,7 @@ function FunnelChart({
 
   if (horizontal) {
     return (
-      <div className="flex items-stretch overflow-hidden px-1" style={{ height }}>
+      <div className="flex items-stretch overflow-x-auto px-1" style={{ height }}>
         {stages.map((s, i) => (
           <div key={i} className="flex min-w-0 flex-1 items-stretch">
             {i > 0 && s.stepConv !== null && (
