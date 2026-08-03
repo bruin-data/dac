@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 5
+version: 6
 ---
 
 # Create Dashboard
@@ -218,6 +218,8 @@ rows:
 ```
 
 A chart's `x` and `y` are axis encoding objects with a required `field` (bare column names like `x: region` are invalid). `field` may be a single column or a list.
+
+The `funnel` chart shows conversion through ordered stages: one bar per stage with its share of the top of the funnel and the step-to-step conversion. Use `label` (stage) and `value` (count), and order rows top-of-funnel first in SQL. `horizontal: true` lays the stages left-to-right, and bar labels honor `value.format` (e.g. `"$,.0f"` for a revenue funnel).
 
 Every query is an inline `sql:` block or a named `query:` reference — YAML widgets do not take file paths. In TSX, `include("queries/revenue.sql")` reads a `.sql` file into an inline query at load time.
 
