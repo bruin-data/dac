@@ -452,6 +452,9 @@
         "like": {
           "type": "string"
         },
+        "hidden": {
+          "type": "boolean"
+        },
         "format": {
           "oneOf": [
             { "type": "string" },

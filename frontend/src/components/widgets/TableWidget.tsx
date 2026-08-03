@@ -38,6 +38,7 @@ export function TableWidget({ widget, data }: Props) {
           label: col.label || col.name,
           number: col.number,
           like: col.like,
+          hidden: col.hidden ?? false,
           format: col.format,
           idx: data.columns.findIndex((c) => c.name === col.name),
         }))
@@ -46,6 +47,7 @@ export function TableWidget({ widget, data }: Props) {
           label: col.name,
           number: undefined as string | undefined,
           like: undefined as string | undefined,
+          hidden: false,
           format: undefined as FormatLayer[] | undefined,
           idx,
         }));
@@ -63,13 +65,16 @@ export function TableWidget({ widget, data }: Props) {
       // Exited on a cycle (src still points at a `like` column) → no valid source.
       return src?.like ? undefined : src;
     };
-    return raw.map((c) => {
-      const src = c.like ? likeSource(c) : undefined;
-      if (src) {
-        return { ...c, format: src.format, colorIdx: src.idx };
-      }
-      return { ...c, colorIdx: c.idx };
-    });
+
+    return raw
+      .map((c) => {
+        const src = c.like ? likeSource(c) : undefined;
+        if (src) {
+          return { ...c, format: src.format, colorIdx: src.idx };
+        }
+        return { ...c, colorIdx: c.idx };
+      })
+      .filter((c) => !c.hidden);
   }, [widget.columns, data?.columns]);
 
   const rows = data?.rows ?? [];

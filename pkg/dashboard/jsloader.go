@@ -831,6 +831,7 @@ func asTableColumns(v interface{}) []TableColumn {
 				Label:  asString(m["label"]),
 				Number: asString(m["number"]),
 				Like:   asString(m["like"]),
+				Hidden: asBool(m["hidden"]),
 			}
 			// `format` is polymorphic: a string is the legacy value-display
 			// shorthand (== `number`), a list is the style layers.

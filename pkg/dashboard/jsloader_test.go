@@ -360,6 +360,7 @@ export default (
         columns={[
           { name: "id", label: "Order ID" },
           { name: "amount", label: "Amount", number: "currency" },
+          { name: "target", hidden: true },
         ]} />
     </Row>
   </Dashboard>
@@ -369,14 +370,17 @@ export default (
 	assertNoErr(t, err)
 
 	w := d.Rows[0].Widgets[0]
-	if len(w.Columns) != 2 {
-		t.Fatalf("expected 2 columns, got %d", len(w.Columns))
+	if len(w.Columns) != 3 {
+		t.Fatalf("expected 3 columns, got %d", len(w.Columns))
 	}
 	if w.Columns[0].Name != "id" || w.Columns[0].Label != "Order ID" {
 		t.Errorf("unexpected column 0: %+v", w.Columns[0])
 	}
 	if w.Columns[1].Number != "currency" {
 		t.Errorf("expected number %q, got %+v", "currency", w.Columns[1].Number)
+	}
+	if !w.Columns[2].Hidden {
+		t.Errorf("expected target column to be hidden, got %+v", w.Columns[2])
 	}
 }
 

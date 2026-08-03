@@ -334,6 +334,48 @@ func TestValidate_LikeUnknownColumn(t *testing.T) {
 	}
 }
 
+func TestFormat_YAML_Hidden(t *testing.T) {
+	yamlBody := `
+columns:
+  - name: actual
+    number: number
+    format:
+      - { if: less_than, value: { column: target }, backgroundColor: red }
+  - name: target
+    number: number
+    hidden: true
+`
+	var w Widget
+	if err := yaml.Unmarshal([]byte(yamlBody), &w); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if w.Columns[0].Hidden {
+		t.Fatalf("actual should not be hidden")
+	}
+	if !w.Columns[1].Hidden {
+		t.Fatalf("target should be hidden")
+	}
+}
+
+func TestValidate_LikeHiddenColumn(t *testing.T) {
+	// A `like` source may be a hidden column: it stays in the result (and the
+	// declared column set) so the reference resolves even though it isn't rendered.
+	d := &Dashboard{
+		Name: "d",
+		Rows: []Row{{Widgets: []Widget{{
+			Name: "t", Type: WidgetTypeTable, SQL: "SELECT 1",
+			Columns: []TableColumn{
+				{Name: "score", Hidden: true, Format: []FormatLayer{{BackgroundColor: []interface{}{"red", "green"}}}},
+				{Name: "bonus", Like: "score"},
+			},
+		}}}},
+	}
+	errs := runValidate(d)
+	if hasErrContaining(errs, "unknown column") {
+		t.Errorf("hidden column should be a valid like source, got %v", errs)
+	}
+}
+
 func TestValidate_LikeSelfReference(t *testing.T) {
 	d := &Dashboard{
 		Name: "d",
