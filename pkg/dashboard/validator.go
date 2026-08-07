@@ -265,7 +265,46 @@ var validChartTypes = map[string]bool{
 	"boxplot": true, "funnel": true, "sankey": true, "heatmap": true,
 	"calendar": true, "sparkline": true, "waterfall": true, "xmr": true,
 	"dumbbell": true, "gauge": true, "treemap": true, "radar": true,
-	"candlestick": true,
+	"candlestick": true, "forest": true,
+}
+
+// validateRefAnnotations checks widget.refLines / widget.refBands: axis must be
+// x or y, and a band's range must be non-empty.
+func validateRefAnnotations(prefix string, w *Widget) []string {
+	var errs []string
+	// Reference lines/bands only render on the cartesian charts that draw them;
+	// on other types they would validate but silently do nothing.
+	if len(w.RefLines) > 0 || len(w.RefBands) > 0 {
+		switch w.Chart {
+		case "line", "area", "bar", "forest":
+		default:
+			errs = append(errs, fmt.Sprintf("%s: refLines/refBands are only supported on line, area, bar and forest charts, got %q", prefix, w.Chart))
+		}
+	}
+	// xmr control limits are a single column per bound; a per-series map would be
+	// silently ignored by the renderer.
+	if w.Chart == "xmr" {
+		if w.YMin != nil && len(w.YMin.Map) > 0 {
+			errs = append(errs, fmt.Sprintf("%s: xmr yMin must be a single column, not a per-series map", prefix))
+		}
+		if w.YMax != nil && len(w.YMax.Map) > 0 {
+			errs = append(errs, fmt.Sprintf("%s: xmr yMax must be a single column, not a per-series map", prefix))
+		}
+	}
+	for i, l := range w.RefLines {
+		if l.Axis != "x" && l.Axis != "y" {
+			errs = append(errs, fmt.Sprintf("%s: refLines[%d].axis must be \"x\" or \"y\", got %q", prefix, i, l.Axis))
+		}
+	}
+	for i, b := range w.RefBands {
+		if b.Axis != "x" && b.Axis != "y" {
+			errs = append(errs, fmt.Sprintf("%s: refBands[%d].axis must be \"x\" or \"y\", got %q", prefix, i, b.Axis))
+		}
+		if b.From == b.To {
+			errs = append(errs, fmt.Sprintf("%s: refBands[%d] from and to must differ", prefix, i))
+		}
+	}
+	return errs
 }
 
 func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
@@ -278,6 +317,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		errs = append(errs, fmt.Sprintf("%s: unknown chart type %q", prefix, w.Chart))
 		return errs
 	}
+	errs = append(errs, validateRefAnnotations(prefix, w)...)
 
 	// Dimensional chart: uses dimension + metrics from a semantic model
 	// instead of x/y/sql.
@@ -415,8 +455,8 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	if w.Normalized && w.Chart != "bar" {
 		errs = append(errs, fmt.Sprintf("%s: normalized is only valid on bar charts", prefix))
 	}
-	if w.Horizontal && w.Chart != "bar" && w.Chart != "funnel" {
-		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar and funnel charts", prefix))
+	if w.Horizontal != nil && *w.Horizontal && w.Chart != "bar" && w.Chart != "funnel" && w.Chart != "forest" {
+		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar, funnel and forest charts", prefix))
 	}
 
 	return errs

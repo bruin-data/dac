@@ -8,6 +8,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func boolPtr(b bool) *bool { return &b }
+
 func TestColorEncoding_YAML_ObjectForm(t *testing.T) {
 	yamlBody := `
 color:
@@ -152,11 +154,11 @@ func TestValidate_HorizontalOnlyOnBar(t *testing.T) {
 			SQL:        "SELECT 1 AS x, 1 AS y",
 			X:          &AxisEncoding{Field: "x"},
 			Y:          &AxisEncoding{Field: "y"},
-			Horizontal: true,
+			Horizontal: boolPtr(true),
 		}}}},
 	}
 	err := Validate(d)
-	if err == nil || !strings.Contains(err.Error(), "horizontal is only valid on bar and funnel charts") {
+	if err == nil || !strings.Contains(err.Error(), "horizontal is only valid on bar, funnel and forest charts") {
 		t.Fatalf("expected horizontal-not-on-line error, got: %v", err)
 	}
 }
@@ -171,7 +173,7 @@ func TestValidate_HorizontalFunnelIsValid(t *testing.T) {
 			SQL:        "SELECT stage, users FROM funnel",
 			Label:      "stage",
 			Value:      &ValueEncoding{Field: "users"},
-			Horizontal: true,
+			Horizontal: boolPtr(true),
 		}}}},
 	}
 	if err := Validate(d); err != nil {
@@ -192,7 +194,7 @@ func TestValidate_HappyPath_BarWithColorStackedNormalizedHorizontal(t *testing.T
 			Color:      &ColorEncoding{Field: "region"},
 			Stacked:    true,
 			Normalized: true,
-			Horizontal: true,
+			Horizontal: boolPtr(true),
 		}}}},
 	}
 	if err := Validate(d); err != nil {

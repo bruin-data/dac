@@ -1,4 +1,5 @@
-import { useContext, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   ScatterChart, Scatter, ZAxis,
@@ -6,6 +7,7 @@ import {
   Treemap,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  ReferenceLine, ReferenceArea, ErrorBar,
 } from "recharts";
 import type { TreemapNode } from "recharts";
 import type { Widget, WidgetData } from "../../types/dashboard";
@@ -16,6 +18,55 @@ import { RowHeightContext } from "../../themes/RowContext";
 const DEFAULT_CHART_HEIGHT = 240;
 // Approx pixels consumed by the widget frame's title/padding above the chart.
 const FRAME_OVERHEAD = 60;
+
+// CI / annotation helpers (mirror the cloud ApexCharts renderer) ───────────
+const CI_BAND_OPACITY = 0.18;
+const REF_LINE_COLOR = "#6B7280";
+const REF_BAND_COLOR = "#F59E0B";
+const FOREST_SIG = "#3B82F6";
+const FOREST_NOSIG = "#9CA3AF";
+
+// Resolve a yMin/yMax bound (a column name, or a per-series {seriesField: column}
+// map) to the bound column for a given series.
+function boundColumn(bound: string | Record<string, string> | undefined, field: string): string | undefined {
+  if (typeof bound === "string") return bound || undefined;
+  if (bound && typeof bound === "object") return bound[field];
+  return undefined;
+}
+
+// Reference guide lines (refLines) and shaded bands (refBands) as Recharts
+// <ReferenceLine>/<ReferenceArea> elements; dropped into any cartesian chart.
+function renderRefs(widget: Widget): ReactNode[] {
+  const els: ReactNode[] = [];
+  (widget.refLines ?? []).forEach((l, i) => {
+    const pos = l.axis === "y" ? { y: l.value } : { x: l.value };
+    els.push(
+      <ReferenceLine
+        key={`rl-${i}`}
+        {...pos}
+        stroke={l.color ?? REF_LINE_COLOR}
+        strokeDasharray="4 4"
+        label={l.label ? { value: l.label, position: "insideTopRight", fontSize: 10, fill: REF_LINE_COLOR } : undefined}
+      />,
+    );
+  });
+  (widget.refBands ?? []).forEach((b, i) => {
+    const pos = b.axis === "y" ? { y1: b.from, y2: b.to } : { x1: b.from, x2: b.to };
+    els.push(
+      <ReferenceArea
+        key={`rb-${i}`}
+        {...pos}
+        fill={b.color ?? REF_BAND_COLOR}
+        fillOpacity={0.12}
+        stroke={b.color ?? REF_BAND_COLOR}
+        strokeOpacity={0.4}
+        strokeDasharray="4 4"
+        label={b.label ? { value: b.label, position: "insideTop", fontSize: 10, fill: REF_LINE_COLOR } : undefined}
+      />,
+    );
+  });
+  return els;
+}
 
 interface Props {
   widget: Widget;
@@ -416,85 +467,135 @@ function CalendarHeatmap({
 
 // --- Heatmap rendering ---
 
+const HEATMAP_SHADES = [
+  { color: "#DBEAFE", name: "Low" },
+  { color: "#93C5FD", name: "Medium" },
+  { color: "#3B82F6", name: "High" },
+  { color: "#1E3A8A", name: "Very High" },
+];
+
 function HeatmapChart({
   data,
   xKey,
   yKey,
   valueKey,
-  colors,
+  xTitle,
   axisColor,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
   yKey: string;
   valueKey: string;
-  colors: string[];
+  xTitle?: string;
   axisColor: string;
 }) {
   const [hover, setHover] = useState<{ x: number; y: number; xLabel: string; yLabel: string; value: number } | null>(null);
 
-  const { cells, xLabels, yLabels, maxVal } = useMemo(() => {
+  const { cells, xLabels, yLabels, minVal, maxVal } = useMemo(() => {
     const xs = [...new Set(data.map((d) => String(d[xKey])))];
     const ys = [...new Set(data.map((d) => String(d[yKey])))];
-    let maxV = 0;
+    let maxV = -Infinity;
+    let minV = Infinity;
     const cellMap = new Map<string, number>();
     for (const d of data) {
       const val = Number(d[valueKey]) || 0;
       cellMap.set(`${d[xKey]}_${d[yKey]}`, val);
       if (val > maxV) maxV = val;
+      if (val < minV) minV = val;
     }
-    return { cells: cellMap, xLabels: xs, yLabels: ys, maxVal: maxV };
+    if (!Number.isFinite(minV)) minV = 0;
+    if (!Number.isFinite(maxV)) maxV = 1;
+    return { cells: cellMap, xLabels: xs, yLabels: ys, minVal: minV, maxVal: maxV };
   }, [data, xKey, yKey, valueKey]);
 
-  const cellW = Math.max(20, Math.min(50, 600 / xLabels.length));
-  const cellH = Math.max(16, Math.min(30, 200 / yLabels.length));
-  const leftPad = 60;
-  const topPad = 24;
-  const width = leftPad + xLabels.length * cellW;
-  const height = topPad + yLabels.length * cellH;
-  const baseColor = colors[0] ?? "#4338CA";
+  // Discrete 4-bucket scale (equal-width min→max); a continuous opacity ramp made near-equal values indistinguishable.
+  const span = maxVal > minVal ? maxVal - minVal : 1;
+  const bucketOf = (v: number) => Math.min(3, Math.max(0, Math.floor(((v - minVal) / span) * 4)));
+
+  // Measure width to draw 1:1; a small viewBox scaled to 100% magnified fonts/cells.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [boxW, setBoxW] = useState(720);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w && w > 0) setBoxW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // y-labels left, x-ticks + centred x-title below the grid (matches the cloud heatmap).
+  const leftPad = 92;
+  const rightPad = 16;
+  const topPad = 10;
+  const cellH = Math.max(28, Math.min(96, 220 / yLabels.length));
+  const gridBottom = topPad + yLabels.length * cellH;
+  const tickY = gridBottom + 18;
+  const titleY = gridBottom + 40;
+  const height = gridBottom + (xTitle ? 50 : 26);
+  const width = Math.max(240, boxW);
+  const gridW = Math.max(48, width - leftPad - rightPad);
+  const cellW = gridW / xLabels.length;
 
   return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 240 }}
-      onMouseLeave={() => setHover(null)}>
-      {xLabels.map((x, i) => (
-        <text key={`x-${i}`} x={leftPad + i * cellW + cellW / 2} y={14} fill={axisColor} fontSize={9} fontFamily='"Geist", system-ui' textAnchor="middle">
-          {formatAxisTick(x)}
-        </text>
-      ))}
-      {yLabels.map((y, j) => (
-        <text key={`y-${j}`} x={leftPad - 4} y={topPad + j * cellH + cellH / 2 + 3} fill={axisColor} fontSize={9} fontFamily='"Geist", system-ui' textAnchor="end">
-          {String(y).slice(0, 8)}
-        </text>
-      ))}
-      {xLabels.map((x, i) =>
-        yLabels.map((y, j) => {
-          const val = cells.get(`${x}_${y}`) ?? 0;
-          const intensity = maxVal > 0 ? val / maxVal : 0;
-          const opacity = val === 0 ? 0.04 : 0.12 + intensity * 0.88;
-          const rx = leftPad + i * cellW + 1;
-          const ry = topPad + j * cellH + 1;
-          return (
-            <rect
-              key={`${i}-${j}`}
-              x={rx}
-              y={ry}
-              width={cellW - 2}
-              height={cellH - 2}
-              rx={2}
-              fill={baseColor}
-              opacity={opacity}
-              onMouseEnter={() => setHover({ x: rx + cellW, y: ry + cellH / 2, xLabel: x, yLabel: y, value: val })}
-              onMouseLeave={() => setHover(null)}
-            />
-          );
-        }),
-      )}
-      {hover && (
-        <SvgTooltip x={hover.x} y={hover.y}
-          lines={[`${formatAxisTick(hover.xLabel)}, ${hover.yLabel}`, formatTooltipValue(hover.value)]} />
-      )}
-    </svg>
+    <div ref={wrapRef} style={{ width: "100%" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
+        {HEATMAP_SHADES.map((s) => (
+          <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 2, background: s.color, display: "inline-block" }} />
+            <span style={{ fontSize: 12, color: axisColor, fontFamily: '"Geist", system-ui' }}>{s.name}</span>
+          </div>
+        ))}
+      </div>
+      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}
+        onMouseLeave={() => setHover(null)}>
+        {yLabels.map((y, j) => (
+          <text key={`y-${j}`} x={leftPad - 8} y={topPad + j * cellH + cellH / 2 + 4} fill={axisColor} fontSize={12} fontFamily='"Geist", system-ui' textAnchor="end">
+            {String(y)}
+          </text>
+        ))}
+        {xLabels.map((x, i) =>
+          yLabels.map((y, j) => {
+            const raw = cells.get(`${x}_${y}`);
+            const present = raw !== undefined;
+            const val = raw ?? 0;
+            const fill = present ? HEATMAP_SHADES[bucketOf(val)].color : "#E5E7EB";
+            const rx = leftPad + i * cellW + 2;
+            const ry = topPad + j * cellH + 2;
+            return (
+              <rect
+                key={`${i}-${j}`}
+                x={rx}
+                y={ry}
+                width={Math.max(1, cellW - 4)}
+                height={Math.max(1, cellH - 4)}
+                rx={3}
+                fill={fill}
+                opacity={present ? 1 : 0.4}
+                onMouseEnter={() => setHover({ x: rx + cellW, y: ry + cellH / 2, xLabel: x, yLabel: y, value: val })}
+                onMouseLeave={() => setHover(null)}
+              />
+            );
+          }),
+        )}
+        {xLabels.map((x, i) => (
+          <text key={`xt-${i}`} x={leftPad + i * cellW + cellW / 2} y={tickY} fill={axisColor} fontSize={12} fontFamily='"Geist", system-ui' textAnchor="middle">
+            {formatAxisTick(x)}
+          </text>
+        ))}
+        {xTitle && (
+          <text x={leftPad + gridW / 2} y={titleY} fill={axisColor} fontSize={13} fontWeight={600} fontFamily='"Geist", system-ui' textAnchor="middle">
+            {xTitle}
+          </text>
+        )}
+        {hover && (
+          <SvgTooltip x={hover.x} y={hover.y}
+            lines={[`${formatAxisTick(hover.xLabel)}, ${hover.yLabel}`, formatTooltipValue(hover.value)]} />
+        )}
+      </svg>
+    </div>
   );
 }
 
@@ -1032,14 +1133,33 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
       const rows = pivoted ? pivoted.rows : chartData;
       const series = pivoted ? pivoted.series : yKeys;
+      // CI band: shade each series' yMin/yMax interval (a range <Area>) behind its
+      // line. Needs a ComposedChart to mix Area + Line. Scalar or per-series map.
+      const bandBounds = series.map((f) => ({ f, lo: boundColumn(widget.yMin, f), hi: boundColumn(widget.yMax, f) }));
+      const hasBand = !colorKey && bandBounds.some((b) => b.lo && b.hi);
+      const lineRows = hasBand
+        ? rows.map((r) => {
+            const o: Record<string, unknown> = { ...r };
+            for (const b of bandBounds) {
+              if (!b.lo || !b.hi) continue;
+              const lo = Number(r[b.lo]), hi = Number(r[b.hi]);
+              if (Number.isFinite(lo) && Number.isFinite(hi)) o[`__ci_${b.f}`] = [lo, hi];
+            }
+            return o;
+          })
+        : rows;
+      const LineOrComposed = hasBand ? ComposedChart : LineChart;
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <LineChart data={rows} margin={cartesianMargin}>
+          <LineOrComposed data={lineRows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
             <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
             <Tooltip content={cartesianTooltip} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {hasBand && bandBounds.map((b, i) => (b.lo && b.hi ? (
+              <Area key={`ci-${b.f}`} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} />
+            ) : null))}
             {series.map((field, i) => (
               <Line
                 key={field}
@@ -1052,7 +1172,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 isAnimationActive={false}
               />
             ))}
-          </LineChart>
+            {renderRefs(widget)}
+          </LineOrComposed>
         </ResponsiveContainer>
       );
     }
@@ -1069,9 +1190,27 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const valueTick = widget.normalized ? formatPercentTick : yTick;
       const valueTooltip = widget.normalized ? formatPercentTick : yTooltipValue;
       const lastRadius: [number, number, number, number] = horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0];
+      // Error-bar caps: pair each series with its yMin/yMax columns (scalar for a
+      // single series, or a per-series map for grouped bars) and precompute the
+      // asymmetric offsets [value-lo, hi-value] that Recharts <ErrorBar> expects.
+      const errBounds = series.map((f) => ({ f, lo: boundColumn(widget.yMin, f), hi: boundColumn(widget.yMax, f) }));
+      const hasErr = !colorKey && errBounds.some((b) => b.lo && b.hi);
+      const barRows = hasErr
+        ? rows.map((r) => {
+            const o: Record<string, unknown> = { ...r };
+            for (const b of errBounds) {
+              if (!b.lo || !b.hi) continue;
+              const v = Number(r[b.f]), lo = Number(r[b.lo]), hi = Number(r[b.hi]);
+              // Clamp to ≥0: if the estimate falls outside its interval, a raw
+              // offset would go negative and Recharts draws an inverted cap.
+              if (Number.isFinite(v) && Number.isFinite(lo) && Number.isFinite(hi)) o[`__err_${b.f}`] = [Math.max(0, v - lo), Math.max(0, hi - v)];
+            }
+            return o;
+          })
+        : rows;
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <BarChart data={rows} layout={horizontal ? "vertical" : "horizontal"} margin={cartesianMargin}>
+          <BarChart data={barRows} layout={horizontal ? "vertical" : "horizontal"} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} vertical={horizontal} horizontal={!horizontal} />
             {horizontal ? (
               <>
@@ -1094,8 +1233,13 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 stackId={isStacked ? "stack" : undefined}
                 radius={isStacked && i < series.length - 1 ? undefined : lastRadius}
                 isAnimationActive={false}
-              />
+              >
+                {hasErr && errBounds[i].lo && errBounds[i].hi && (
+                  <ErrorBar dataKey={`__err_${field}`} width={4} strokeWidth={1} stroke="#374151" direction={horizontal ? "x" : "y"} />
+                )}
+              </Bar>
             ))}
+            {renderRefs(widget)}
           </BarChart>
         </ResponsiveContainer>
       );
@@ -1106,14 +1250,31 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
       const rows = pivoted ? pivoted.rows : chartData;
       const series = pivoted ? pivoted.series : yKeys;
+      // CI band: a translucent range <Area> per series (yMin/yMax) behind the fill.
+      const bandBounds = series.map((f) => ({ f, lo: boundColumn(widget.yMin, f), hi: boundColumn(widget.yMax, f) }));
+      const hasBand = !colorKey && bandBounds.some((b) => b.lo && b.hi);
+      const areaRows = hasBand
+        ? rows.map((r) => {
+            const o: Record<string, unknown> = { ...r };
+            for (const b of bandBounds) {
+              if (!b.lo || !b.hi) continue;
+              const lo = Number(r[b.lo]), hi = Number(r[b.hi]);
+              if (Number.isFinite(lo) && Number.isFinite(hi)) o[`__ci_${b.f}`] = [lo, hi];
+            }
+            return o;
+          })
+        : rows;
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <AreaChart data={rows} margin={cartesianMargin}>
+          <AreaChart data={areaRows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
             <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
             <Tooltip content={cartesianTooltip} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {hasBand && bandBounds.map((b, i) => (b.lo && b.hi ? (
+              <Area key={`ci-${b.f}`} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} />
+            ) : null))}
             {series.map((field, i) => (
               <Area
                 key={field}
@@ -1126,6 +1287,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 isAnimationActive={false}
               />
             ))}
+            {renderRefs(widget)}
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -1327,7 +1489,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           xKey={xKey!}
           yKey={yKeys[0] ?? "y"}
           valueKey={valueField(widget.value) || "value"}
-          colors={colors}
+          xTitle={widget.x?.title}
           axisColor={axisColor}
         />
       );
@@ -1393,10 +1555,10 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
             <Tooltip content={cartesianTooltip} />
             <Line type="monotone" dataKey={yField} stroke={colors[0]} strokeWidth={1.5} dot={{ r: 2, strokeWidth: 0, fill: colors[0] }} isAnimationActive={false} />
-            {widget.yMin && (
+            {typeof widget.yMin === "string" && (
               <Line type="monotone" dataKey={widget.yMin} stroke={colors[3] ?? "#DC2626"} strokeWidth={1} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
             )}
-            {widget.yMax && (
+            {typeof widget.yMax === "string" && (
               <Line type="monotone" dataKey={widget.yMax} stroke={colors[3] ?? "#DC2626"} strokeWidth={1} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
             )}
             {yKeys.length > 1 && (
@@ -1501,6 +1663,89 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           gridColor={gridColor}
         />
       );
+
+    case "forest": {
+      // Point estimate + CI interval per category as a native dot + whisker
+      // (Recharts Scatter + ErrorBar). Horizontal (default, matches cloud) puts the
+      // value on x; horizontal: false gives a vertical dot-and-whisker (B1 style).
+      // Grey when the interval spans 0 (not significant); coloured by series when
+      // grouped.
+      const horizontal = widget.horizontal !== false;
+      const catField = xKey ?? "";
+      const multi = yKeys.length > 1;
+      // Grouped forests would draw every series on the same category line, so the
+      // dots/whiskers overlap. Recharts has no native dodge for Scatter, so the
+      // category axis runs as a numeric "slot" axis (one integer per category, ticks
+      // relabelled with the names) and each series gets a small offset within its
+      // slot. Single-series forests keep the plain category axis.
+      const cats: string[] = [];
+      for (const r of chartData) {
+        const c = String(r[catField] ?? "");
+        if (!cats.includes(c)) cats.push(c);
+      }
+      const n = yKeys.length;
+      const seriesOffset = (si: number) => (multi ? (si - (n - 1) / 2) * (0.3 / (n - 1)) : 0);
+      const forestSeries = yKeys.map((f, si) => {
+        const loCol = boundColumn(widget.yMin, f);
+        const hiCol = boundColumn(widget.yMax, f);
+        const off = seriesOffset(si);
+        const pts = chartData.map((r) => {
+          const est = Number(r[f]);
+          const lo = loCol ? Number(r[loCol]) : NaN;
+          const hi = hiCol ? Number(r[hiCol]) : NaN;
+          const cat = String(r[catField] ?? "");
+          const hasCI = Number.isFinite(lo) && Number.isFinite(hi);
+          const [low, high] = hasCI ? (lo <= hi ? [lo, hi] : [hi, lo]) : [est, est];
+          const spansZero = low <= 0 && high >= 0;
+          const err = hasCI ? [Math.max(0, est - low), Math.max(0, high - est)] : undefined;
+          const catPos: number | string = multi ? cats.indexOf(cat) + off : cat;
+          return horizontal ? { x: est, y: catPos, err, spansZero } : { x: catPos, y: est, err, spansZero };
+        });
+        return { field: f, pts, color: colors[si % colors.length] };
+      });
+      const slotAxisProps = {
+        type: "number" as const,
+        domain: [-0.5, cats.length - 0.5] as [number, number],
+        ticks: cats.map((_, i) => i),
+        tickFormatter: (v: unknown) => xTick(cats[Math.round(Number(v))] ?? ""),
+        allowDecimals: false,
+      };
+      return (
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <ScatterChart margin={cartesianMargin}>
+            <CartesianGrid {...gridProps} />
+            {horizontal ? (
+              <>
+                <XAxis type="number" dataKey="x" {...commonAxisProps} dy={6} tickFormatter={yTick} />
+                {multi
+                  ? <YAxis dataKey="y" {...commonAxisProps} dx={-4} width={80} {...slotAxisProps} />
+                  : <YAxis type="category" dataKey="y" {...commonAxisProps} dx={-4} width={80} tickFormatter={xTick} />}
+              </>
+            ) : (
+              <>
+                {multi
+                  ? <XAxis dataKey="x" {...commonAxisProps} dy={6} {...slotAxisProps} {...xLabelProps} />
+                  : <XAxis type="category" dataKey="x" {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />}
+                <YAxis type="number" dataKey="y" {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+              </>
+            )}
+            <ZAxis range={[36, 36]} />
+            <Tooltip content={cartesianTooltip} cursor={{ strokeDasharray: "3 3" }} />
+            {multi && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {horizontal
+              ? <ReferenceLine x={0} stroke={REF_LINE_COLOR} strokeDasharray="4 4" />
+              : <ReferenceLine y={0} stroke={REF_LINE_COLOR} strokeDasharray="4 4" />}
+            {forestSeries.map((s) => (
+              <Scatter key={s.field} name={s.field} data={s.pts} fill={multi ? s.color : FOREST_SIG} isAnimationActive={false}>
+                {!multi && s.pts.map((p, pi) => <Cell key={pi} fill={p.spansZero ? FOREST_NOSIG : FOREST_SIG} />)}
+                <ErrorBar dataKey="err" width={4} strokeWidth={1.5} stroke={multi ? s.color : "#374151"} direction={horizontal ? "x" : "y"} />
+              </Scatter>
+            ))}
+            {renderRefs(widget)}
+          </ScatterChart>
+        </ResponsiveContainer>
+      );
+    }
 
     default:
       return <div className="text-[var(--dac-text-muted)] text-xs">Unknown chart: {widget.chart}</div>;

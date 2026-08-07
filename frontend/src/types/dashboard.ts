@@ -73,7 +73,7 @@ export interface Widget {
   sort?: SemanticSort[];
 
   // Chart
-  chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick";
+  chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick" | "forest";
   x?: AxisEncoding;
   y?: AxisEncoding;
   label?: string;
@@ -89,8 +89,12 @@ export interface Widget {
   target?: string;     // sankey: target column / gauge: target (max) column
   bins?: number;       // histogram: number of bins
   lines?: string[];    // combo: which y series are lines
-  yMin?: string;       // xmr: min control limit column
-  yMax?: string;       // xmr: max control limit column
+  // xmr control limit column; line/bar/forest CI bound — a column name, or a
+  // per-series map { series column: bound column } for multi-line CI bands.
+  yMin?: string | Record<string, string>;
+  yMax?: string | Record<string, string>;
+  refLines?: RefLine[];  // reference guide lines (axis + value + optional label)
+  refBands?: RefBand[];  // shaded reference bands (axis + from/to + optional label)
   open?: string;       // candlestick: open column
   high?: string;       // candlestick: high column
   low?: string;        // candlestick: low column
@@ -105,6 +109,21 @@ export interface Widget {
   // Image
   src?: string;
   alt?: string;
+}
+
+export interface RefLine {
+  axis: "x" | "y";
+  value: number;
+  label?: string;
+  color?: string;
+}
+
+export interface RefBand {
+  axis: "x" | "y";
+  from: number;
+  to: number;
+  label?: string;
+  color?: string;
 }
 
 export interface TableColumn {

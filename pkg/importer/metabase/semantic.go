@@ -230,7 +230,8 @@ func semanticWidgetForCard(cardRoot, card map[string]any, name, display string, 
 			Limit:       limit,
 		}
 		if display == "row" {
-			widget.Horizontal = true
+			t := true
+			widget.Horizontal = &t
 		}
 		if display == "combo" && len(metrics) > 1 {
 			widget.Lines = []string{metrics[len(metrics)-1]}

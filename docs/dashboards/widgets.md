@@ -77,9 +77,9 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 
 | Chart | Required | Optional | Description |
 |-------|----------|----------|-------------|
-| `line` | `x`, `y` | `color` | Line chart |
-| `bar` | `x`, `y` | `color`, `stacked`, `normalized`, `horizontal` | Bar chart |
-| `area` | `x`, `y` | `color` | Area chart |
+| `line` | `x`, `y` | `color`, `yMin`, `yMax` | Line chart. `yMin`/`yMax` shade a CI band behind the line |
+| `bar` | `x`, `y` | `color`, `stacked`, `normalized`, `horizontal`, `yMin`, `yMax` | Bar chart. `yMin`/`yMax` add error-bar caps |
+| `area` | `x`, `y` | `color`, `yMin`, `yMax` | Area chart. `yMin`/`yMax` shade a CI band |
 | `pie` | `label`, `value` | | Pie/donut chart |
 | `scatter` | `x`, `y` | | Scatter plot |
 | `bubble` | `x`, `y`, `size` | | Bubble chart |
@@ -98,6 +98,7 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 | `treemap` | `label`, `value` | | Rectangular part-to-whole hierarchy |
 | `radar` | `x`, `y` | | Multi-axis polar comparison |
 | `candlestick` | `x`, `open`, `high`, `low`, `close` | | OHLC chart |
+| `forest` | `x`, `y` | `yMin`, `yMax`, `horizontal` | Point estimate + CI interval per category (grey when the interval spans 0). `horizontal: false` → vertical dot-and-whisker; multiple `y` = grouped |
 
 SQL-backed example:
 
@@ -188,12 +189,14 @@ Common chart fields:
 | `color` | object | Category column (`{ field: ... }`) that splits the single `y` series into one series per category — bar, line, and area charts |
 | `stacked` | boolean | Stack the color series (bar charts only; requires `color`) |
 | `normalized` | boolean | Render stacked bars as percentages of the row total (requires `stacked`) |
-| `horizontal` | boolean | Horizontal layout: bar charts put categories on the vertical axis; funnel charts lay stages left-to-right |
+| `horizontal` | boolean | Horizontal layout: bar charts put categories on the vertical axis; funnel charts lay stages left-to-right; forest charts are horizontal by default (`false` = vertical) |
 | `size` | string | Bubble size column for bubble charts |
 | `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
 | `bins` | integer | Number of bins for histogram charts (default 10) |
-| `yMin` | string | Lower control limit column for xmr charts |
-| `yMax` | string | Upper control limit column for xmr charts |
+| `yMin` | string \| object | CI lower bound: xmr control limit, line/area CI band, bar error-bar cap, forest interval. A column name, or a per-series map `{ seriesColumn: boundColumn }` for multi-line/grouped charts |
+| `yMax` | string \| object | CI upper bound (see `yMin`) |
+| `refLines` | object[] | Reference guide lines: `[{ axis: x\|y, value, label?, color? }]` — dashed line (e.g. a 0 no-effect mark). line/area/bar/forest |
+| `refBands` | object[] | Shaded reference bands: `[{ axis: x\|y, from, to, label?, color? }]` — a translucent range (e.g. a ±MDE band). line/area/bar/forest |
 | `dimension` | string | Semantic dimension name |
 | `granularity` | string | Semantic time grain for `dimension` |
 | `metrics` | string[] | Semantic metric names |
