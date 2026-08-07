@@ -1506,7 +1506,8 @@ func widgetForDisplay(name, display, sql string, settings map[string]any, column
 		base.Chart = chartType(display)
 		base.X, base.Y = xyEncodings(display, settings, columns)
 		if display == "row" {
-			base.Horizontal = true
+			t := true
+			base.Horizontal = &t
 		}
 		if display == "combo" {
 			base.Lines = comboLineFields(base.Y)

@@ -291,7 +291,8 @@
             "gauge",
             "treemap",
             "radar",
-            "candlestick"
+            "candlestick",
+            "forest"
           ]
         },
         "x": {
@@ -336,10 +337,18 @@
           "$ref": "#/$defs/stringList"
         },
         "yMin": {
-          "type": "string"
+          "$ref": "#/$defs/boundEncoding"
         },
         "yMax": {
-          "type": "string"
+          "$ref": "#/$defs/boundEncoding"
+        },
+        "refLines": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/refLine" }
+        },
+        "refBands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/refBand" }
         },
         "open": {
           "type": "string"
@@ -519,6 +528,38 @@
       "items": {
         "type": "string"
       }
+    },
+    "boundEncoding": {
+      "description": "A CI bound column: a single column name, or a per-series map {series column: bound column} for multi-line charts.",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "object", "additionalProperties": { "type": "string" } }
+      ]
+    },
+    "refLine": {
+      "type": "object",
+      "required": ["axis", "value"],
+      "properties": {
+        "axis": { "enum": ["x", "y"] },
+        "value": { "type": "number" },
+        "label": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "patternProperties": { "^x-": true },
+      "additionalProperties": false
+    },
+    "refBand": {
+      "type": "object",
+      "required": ["axis", "from", "to"],
+      "properties": {
+        "axis": { "enum": ["x", "y"] },
+        "from": { "type": "number" },
+        "to": { "type": "number" },
+        "label": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "patternProperties": { "^x-": true },
+      "additionalProperties": false
     },
     "axisEncoding": {
       "type": "object",

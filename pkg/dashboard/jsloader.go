@@ -531,14 +531,16 @@ func vnodeToWidget(n *vnode) Widget {
 		Color:      asColorEncoding(n.Props["color"]),
 		Stacked:    asBool(n.Props["stacked"]),
 		Normalized: asBool(n.Props["normalized"]),
-		Horizontal: asBool(n.Props["horizontal"]),
+		Horizontal: asBoolPtr(n.Props["horizontal"]),
 		Size:       asString(n.Props["size"]),
 		Source:     asString(n.Props["source"]),
 		Target:     asString(n.Props["target"]),
 		Bins:       asInt(n.Props["bins"]),
 		Lines:      asStringSlice(n.Props["lines"]),
-		YMin:       asString(n.Props["yMin"]),
-		YMax:       asString(n.Props["yMax"]),
+		YMin:       asBoundEncoding(n.Props["yMin"]),
+		YMax:       asBoundEncoding(n.Props["yMax"]),
+		RefLines:   asRefLines(n.Props["refLines"]),
+		RefBands:   asRefBands(n.Props["refBands"]),
 
 		// Table fields
 		Columns: asTableColumns(n.Props["columns"]),
@@ -586,6 +588,31 @@ func asString(v interface{}) string {
 	return fmt.Sprintf("%v", v)
 }
 
+// asBoundEncoding reads a yMin/yMax prop: a column-name string, or a per-series
+// map {series: column}. Returns nil when empty so omitempty drops it.
+func asBoundEncoding(v interface{}) *BoundEncoding {
+	switch t := v.(type) {
+	case string:
+		if t == "" {
+			return nil
+		}
+		return &BoundEncoding{Field: t}
+	case map[string]interface{}:
+		m := map[string]string{}
+		for k, vv := range t {
+			if s, ok := vv.(string); ok && s != "" {
+				m[k] = s
+			}
+		}
+		if len(m) == 0 {
+			return nil
+		}
+		return &BoundEncoding{Map: m}
+	default:
+		return nil
+	}
+}
+
 func asInt(v interface{}) int {
 	if v == nil {
 		return 0
@@ -610,6 +637,73 @@ func asBool(v interface{}) bool {
 		return b
 	}
 	return false
+}
+
+// asBoolPtr returns nil when the prop is absent so a distinct absent-vs-false can
+// survive (forest defaults to horizontal; an explicit false must not be dropped).
+func asBoolPtr(v interface{}) *bool {
+	if v == nil {
+		return nil
+	}
+	if b, ok := v.(bool); ok {
+		return &b
+	}
+	return nil
+}
+
+func asFloat(v interface{}) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	}
+	return 0
+}
+
+func asRefLines(v interface{}) []RefLine {
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]RefLine, 0, len(raw))
+	for _, item := range raw {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RefLine{
+			Axis:  asString(m["axis"]),
+			Value: asFloat(m["value"]),
+			Label: asString(m["label"]),
+			Color: asString(m["color"]),
+		})
+	}
+	return out
+}
+
+func asRefBands(v interface{}) []RefBand {
+	raw, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]RefBand, 0, len(raw))
+	for _, item := range raw {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, RefBand{
+			Axis:  asString(m["axis"]),
+			From:  asFloat(m["from"]),
+			To:    asFloat(m["to"]),
+			Label: asString(m["label"]),
+			Color: asString(m["color"]),
+		})
+	}
+	return out
 }
 
 func asStringSlice(v interface{}) []string {

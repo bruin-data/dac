@@ -114,7 +114,7 @@ type Widget struct {
 	Limit       int                    `yaml:"limit,omitempty" json:"limit,omitempty"` // LIMIT for dimensional queries
 
 	// Chart fields
-	Chart      string         `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick
+	Chart      string         `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick, forest
 	X          *AxisEncoding  `yaml:"x,omitempty" json:"x,omitempty"`
 	Y          *AxisEncoding  `yaml:"y,omitempty" json:"y,omitempty"`
 	Label      string         `yaml:"label,omitempty" json:"label,omitempty"` // for pie/funnel/treemap
@@ -122,18 +122,20 @@ type Widget struct {
 	Color      *ColorEncoding `yaml:"color,omitempty" json:"color,omitempty"`
 	Stacked    bool           `yaml:"stacked,omitempty" json:"stacked,omitempty"`
 	Normalized bool           `yaml:"normalized,omitempty" json:"normalized,omitempty"`
-	Horizontal bool           `yaml:"horizontal,omitempty" json:"horizontal,omitempty"` // bar: horizontal bars; funnel: lay stages left-to-right
+	Horizontal *bool          `yaml:"horizontal,omitempty" json:"horizontal,omitempty"` // bar/funnel: horizontal layout; forest: defaults horizontal, set false for a vertical dot-and-whisker. Pointer so an explicit false survives JSON marshaling.
 	Size       string         `yaml:"size,omitempty" json:"size,omitempty"`
-	Source     string         `yaml:"source,omitempty" json:"source,omitempty"` // sankey: source column
-	Target     string         `yaml:"target,omitempty" json:"target,omitempty"` // sankey: target column, gauge: target (max) column
-	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`     // histogram: number of bins
-	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`   // combo: which y series render as lines
-	YMin       string         `yaml:"yMin,omitempty" json:"yMin,omitempty"`     // xmr: min control limit column
-	YMax       string         `yaml:"yMax,omitempty" json:"yMax,omitempty"`     // xmr: max control limit column
-	Open       string         `yaml:"open,omitempty" json:"open,omitempty"`     // candlestick: open price column
-	High       string         `yaml:"high,omitempty" json:"high,omitempty"`     // candlestick: high price column
-	Low        string         `yaml:"low,omitempty" json:"low,omitempty"`       // candlestick: low price column
-	Close      string         `yaml:"close,omitempty" json:"close,omitempty"`   // candlestick: close price column
+	Source     string         `yaml:"source,omitempty" json:"source,omitempty"`     // sankey: source column
+	Target     string         `yaml:"target,omitempty" json:"target,omitempty"`     // sankey: target column, gauge: target (max) column
+	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`         // histogram: number of bins
+	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`       // combo: which y series render as lines
+	YMin       *BoundEncoding `yaml:"yMin,omitempty" json:"yMin,omitempty"`         // xmr: min control limit column; line/bar/forest: CI lower bound (column or per-series map)
+	YMax       *BoundEncoding `yaml:"yMax,omitempty" json:"yMax,omitempty"`         // xmr: max control limit column; line/bar/forest: CI upper bound (column or per-series map)
+	Open       string         `yaml:"open,omitempty" json:"open,omitempty"`         // candlestick: open price column
+	High       string         `yaml:"high,omitempty" json:"high,omitempty"`         // candlestick: high price column
+	Low        string         `yaml:"low,omitempty" json:"low,omitempty"`           // candlestick: low price column
+	Close      string         `yaml:"close,omitempty" json:"close,omitempty"`       // candlestick: close price column
+	RefLines   []RefLine      `yaml:"refLines,omitempty" json:"refLines,omitempty"` // reference guide lines (axis + value + optional label)
+	RefBands   []RefBand      `yaml:"refBands,omitempty" json:"refBands,omitempty"` // shaded reference bands (axis + from/to + optional label)
 
 	// Table fields
 	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
@@ -144,6 +146,64 @@ type Widget struct {
 	// Image fields
 	Src string `yaml:"src,omitempty" json:"src,omitempty"`
 	Alt string `yaml:"alt,omitempty" json:"alt,omitempty"`
+}
+
+// BoundEncoding is a CI bound (yMin/yMax): a single column name (scalar form) or a
+// per-series map {series column: bound column} for multi-line CI bands.
+type BoundEncoding struct {
+	Field string            // scalar: a single bound column
+	Map   map[string]string // per-series: {series column: bound column}
+}
+
+func (b *BoundEncoding) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		return node.Decode(&b.Field)
+	case yaml.MappingNode:
+		return node.Decode(&b.Map)
+	default:
+		return fmt.Errorf("yMin/yMax: must be a column name or a {series: column} map")
+	}
+}
+
+func (b BoundEncoding) MarshalYAML() (any, error) {
+	if len(b.Map) > 0 {
+		return b.Map, nil
+	}
+	return b.Field, nil
+}
+
+func (b BoundEncoding) MarshalJSON() ([]byte, error) {
+	if len(b.Map) > 0 {
+		return json.Marshal(b.Map)
+	}
+	return json.Marshal(b.Field)
+}
+
+func (b *BoundEncoding) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		b.Field = s
+		return nil
+	}
+	return json.Unmarshal(data, &b.Map)
+}
+
+// RefLine is a reference guide line on a chart's x or y axis.
+type RefLine struct {
+	Axis  string  `yaml:"axis" json:"axis"` // "x" | "y"
+	Value float64 `yaml:"value" json:"value"`
+	Label string  `yaml:"label,omitempty" json:"label,omitempty"`
+	Color string  `yaml:"color,omitempty" json:"color,omitempty"`
+}
+
+// RefBand is a shaded reference band spanning from→to on a chart's x or y axis.
+type RefBand struct {
+	Axis  string  `yaml:"axis" json:"axis"` // "x" | "y"
+	From  float64 `yaml:"from" json:"from"`
+	To    float64 `yaml:"to" json:"to"`
+	Label string  `yaml:"label,omitempty" json:"label,omitempty"`
+	Color string  `yaml:"color,omitempty" json:"color,omitempty"`
 }
 
 type TableColumn struct {

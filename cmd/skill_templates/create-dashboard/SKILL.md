@@ -224,6 +224,8 @@ A chart's `x` and `y` are axis encoding objects with a required `field` (bare co
 
 The `funnel` chart shows conversion through ordered stages: one bar per stage with its share of the top of the funnel and the step-to-step conversion. Use `label` (stage) and `value` (count), and order rows top-of-funnel first in SQL. `horizontal: true` lays the stages left-to-right, and bar labels honor `value.format` (e.g. `"$,.0f"` for a revenue funnel).
 
+Confidence intervals use `yMin`/`yMax` (the lower/upper bound columns): on `line`/`area` they shade a CI **band** behind the estimate line; on `bar` they become **error-bar caps**; the `forest` chart draws a point estimate + horizontal CI per category (grey when the interval spans 0, `horizontal: false` for a vertical dot-and-whisker). `y` is the estimate only. `yMin`/`yMax` are a single column, or a per-series map `{seriesColumn: boundColumn}` for multi-line bands. Compute the bounds in SQL (e.g. `effect ± 1.96*stderr`). Reference guides: `refLines: [{ axis: x|y, value, label? }]` (dashed line, e.g. a 0 "no-effect" mark) and `refBands: [{ axis: x|y, from, to, label? }]` (a shaded range, e.g. a ±MDE band).
+
 Every query is an inline `sql:` block or a named `query:` reference — YAML widgets do not take file paths. In TSX, `include("queries/revenue.sql")` reads a `.sql` file into an inline query at load time.
 
 ## Inline (Static) Data
