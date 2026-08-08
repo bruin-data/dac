@@ -268,6 +268,13 @@ var validChartTypes = map[string]bool{
 	"candlestick": true, "forest": true,
 }
 
+// validCurves is the allowed set for y.curve and per-series y.curves values.
+var validCurves = map[string]bool{"smooth": true, "straight": true, "stepline": true}
+
+// validDashes is the allowed set for y.dash and per-series y.dashes values
+// ('solid' is a valid per-series override that forces a solid line).
+var validDashes = map[string]bool{"solid": true, "dotted": true, "dashed": true, "long-dash": true}
+
 // validateRefAnnotations checks widget.refLines / widget.refBands: axis must be
 // x or y, and a band's range must be non-empty.
 func validateRefAnnotations(prefix string, w *Widget) []string {
@@ -318,6 +325,26 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		return errs
 	}
 	errs = append(errs, validateRefAnnotations(prefix, w)...)
+
+	// Line interpolation enums (chart-wide y.curve and per-series y.curves).
+	if w.Y != nil {
+		if w.Y.Curve != "" && !validCurves[w.Y.Curve] {
+			errs = append(errs, fmt.Sprintf("%s: y.curve must be smooth, straight, or stepline", prefix))
+		}
+		for col, cv := range w.Y.Curves {
+			if !validCurves[cv] {
+				errs = append(errs, fmt.Sprintf("%s: y.curves[%q] must be smooth, straight, or stepline", prefix, col))
+			}
+		}
+		if w.Y.Dash != "" && !validDashes[w.Y.Dash] {
+			errs = append(errs, fmt.Sprintf("%s: y.dash must be solid, dotted, dashed, or long-dash", prefix))
+		}
+		for col, dv := range w.Y.Dashes {
+			if !validDashes[dv] {
+				errs = append(errs, fmt.Sprintf("%s: y.dashes[%q] must be solid, dotted, dashed, or long-dash", prefix, col))
+			}
+		}
+	}
 
 	// Dimensional chart: uses dimension + metrics from a semantic model
 	// instead of x/y/sql.
@@ -510,6 +537,9 @@ func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 			} else if !names[c.Like] {
 				*errs = append(*errs, fmt.Sprintf("%s.like: references unknown column %q", cp, c.Like))
 			}
+		}
+		if c.Align != "" && c.Align != "left" && c.Align != "center" && c.Align != "right" {
+			*errs = append(*errs, fmt.Sprintf("%s.align: must be left, center, or right", cp))
 		}
 		for i, layer := range c.Format {
 			validateFormatLayer(fmt.Sprintf("%s.format[%d]", cp, i), layer, errs)

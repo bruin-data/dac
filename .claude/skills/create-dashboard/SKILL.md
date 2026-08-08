@@ -449,6 +449,15 @@ Reference top-level dimensions and metrics. SQL is auto-generated with GROUP BY,
 - `title` — human-readable axis label.
 - `format` — d3-format / d3-time-format string for tick labels: `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`.
 
+Line/area (and combo) charts also accept these on `y`:
+
+- `beginAtZero` — `true` anchors the value axis at 0 so variances read at true scale (default auto-scales).
+- `curve` — chart-wide line interpolation: `smooth` | `straight` | `stepline`. Use `straight` for period totals so the line doesn't imply movement between points.
+- `curves` — per-series curve override keyed by column, e.g. `{ target: straight }` (falls back to `curve`).
+- `dash` — chart-wide dash pattern every series inherits: `dotted`, `dashed`, or `long-dash` (omitted = solid).
+- `dashes` — per-series dash pattern override keyed by column, e.g. `{ last_year: dashed }` for a dashed prior-year comparison line.
+- `colors` — per-series colour override keyed by column, e.g. `{ finance_current_year: "#EC4899" }`. Unset series use the theme palette. Prefer the palette so charts stay theme-aware; use a hex only to pin a specific series.
+
 Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{ field: ... }`.
 
 #### Line / Bar / Area
@@ -458,9 +467,14 @@ Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{
   type: chart
   chart: line                   # line | bar | area
   sql: |
-    SELECT month, revenue, target FROM monthly_data ORDER BY month
+    SELECT month, revenue, revenue_last_year FROM monthly_data ORDER BY month
   x: { field: month, type: date, format: "%b %Y" }    # REQUIRED: x encoding
-  y: { field: [revenue, target], format: "$,.0f" }    # REQUIRED: y encoding (field may be a list)
+  y:                                                   # REQUIRED: y encoding (field may be a list)
+    field: [revenue, revenue_last_year]
+    format: "$,.0f"
+    beginAtZero: true                                  # honest scale
+    curve: straight                                    # no implied in-period movement
+    dashes: { revenue_last_year: dashed }              # dashed comparison line
   col: 8
 ```
 
@@ -760,6 +774,7 @@ Data table with optional column configuration.
     - name: amount
       label: Amount
       format: currency          # "currency" adds $ prefix, "number" for locale formatting
+      align: right              # left | center | right (aligns header + body cells)
     - name: created_at
       label: Date               # ISO dates auto-format to readable strings
   col: 12
@@ -767,7 +782,7 @@ Data table with optional column configuration.
 
 If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
-**Conditional formatting.** A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `like`, `hidden`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
+**Conditional formatting.** A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
 
 - With `if` (+ `value`), the layer styles only the cells that match. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
 - With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.

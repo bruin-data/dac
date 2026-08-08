@@ -125,8 +125,14 @@ SQL-backed example:
 | `type` | string | `number`, `date`, or `category`. Selects the axis scale and the format language (`date` uses d3-time-format, otherwise d3-format). |
 | `title` | string | Human-readable axis label rendered next to the axis. |
 | `format` | string | d3-format / d3-time-format string for tick labels, e.g. `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`. |
+| `beginAtZero` | boolean | Anchor a line/area value axis at 0 so series scale honestly instead of auto-zooming. Opt-in (default auto-scales). |
+| `curve` | string | Chart-wide line interpolation: `smooth`, `straight`, or `stepline`. Use `straight` for period totals so the line doesn't imply movement between points. |
+| `curves` | object | Per-series curve override, keyed by column: `{ revenue: straight, target: smooth }`. Falls back to `curve`. |
+| `dash` | string | Chart-wide dash pattern every series inherits: `dotted`, `dashed`, or `long-dash` (omitted = solid). |
+| `dashes` | object | Per-series dash pattern override, keyed by column: `{ last_year: dashed }` for a dashed comparison line. Falls back to `dash`. |
+| `colors` | object | Per-series colour override, keyed by column: `{ finance_current_year: "#EC4899" }`. Unset series use the theme palette. |
 
-Without `format`, ticks fall back to automatic compact formatting. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
+Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `curve`, `curves`, and `dashes` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
 
 ### Series by category (color)
 
@@ -177,7 +183,7 @@ Common chart fields:
 |-------|------|-------------|
 | `chart` | string | Chart type |
 | `x` | object | X-axis encoding (`field`, `type`, `title`, `format`) |
-| `y` | object | Y-axis encoding (`field` may list several series columns) |
+| `y` | object | Y-axis encoding (`field` may list several series columns; supports `beginAtZero`, `curve`, per-series `curves`/`dashes` for line/area — see [Axis encoding](#axis-encoding)) |
 | `label` | string | Label column for pie, funnel, and treemap charts |
 | `value` | object | Value encoding (`{ field: ... }`) for pie, funnel, sankey, heatmap, calendar, treemap, and gauge charts |
 | `source` | string | Source node column for sankey charts |
@@ -258,6 +264,7 @@ Table column fields:
 |-------|------|-------------|
 | `name` | string | Result column name (must match the SQL output) |
 | `label` | string | Display header (defaults to `name`) |
+| `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
 | `format` | string \| object | Value display and conditional coloring, see below |
 
@@ -288,6 +295,7 @@ the condition; without `if`, the layer styles every cell.
 | Key | What it does |
 |-----|--------------|
 | `number` | Value display: `currency`, `number`, or a d3-format string. |
+| `align` | Text alignment: `left`, `center`, or `right` (aligns the header and body cells). |
 | `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |
 | `hidden` | Keep the column in the result (so it can drive cross-column rules or be a `like` source) but don't render it. |
 | `format` | Ordered list of style layers; first match wins. |

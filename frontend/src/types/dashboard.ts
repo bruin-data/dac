@@ -135,6 +135,8 @@ export interface TableColumn {
   like?: string;
   /** Keep the column in the result (for cross-column rules / `like`) but don't render it. */
   hidden?: boolean;
+  /** Text alignment override — applies to the header and body cells. */
+  align?: 'left' | 'center' | 'right';
   /** Ordered style layers; the first layer that matches a cell wins. */
   format?: FormatLayer[];
 }
@@ -197,6 +199,12 @@ export interface AxisEncoding {
   type?: "number" | "date" | "category";
   title?: string;  // human-readable axis label
   format?: string; // d3-format / d3-time-format string for tick labels
+  colors?: Record<string, string>; // per-series colour override {column: #hex}
+  beginAtZero?: boolean; // anchor a line/area value axis at 0
+  curve?: "smooth" | "straight" | "stepline"; // chart-wide line interpolation
+  curves?: Record<string, "smooth" | "straight" | "stepline">; // per-series curve override
+  dash?: "solid" | "dotted" | "dashed" | "long-dash"; // chart-wide dash pattern every series inherits (omitted = solid)
+  dashes?: Record<string, "solid" | "dotted" | "dashed" | "long-dash">; // per-series dash override ('solid' forces solid over a dashed default)
 }
 
 /** Encoding for the color channel: the category column that splits y into series. */

@@ -212,6 +212,7 @@ type TableColumn struct {
 	Number string        `yaml:"number,omitempty" json:"number,omitempty"` // value display: currency | number | d3-format spec
 	Like   string        `yaml:"like,omitempty" json:"like,omitempty"`     // mirror another column's coloring + per-row value
 	Hidden bool          `yaml:"hidden,omitempty" json:"hidden,omitempty"` // keep the column in the result (for cross-column rules / like) but don't render it
+	Align  string        `yaml:"align,omitempty" json:"align,omitempty"`   // text alignment override: left | center | right (applies to the header and body cells)
 	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered conditional-format style layers; first match wins
 }
 
@@ -230,12 +231,13 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 		Number string    `yaml:"number,omitempty"`
 		Like   string    `yaml:"like,omitempty"`
 		Hidden bool      `yaml:"hidden,omitempty"`
+		Align  string    `yaml:"align,omitempty"`
 		Format yaml.Node `yaml:"format,omitempty"`
 	}
 	if err := node.Decode(&tmp); err != nil {
 		return err
 	}
-	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Number: tmp.Number, Like: tmp.Like, Hidden: tmp.Hidden}
+	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Number: tmp.Number, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align}
 
 	// Follow a YAML alias to its target, then: a scalar is the legacy value-display
 	// shorthand (folds into `number`); a list is the style layers.
@@ -530,6 +532,18 @@ type AxisEncoding struct {
 	Type   string `yaml:"type,omitempty" json:"type,omitempty"`
 	Title  string `yaml:"title,omitempty" json:"title,omitempty"`
 	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+	// Colors overrides the series colour per column ({column: #hex}); unset columns use the palette.
+	Colors map[string]string `yaml:"colors,omitempty" json:"colors,omitempty"`
+	// BeginAtZero anchors a line/area chart's value axis at 0 (opt-in).
+	BeginAtZero *bool `yaml:"beginAtZero,omitempty" json:"beginAtZero,omitempty"`
+	// Curve is the chart-wide line interpolation: smooth | straight | stepline.
+	Curve string `yaml:"curve,omitempty" json:"curve,omitempty"`
+	// Curves overrides the curve per series ({column: smooth|straight|stepline}).
+	Curves map[string]string `yaml:"curves,omitempty" json:"curves,omitempty"`
+	// Dash is the chart-wide dash pattern every series inherits: dotted | dashed | long-dash (empty = solid).
+	Dash string `yaml:"dash,omitempty" json:"dash,omitempty"`
+	// Dashes overrides the dash pattern per series ({column: dotted|dashed|long-dash}).
+	Dashes map[string]string `yaml:"dashes,omitempty" json:"dashes,omitempty"`
 }
 
 func (a *AxisEncoding) FieldString() string {
@@ -574,10 +588,16 @@ func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
 		return fmt.Errorf("%s", axisEncodingHint)
 	}
 	type axisFields struct {
-		Field  yaml.Node `yaml:"field"`
-		Type   string    `yaml:"type,omitempty"`
-		Title  string    `yaml:"title,omitempty"`
-		Format string    `yaml:"format,omitempty"`
+		Field       yaml.Node         `yaml:"field"`
+		Type        string            `yaml:"type,omitempty"`
+		Title       string            `yaml:"title,omitempty"`
+		Format      string            `yaml:"format,omitempty"`
+		Colors      map[string]string `yaml:"colors,omitempty"`
+		BeginAtZero *bool             `yaml:"beginAtZero,omitempty"`
+		Curve       string            `yaml:"curve,omitempty"`
+		Curves      map[string]string `yaml:"curves,omitempty"`
+		Dash        string            `yaml:"dash,omitempty"`
+		Dashes      map[string]string `yaml:"dashes,omitempty"`
 	}
 	var tmp axisFields
 	if err := node.Decode(&tmp); err != nil {
@@ -586,6 +606,12 @@ func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
 	a.Type = tmp.Type
 	a.Title = tmp.Title
 	a.Format = tmp.Format
+	a.Colors = tmp.Colors
+	a.BeginAtZero = tmp.BeginAtZero
+	a.Curve = tmp.Curve
+	a.Curves = tmp.Curves
+	a.Dash = tmp.Dash
+	a.Dashes = tmp.Dashes
 	switch tmp.Field.Kind {
 	case yaml.ScalarNode:
 		var s string
@@ -612,11 +638,17 @@ func (a *AxisEncoding) MarshalYAML() (any, error) {
 		return nil, nil
 	}
 	return struct {
-		Field  any    `yaml:"field"`
-		Type   string `yaml:"type,omitempty"`
-		Title  string `yaml:"title,omitempty"`
-		Format string `yaml:"format,omitempty"`
-	}{a.Field, a.Type, a.Title, a.Format}, nil
+		Field       any               `yaml:"field"`
+		Type        string            `yaml:"type,omitempty"`
+		Title       string            `yaml:"title,omitempty"`
+		Format      string            `yaml:"format,omitempty"`
+		Colors      map[string]string `yaml:"colors,omitempty"`
+		BeginAtZero *bool             `yaml:"beginAtZero,omitempty"`
+		Curve       string            `yaml:"curve,omitempty"`
+		Curves      map[string]string `yaml:"curves,omitempty"`
+		Dash        string            `yaml:"dash,omitempty"`
+		Dashes      map[string]string `yaml:"dashes,omitempty"`
+	}{a.Field, a.Type, a.Title, a.Format, a.Colors, a.BeginAtZero, a.Curve, a.Curves, a.Dash, a.Dashes}, nil
 }
 
 func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
@@ -628,10 +660,16 @@ func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%s", axisEncodingHint)
 	}
 	var raw struct {
-		Field  json.RawMessage `json:"field"`
-		Type   string          `json:"type,omitempty"`
-		Title  string          `json:"title,omitempty"`
-		Format string          `json:"format,omitempty"`
+		Field       json.RawMessage   `json:"field"`
+		Type        string            `json:"type,omitempty"`
+		Title       string            `json:"title,omitempty"`
+		Format      string            `json:"format,omitempty"`
+		Colors      map[string]string `json:"colors,omitempty"`
+		BeginAtZero *bool             `json:"beginAtZero,omitempty"`
+		Curve       string            `json:"curve,omitempty"`
+		Curves      map[string]string `json:"curves,omitempty"`
+		Dash        string            `json:"dash,omitempty"`
+		Dashes      map[string]string `json:"dashes,omitempty"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -639,6 +677,12 @@ func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
 	a.Type = raw.Type
 	a.Title = raw.Title
 	a.Format = raw.Format
+	a.Colors = raw.Colors
+	a.BeginAtZero = raw.BeginAtZero
+	a.Curve = raw.Curve
+	a.Curves = raw.Curves
+	a.Dash = raw.Dash
+	a.Dashes = raw.Dashes
 	fieldStr := strings.TrimSpace(string(raw.Field))
 	if fieldStr == "" || fieldStr == "null" {
 		return fmt.Errorf("axis encoding: field is required")
@@ -664,11 +708,17 @@ func (a *AxisEncoding) MarshalJSON() ([]byte, error) {
 		return []byte("null"), nil
 	}
 	return json.Marshal(struct {
-		Field  any    `json:"field"`
-		Type   string `json:"type,omitempty"`
-		Title  string `json:"title,omitempty"`
-		Format string `json:"format,omitempty"`
-	}{a.Field, a.Type, a.Title, a.Format})
+		Field       any               `json:"field"`
+		Type        string            `json:"type,omitempty"`
+		Title       string            `json:"title,omitempty"`
+		Format      string            `json:"format,omitempty"`
+		Colors      map[string]string `json:"colors,omitempty"`
+		BeginAtZero *bool             `json:"beginAtZero,omitempty"`
+		Curve       string            `json:"curve,omitempty"`
+		Curves      map[string]string `json:"curves,omitempty"`
+		Dash        string            `json:"dash,omitempty"`
+		Dashes      map[string]string `json:"dashes,omitempty"`
+	}{a.Field, a.Type, a.Title, a.Format, a.Colors, a.BeginAtZero, a.Curve, a.Curves, a.Dash, a.Dashes})
 }
 
 func newAxisField(s string) *AxisEncoding {
