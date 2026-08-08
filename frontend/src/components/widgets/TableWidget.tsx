@@ -20,9 +20,20 @@ interface TableColumn {
   name: string;
   label: string;
   number?: string; // value display (currency | number | d3-format)
+  align?: "left" | "center" | "right"; // text-alignment override (header + body)
   format?: FormatLayer[]; // effective layers (own, or the mirrored column's if `like`)
   idx: number; // own data index (drives the displayed value)
   colorIdx: number; // data index whose value drives coloring (own, or `like` source)
+}
+
+// Effective column alignment (header + body): an explicit `align` override wins,
+// else numbers fall right and text left. Returns the text- and justify- classes.
+function alignClasses(align: TableColumn["align"], numeric: boolean) {
+  const a = align === "left" || align === "center" || align === "right" ? align : numeric ? "right" : "left";
+  return {
+    text: a === "center" ? "text-center" : a === "right" ? "text-right" : "text-left",
+    justify: a === "center" ? "justify-center" : a === "right" ? "justify-end" : "justify-start",
+  };
 }
 
 export function TableWidget({ widget, data }: Props) {
@@ -37,6 +48,7 @@ export function TableWidget({ widget, data }: Props) {
           name: col.name,
           label: col.label || col.name,
           number: col.number,
+          align: col.align,
           like: col.like,
           hidden: col.hidden ?? false,
           format: col.format,
@@ -46,6 +58,7 @@ export function TableWidget({ widget, data }: Props) {
           name: col.name,
           label: col.name,
           number: undefined as string | undefined,
+          align: undefined as TableColumn["align"],
           like: undefined as string | undefined,
           hidden: false,
           format: undefined as FormatLayer[] | undefined,
@@ -148,6 +161,7 @@ export function TableWidget({ widget, data }: Props) {
             {columns.map((col) => {
               const numeric = col.number != null;
               const active = sort?.column === col.name;
+              const alignCls = alignClasses(col.align, numeric);
               return (
                 <th
                   key={col.name}
@@ -158,16 +172,12 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`py-0 px-0 whitespace-nowrap ${
-                    numeric ? "text-right" : "text-left"
-                  }`}
+                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text}`}
                 >
                   <button
                     type="button"
                     onClick={() => handleHeaderClick(col.name)}
-                    className={`group w-full flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 cursor-pointer border-0 bg-transparent ${
-                      numeric ? "justify-end" : "justify-start"
-                    } ${active ? "text-[var(--dac-text-primary)]" : ""}`}
+                    className={`group w-full flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 cursor-pointer border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""}`}
                   >
                     <span>{col.label}</span>
                     <SortIndicator direction={active ? sort!.direction : null} />
@@ -185,6 +195,7 @@ export function TableWidget({ widget, data }: Props) {
             >
               {columns.map((col) => {
                 const numeric = col.number != null;
+                const alignCls = alignClasses(col.align, numeric);
                 const raw = col.idx >= 0 ? row[col.idx] : null; // displayed value (own column)
                 const style: CSSProperties = numeric ? { fontFamily: '"Geist Mono", monospace' } : {};
                 if (col.format) {
@@ -199,8 +210,8 @@ export function TableWidget({ widget, data }: Props) {
                 return (
                   <td
                     key={col.name}
-                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${
-                      numeric ? "text-right tabular-nums text-[12px]" : ""
+                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
+                      numeric ? "tabular-nums text-[12px]" : ""
                     }`}
                     style={Object.keys(style).length ? style : undefined}
                   >

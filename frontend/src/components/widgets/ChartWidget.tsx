@@ -1393,16 +1393,17 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <ComposedChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
             <Tooltip content={cartesianTooltip} />
             <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
             {yFields.map((field, i) =>
               lineSet.has(field) ? (
                 <Line
                   key={field}
-                  type="monotone"
+                  type={seriesCurve(field, true)}
                   dataKey={field}
-                  stroke={colors[i % colors.length]}
+                  stroke={seriesColor(field, i, true)}
+                  strokeDasharray={seriesDash(field, true)}
                   strokeWidth={1.5}
                   dot={false}
                   isAnimationActive={false}
@@ -1411,7 +1412,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 <Bar
                   key={field}
                   dataKey={field}
-                  fill={colors[i % colors.length]}
+                  fill={seriesColor(field, i, true)}
                   radius={[2, 2, 0, 0]}
                   isAnimationActive={false}
                 />
