@@ -537,6 +537,7 @@ func vnodeToWidget(n *vnode) Widget {
 		Target:     asString(n.Props["target"]),
 		Bins:       asInt(n.Props["bins"]),
 		Lines:      asStringSlice(n.Props["lines"]),
+		Series:     asSeriesStyles(n.Props["series"]),
 		YMin:       asBoundEncoding(n.Props["yMin"]),
 		YMax:       asBoundEncoding(n.Props["yMax"]),
 		RefLines:   asRefLines(n.Props["refLines"]),
@@ -750,6 +751,14 @@ func asAxisEncoding(v interface{}) *AxisEncoding {
 			Type:   asString(val["type"]),
 			Title:  asString(val["title"]),
 			Format: asString(val["format"]),
+			Curve:  asString(val["curve"]),
+			Dash:   asString(val["dash"]),
+		}
+		if b, ok := val["beginAtZero"].(bool); ok {
+			a.BeginAtZero = &b
+		}
+		if m, ok := val["markers"].(bool); ok {
+			a.Markers = &m
 		}
 		switch f := val["field"].(type) {
 		case string:
@@ -766,13 +775,39 @@ func asAxisEncoding(v interface{}) *AxisEncoding {
 				a.Field = f
 			}
 		}
-		if a.Field == nil && a.Type == "" && a.Title == "" && a.Format == "" {
+		if a.Field == nil && a.Type == "" && a.Title == "" && a.Format == "" &&
+			a.Curve == "" && a.Dash == "" && a.BeginAtZero == nil && a.Markers == nil {
 			return nil
 		}
 		return a
 	default:
 		return nil
 	}
+}
+
+// asSeriesStyles reads the per-series style map ({column: {color, curve, dash}})
+// from a TSX/JSX dashboard's widget-level series prop.
+func asSeriesStyles(v interface{}) map[string]SeriesStyle {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	out := make(map[string]SeriesStyle, len(m))
+	for k, item := range m {
+		sm, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out[k] = SeriesStyle{
+			Color: asString(sm["color"]),
+			Curve: asString(sm["curve"]),
+			Dash:  asString(sm["dash"]),
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func asValueEncoding(v interface{}) *ValueEncoding {
@@ -924,6 +959,7 @@ func asTableColumns(v interface{}) []TableColumn {
 				Name:   asString(m["name"]),
 				Label:  asString(m["label"]),
 				Number: asString(m["number"]),
+				Align:  asString(m["align"]),
 				Like:   asString(m["like"]),
 				Hidden: asBool(m["hidden"]),
 			}

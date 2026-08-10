@@ -1,0 +1,46 @@
+schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Estimated Category Commission
+description: Per-series line styling — curve, dash, colour overrides, and a zero baseline (inline data, no connection needed)
+
+rows:
+  - widgets:
+      - id: estimated_category_commission
+        name: Estimated Category Commission
+        type: chart
+        col: 6
+        chart: line
+        x:
+          field: week
+          type: date
+          format: "%b %d"
+        y:
+          field:
+            - "finance_current_year"
+            - "finance_last_year"
+            - "retail_last_year"
+          type: number
+          title: Weekly Revenue
+          format: "$,.0f"
+          beginAtZero: true
+        # Per-series style overrides live in the widget-level `series` map,
+        # keyed by y-column; a column with no entry keeps the chart-wide defaults.
+        series:
+          finance_current_year:
+            color: "#EC4899"
+            curve: straight
+            dash: dotted
+          finance_last_year:
+            curve: stepline
+          retail_last_year: {}
+        data:
+          columns: [week, finance_current_year, finance_last_year, retail_last_year]
+          rows:
+            - ["2026-07-05", 32000, 33000, 59000]
+            - ["2026-07-12", 35000, 37000, 60000]
+            - ["2026-07-19", 48000, 45000, 62000]
+            - ["2026-07-26", 51000, 48000, 63000]
+            - ["2026-08-02", 24000, 45000, 65000]
+            - ["2026-08-09", 41000, 42000, 64000]
+            - ["2026-08-16", 39000, 39000, 58000]
+            - ["2026-08-23", 37000, 38000, 57000]
+            - ["2026-08-30", 40000, 39000, 59000]

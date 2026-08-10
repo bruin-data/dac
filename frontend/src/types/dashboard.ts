@@ -89,6 +89,7 @@ export interface Widget {
   target?: string;     // sankey: target column / gauge: target (max) column
   bins?: number;       // histogram: number of bins
   lines?: string[];    // combo: which y series are lines
+  series?: Record<string, SeriesStyle>; // per-series line style overrides, keyed by y-column
   // xmr control limit column; line/bar/forest CI bound — a column name, or a
   // per-series map { series column: bound column } for multi-line CI bands.
   yMin?: string | Record<string, string>;
@@ -135,6 +136,8 @@ export interface TableColumn {
   like?: string;
   /** Keep the column in the result (for cross-column rules / `like`) but don't render it. */
   hidden?: boolean;
+  /** Text alignment override — applies to the header and body cells. */
+  align?: 'left' | 'center' | 'right';
   /** Ordered style layers; the first layer that matches a cell wins. */
   format?: FormatLayer[];
 }
@@ -197,6 +200,17 @@ export interface AxisEncoding {
   type?: "number" | "date" | "category";
   title?: string;  // human-readable axis label
   format?: string; // d3-format / d3-time-format string for tick labels
+  beginAtZero?: boolean; // anchor a line/area value axis at 0
+  markers?: boolean; // show point markers on line/area (default true)
+  curve?: "smooth" | "straight" | "stepline"; // chart-wide line interpolation
+  dash?: "solid" | "dotted" | "dashed" | "long-dash"; // chart-wide dash pattern (omitted = solid)
+}
+
+/** Per-series style override, grouped under widget-level `series` (keyed by y-column). */
+export interface SeriesStyle {
+  color?: string; // #hex; unset uses the palette
+  curve?: "smooth" | "straight" | "stepline"; // falls back to y.curve
+  dash?: "solid" | "dotted" | "dashed" | "long-dash"; // falls back to y.dash
 }
 
 /** Encoding for the color channel: the category column that splits y into series. */

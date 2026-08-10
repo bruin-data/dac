@@ -1103,6 +1103,23 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
   const gridColor = tokens["border"];
   const axisColor = tokens["text-muted"];
 
+  // Per-series line styling: grouped under widget.series ({col:{color,curve,dash}}),
+  // each falling back to the chart-wide curve/dash. Overrides key by y-column, so
+  // pass `own=false` in color-pivot mode where series are values, not columns.
+  const curveType = (v?: string): "linear" | "stepAfter" | "monotone" =>
+    v === "straight" ? "linear" : v === "stepline" ? "stepAfter" : "monotone";
+  const DASH_ARRAY: Record<string, string> = { dotted: "1 5", dashed: "6 4", "long-dash": "12 6" };
+  const dashArrayFor = (v?: string): string | undefined => (v && v !== "solid" ? DASH_ARRAY[v] : undefined);
+  const styleOf = (field: string) => widget.series?.[field] ?? {};
+  const seriesCurve = (field: string, own: boolean) => curveType(own ? (styleOf(field).curve ?? widget.y?.curve) : widget.y?.curve);
+  const seriesDash = (field: string, own: boolean) => dashArrayFor(own ? (styleOf(field).dash ?? widget.y?.dash) : widget.y?.dash);
+  const seriesColor = (field: string, i: number, own: boolean) => (own && styleOf(field).color) || colors[i % colors.length];
+  const yDomain: [number, string] | undefined = widget.y?.beginAtZero ? [0, "auto"] : undefined;
+  // Point markers: shown on sparse line/area series by default, hidden when
+  // y.markers is false (dense series stay dotless to avoid clutter).
+  const showMarkers = widget.y?.markers !== false;
+  const dotFor = (n: number) => (showMarkers && n <= 30 ? { r: 2, strokeWidth: 0 } : false);
+
   const xKey = axisField(widget.x);
   const yKeys = axisFields(widget.y);
   const xTick = buildAxisFormatter(widget.x, formatAxisTick);
@@ -1154,7 +1171,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <LineOrComposed data={lineRows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
             <Tooltip content={cartesianTooltip} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {hasBand && bandBounds.map((b, i) => (b.lo && b.hi ? (
@@ -1163,11 +1180,12 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             {series.map((field, i) => (
               <Line
                 key={field}
-                type="monotone"
+                type={seriesCurve(field, !colorKey)}
                 dataKey={field}
-                stroke={colors[i % colors.length]}
+                stroke={seriesColor(field, i, !colorKey)}
+                strokeDasharray={seriesDash(field, !colorKey)}
                 strokeWidth={1.5}
-                dot={false}
+                dot={dotFor(rows.length)}
                 activeDot={{ r: 3, strokeWidth: 0 }}
                 isAnimationActive={false}
               />
@@ -1229,7 +1247,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               <Bar
                 key={field}
                 dataKey={field}
-                fill={colors[i % colors.length]}
+                fill={seriesColor(field, i, !colorKey)}
                 stackId={isStacked ? "stack" : undefined}
                 radius={isStacked && i < series.length - 1 ? undefined : lastRadius}
                 isAnimationActive={false}
@@ -1269,7 +1287,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <AreaChart data={areaRows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
             <Tooltip content={cartesianTooltip} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {hasBand && bandBounds.map((b, i) => (b.lo && b.hi ? (
@@ -1278,10 +1296,12 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             {series.map((field, i) => (
               <Area
                 key={field}
-                type="monotone"
+                type={seriesCurve(field, !colorKey)}
                 dataKey={field}
-                stroke={colors[i % colors.length]}
-                fill={colors[i % colors.length]}
+                stroke={seriesColor(field, i, !colorKey)}
+                fill={seriesColor(field, i, !colorKey)}
+                strokeDasharray={seriesDash(field, !colorKey)}
+                dot={dotFor(rows.length)}
                 fillOpacity={0.06}
                 strokeWidth={1.5}
                 isAnimationActive={false}
@@ -1379,25 +1399,26 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <ComposedChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
             <Tooltip content={cartesianTooltip} />
             <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
             {yFields.map((field, i) =>
               lineSet.has(field) ? (
                 <Line
                   key={field}
-                  type="monotone"
+                  type={seriesCurve(field, true)}
                   dataKey={field}
-                  stroke={colors[i % colors.length]}
+                  stroke={seriesColor(field, i, true)}
+                  strokeDasharray={seriesDash(field, true)}
                   strokeWidth={1.5}
-                  dot={false}
+                  dot={dotFor(chartData.length)}
                   isAnimationActive={false}
                 />
               ) : (
                 <Bar
                   key={field}
                   dataKey={field}
-                  fill={colors[i % colors.length]}
+                  fill={seriesColor(field, i, true)}
                   radius={[2, 2, 0, 0]}
                   isAnimationActive={false}
                 />

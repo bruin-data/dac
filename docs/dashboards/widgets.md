@@ -125,8 +125,14 @@ SQL-backed example:
 | `type` | string | `number`, `date`, or `category`. Selects the axis scale and the format language (`date` uses d3-time-format, otherwise d3-format). |
 | `title` | string | Human-readable axis label rendered next to the axis. |
 | `format` | string | d3-format / d3-time-format string for tick labels, e.g. `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`. |
+| `beginAtZero` | boolean | Anchor a line/area value axis at 0 so series scale honestly instead of auto-zooming. Opt-in (default auto-scales). |
+| `markers` | boolean | Show point markers on sparse line/area series. Default `true`; set `false` to hide the dots. |
+| `curve` | string | Chart-wide line interpolation: `smooth`, `straight`, or `stepline`. Use `straight` for period totals so the line doesn't imply movement between points. |
+| `dash` | string | Chart-wide dash pattern every series inherits: `dotted`, `dashed`, or `long-dash` (omitted = solid). |
 
-Without `format`, ticks fall back to automatic compact formatting. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
+Per-series style overrides live in a **widget-level `series`** map (a sibling of `x`/`y`, not inside `y`), keyed by y-column: `series: { revenue: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` falls back to the chart-wide default (or palette for colour). Store only genuine differences.
+
+Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, and `dash` (on `y`) plus the widget-level `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
 
 ### Series by category (color)
 
@@ -177,7 +183,7 @@ Common chart fields:
 |-------|------|-------------|
 | `chart` | string | Chart type |
 | `x` | object | X-axis encoding (`field`, `type`, `title`, `format`) |
-| `y` | object | Y-axis encoding (`field` may list several series columns) |
+| `y` | object | Y-axis encoding (`field` may list several series columns; supports `beginAtZero`, `markers`, `curve`, `dash`, and per-series `series` overrides for line/area — see [Axis encoding](#axis-encoding)) |
 | `label` | string | Label column for pie, funnel, and treemap charts |
 | `value` | object | Value encoding (`{ field: ... }`) for pie, funnel, sankey, heatmap, calendar, treemap, and gauge charts |
 | `source` | string | Source node column for sankey charts |
@@ -192,6 +198,7 @@ Common chart fields:
 | `horizontal` | boolean | Horizontal layout: bar charts put categories on the vertical axis; funnel charts lay stages left-to-right; forest charts are horizontal by default (`false` = vertical) |
 | `size` | string | Bubble size column for bubble charts |
 | `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
+| `series` | object | Per-series line style overrides keyed by y-column: `{ revenue: { color, curve, dash } }` — line/area/combo. Each key falls back to the chart-wide `y.curve`/`y.dash`/palette |
 | `bins` | integer | Number of bins for histogram charts (default 10) |
 | `yMin` | string \| object | CI lower bound: xmr control limit, line/area CI band, bar error-bar cap, forest interval. A column name, or a per-series map `{ seriesColumn: boundColumn }` for multi-line/grouped charts |
 | `yMax` | string \| object | CI upper bound (see `yMin`) |
@@ -258,6 +265,7 @@ Table column fields:
 |-------|------|-------------|
 | `name` | string | Result column name (must match the SQL output) |
 | `label` | string | Display header (defaults to `name`) |
+| `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
 | `format` | string \| object | Value display and conditional coloring, see below |
 
@@ -288,6 +296,7 @@ the condition; without `if`, the layer styles every cell.
 | Key | What it does |
 |-----|--------------|
 | `number` | Value display: `currency`, `number`, or a d3-format string. |
+| `align` | Text alignment: `left`, `center`, or `right` (aligns the header and body cells). |
 | `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |
 | `hidden` | Keep the column in the result (so it can drive cross-column rules or be a `like` source) but don't render it. |
 | `format` | Ordered list of style layers; first match wins. |

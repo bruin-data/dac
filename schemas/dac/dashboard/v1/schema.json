@@ -336,6 +336,9 @@
         "lines": {
           "$ref": "#/$defs/stringList"
         },
+        "series": {
+          "$ref": "#/$defs/seriesStyles"
+        },
         "yMin": {
           "$ref": "#/$defs/boundEncoding"
         },
@@ -464,6 +467,9 @@
         "hidden": {
           "type": "boolean"
         },
+        "align": {
+          "enum": ["left", "center", "right"]
+        },
         "format": {
           "oneOf": [
             { "type": "string" },
@@ -580,9 +586,37 @@
         },
         "format": {
           "type": "string"
+        },
+        "beginAtZero": {
+          "type": "boolean"
+        },
+        "markers": {
+          "description": "Show point markers on line/area charts (default true; false hides them).",
+          "type": "boolean"
+        },
+        "curve": {
+          "description": "Chart-wide line interpolation every series inherits.",
+          "enum": ["smooth", "straight", "stepline"]
+        },
+        "dash": {
+          "description": "Chart-wide dash pattern every series inherits (omitted = solid).",
+          "enum": ["solid", "dotted", "dashed", "long-dash"]
         }
       },
       "additionalProperties": false
+    },
+    "seriesStyles": {
+      "description": "Per-series line style overrides keyed by y-column: {column: {color, curve, dash}}. Only stores genuine differences from the chart-wide defaults.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+          "curve": { "enum": ["smooth", "straight", "stepline"] },
+          "dash": { "enum": ["solid", "dotted", "dashed", "long-dash"] }
+        },
+        "additionalProperties": false
+      }
     },
     "valueEncoding": {
       "type": "object",

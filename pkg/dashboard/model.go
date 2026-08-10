@@ -124,18 +124,20 @@ type Widget struct {
 	Normalized bool           `yaml:"normalized,omitempty" json:"normalized,omitempty"`
 	Horizontal *bool          `yaml:"horizontal,omitempty" json:"horizontal,omitempty"` // bar/funnel: horizontal layout; forest: defaults horizontal, set false for a vertical dot-and-whisker. Pointer so an explicit false survives JSON marshaling.
 	Size       string         `yaml:"size,omitempty" json:"size,omitempty"`
-	Source     string         `yaml:"source,omitempty" json:"source,omitempty"`     // sankey: source column
-	Target     string         `yaml:"target,omitempty" json:"target,omitempty"`     // sankey: target column, gauge: target (max) column
-	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`         // histogram: number of bins
-	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`       // combo: which y series render as lines
-	YMin       *BoundEncoding `yaml:"yMin,omitempty" json:"yMin,omitempty"`         // xmr: min control limit column; line/bar/forest: CI lower bound (column or per-series map)
-	YMax       *BoundEncoding `yaml:"yMax,omitempty" json:"yMax,omitempty"`         // xmr: max control limit column; line/bar/forest: CI upper bound (column or per-series map)
-	Open       string         `yaml:"open,omitempty" json:"open,omitempty"`         // candlestick: open price column
-	High       string         `yaml:"high,omitempty" json:"high,omitempty"`         // candlestick: high price column
-	Low        string         `yaml:"low,omitempty" json:"low,omitempty"`           // candlestick: low price column
-	Close      string         `yaml:"close,omitempty" json:"close,omitempty"`       // candlestick: close price column
-	RefLines   []RefLine      `yaml:"refLines,omitempty" json:"refLines,omitempty"` // reference guide lines (axis + value + optional label)
-	RefBands   []RefBand      `yaml:"refBands,omitempty" json:"refBands,omitempty"` // shaded reference bands (axis + from/to + optional label)
+	Source     string         `yaml:"source,omitempty" json:"source,omitempty"` // sankey: source column
+	Target     string         `yaml:"target,omitempty" json:"target,omitempty"` // sankey: target column, gauge: target (max) column
+	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`     // histogram: number of bins
+	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`   // combo: which y series render as lines
+	// Series holds per-series line style overrides keyed by y-column: {column: {color, curve, dash}}.
+	Series   map[string]SeriesStyle `yaml:"series,omitempty" json:"series,omitempty"`
+	YMin     *BoundEncoding         `yaml:"yMin,omitempty" json:"yMin,omitempty"`         // xmr: min control limit column; line/bar/forest: CI lower bound (column or per-series map)
+	YMax     *BoundEncoding         `yaml:"yMax,omitempty" json:"yMax,omitempty"`         // xmr: max control limit column; line/bar/forest: CI upper bound (column or per-series map)
+	Open     string                 `yaml:"open,omitempty" json:"open,omitempty"`         // candlestick: open price column
+	High     string                 `yaml:"high,omitempty" json:"high,omitempty"`         // candlestick: high price column
+	Low      string                 `yaml:"low,omitempty" json:"low,omitempty"`           // candlestick: low price column
+	Close    string                 `yaml:"close,omitempty" json:"close,omitempty"`       // candlestick: close price column
+	RefLines []RefLine              `yaml:"refLines,omitempty" json:"refLines,omitempty"` // reference guide lines (axis + value + optional label)
+	RefBands []RefBand              `yaml:"refBands,omitempty" json:"refBands,omitempty"` // shaded reference bands (axis + from/to + optional label)
 
 	// Table fields
 	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
@@ -212,6 +214,7 @@ type TableColumn struct {
 	Number string        `yaml:"number,omitempty" json:"number,omitempty"` // value display: currency | number | d3-format spec
 	Like   string        `yaml:"like,omitempty" json:"like,omitempty"`     // mirror another column's coloring + per-row value
 	Hidden bool          `yaml:"hidden,omitempty" json:"hidden,omitempty"` // keep the column in the result (for cross-column rules / like) but don't render it
+	Align  string        `yaml:"align,omitempty" json:"align,omitempty"`   // text alignment override: left | center | right (applies to the header and body cells)
 	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered conditional-format style layers; first match wins
 }
 
@@ -230,12 +233,13 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 		Number string    `yaml:"number,omitempty"`
 		Like   string    `yaml:"like,omitempty"`
 		Hidden bool      `yaml:"hidden,omitempty"`
+		Align  string    `yaml:"align,omitempty"`
 		Format yaml.Node `yaml:"format,omitempty"`
 	}
 	if err := node.Decode(&tmp); err != nil {
 		return err
 	}
-	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Number: tmp.Number, Like: tmp.Like, Hidden: tmp.Hidden}
+	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Number: tmp.Number, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align}
 
 	// Follow a YAML alias to its target, then: a scalar is the legacy value-display
 	// shorthand (folds into `number`); a list is the style layers.
@@ -525,11 +529,27 @@ func (w *Widget) ResolvedQuery(dashboard *Dashboard) (sql, connection string, er
 	}
 }
 
+// SeriesStyle is a per-series style override, grouped under Widget.Series and
+// keyed by the y-column the style applies to.
+type SeriesStyle struct {
+	Color string `yaml:"color,omitempty" json:"color,omitempty"` // #hex; unset uses the palette
+	Curve string `yaml:"curve,omitempty" json:"curve,omitempty"` // smooth | straight | stepline (falls back to y.curve)
+	Dash  string `yaml:"dash,omitempty" json:"dash,omitempty"`   // solid | dotted | dashed | long-dash (falls back to y.dash)
+}
+
 type AxisEncoding struct {
 	Field  any    `yaml:"field" json:"field"`
 	Type   string `yaml:"type,omitempty" json:"type,omitempty"`
 	Title  string `yaml:"title,omitempty" json:"title,omitempty"`
 	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+	// BeginAtZero anchors a line/area chart's value axis at 0 (opt-in).
+	BeginAtZero *bool `yaml:"beginAtZero,omitempty" json:"beginAtZero,omitempty"`
+	// Markers toggles point markers on line/area charts (default on; false hides).
+	Markers *bool `yaml:"markers,omitempty" json:"markers,omitempty"`
+	// Curve is the chart-wide line interpolation: smooth | straight | stepline.
+	Curve string `yaml:"curve,omitempty" json:"curve,omitempty"`
+	// Dash is the chart-wide dash pattern every series inherits: dotted | dashed | long-dash (empty = solid).
+	Dash string `yaml:"dash,omitempty" json:"dash,omitempty"`
 }
 
 func (a *AxisEncoding) FieldString() string {
@@ -574,10 +594,14 @@ func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
 		return fmt.Errorf("%s", axisEncodingHint)
 	}
 	type axisFields struct {
-		Field  yaml.Node `yaml:"field"`
-		Type   string    `yaml:"type,omitempty"`
-		Title  string    `yaml:"title,omitempty"`
-		Format string    `yaml:"format,omitempty"`
+		Field       yaml.Node `yaml:"field"`
+		Type        string    `yaml:"type,omitempty"`
+		Title       string    `yaml:"title,omitempty"`
+		Format      string    `yaml:"format,omitempty"`
+		BeginAtZero *bool     `yaml:"beginAtZero,omitempty"`
+		Markers     *bool     `yaml:"markers,omitempty"`
+		Curve       string    `yaml:"curve,omitempty"`
+		Dash        string    `yaml:"dash,omitempty"`
 	}
 	var tmp axisFields
 	if err := node.Decode(&tmp); err != nil {
@@ -586,6 +610,10 @@ func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
 	a.Type = tmp.Type
 	a.Title = tmp.Title
 	a.Format = tmp.Format
+	a.BeginAtZero = tmp.BeginAtZero
+	a.Markers = tmp.Markers
+	a.Curve = tmp.Curve
+	a.Dash = tmp.Dash
 	switch tmp.Field.Kind {
 	case yaml.ScalarNode:
 		var s string
@@ -612,11 +640,15 @@ func (a *AxisEncoding) MarshalYAML() (any, error) {
 		return nil, nil
 	}
 	return struct {
-		Field  any    `yaml:"field"`
-		Type   string `yaml:"type,omitempty"`
-		Title  string `yaml:"title,omitempty"`
-		Format string `yaml:"format,omitempty"`
-	}{a.Field, a.Type, a.Title, a.Format}, nil
+		Field       any    `yaml:"field"`
+		Type        string `yaml:"type,omitempty"`
+		Title       string `yaml:"title,omitempty"`
+		Format      string `yaml:"format,omitempty"`
+		BeginAtZero *bool  `yaml:"beginAtZero,omitempty"`
+		Markers     *bool  `yaml:"markers,omitempty"`
+		Curve       string `yaml:"curve,omitempty"`
+		Dash        string `yaml:"dash,omitempty"`
+	}{a.Field, a.Type, a.Title, a.Format, a.BeginAtZero, a.Markers, a.Curve, a.Dash}, nil
 }
 
 func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
@@ -628,10 +660,14 @@ func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%s", axisEncodingHint)
 	}
 	var raw struct {
-		Field  json.RawMessage `json:"field"`
-		Type   string          `json:"type,omitempty"`
-		Title  string          `json:"title,omitempty"`
-		Format string          `json:"format,omitempty"`
+		Field       json.RawMessage `json:"field"`
+		Type        string          `json:"type,omitempty"`
+		Title       string          `json:"title,omitempty"`
+		Format      string          `json:"format,omitempty"`
+		BeginAtZero *bool           `json:"beginAtZero,omitempty"`
+		Markers     *bool           `json:"markers,omitempty"`
+		Curve       string          `json:"curve,omitempty"`
+		Dash        string          `json:"dash,omitempty"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -639,6 +675,10 @@ func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
 	a.Type = raw.Type
 	a.Title = raw.Title
 	a.Format = raw.Format
+	a.BeginAtZero = raw.BeginAtZero
+	a.Markers = raw.Markers
+	a.Curve = raw.Curve
+	a.Dash = raw.Dash
 	fieldStr := strings.TrimSpace(string(raw.Field))
 	if fieldStr == "" || fieldStr == "null" {
 		return fmt.Errorf("axis encoding: field is required")
@@ -664,11 +704,15 @@ func (a *AxisEncoding) MarshalJSON() ([]byte, error) {
 		return []byte("null"), nil
 	}
 	return json.Marshal(struct {
-		Field  any    `json:"field"`
-		Type   string `json:"type,omitempty"`
-		Title  string `json:"title,omitempty"`
-		Format string `json:"format,omitempty"`
-	}{a.Field, a.Type, a.Title, a.Format})
+		Field       any    `json:"field"`
+		Type        string `json:"type,omitempty"`
+		Title       string `json:"title,omitempty"`
+		Format      string `json:"format,omitempty"`
+		BeginAtZero *bool  `json:"beginAtZero,omitempty"`
+		Markers     *bool  `json:"markers,omitempty"`
+		Curve       string `json:"curve,omitempty"`
+		Dash        string `json:"dash,omitempty"`
+	}{a.Field, a.Type, a.Title, a.Format, a.BeginAtZero, a.Markers, a.Curve, a.Dash})
 }
 
 func newAxisField(s string) *AxisEncoding {
