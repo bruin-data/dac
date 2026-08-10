@@ -1411,7 +1411,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                   stroke={seriesColor(field, i, true)}
                   strokeDasharray={seriesDash(field, true)}
                   strokeWidth={1.5}
-                  dot={false}
+                  dot={dotFor(chartData.length)}
                   isAnimationActive={false}
                 />
               ) : (
