@@ -15,18 +15,23 @@ rows:
           format: "%b %d"
         y:
           field:
-            - finance_current_year
-            - finance_last_year
-            - retail_last_year
+            - "finance_current_year"
+            - "finance_last_year"
+            - "retail_last_year"
           type: number
           title: Weekly Revenue
           format: "$,.0f"
           beginAtZero: true
-          # Per-series style overrides, grouped by column; a series with no entry
-          # (retail_last_year) keeps the chart-wide defaults.
-          series:
-            finance_current_year: { color: "#EC4899", curve: smooth, dash: dashed }
-            finance_last_year: { curve: stepline, dash: long-dash }
+        # Per-series style overrides live in the widget-level `series` map,
+        # keyed by y-column; a column with no entry keeps the chart-wide defaults.
+        series:
+          finance_current_year:
+            color: "#EC4899"
+            curve: straight
+            dash: dotted
+          finance_last_year:
+            curve: stepline
+          retail_last_year: {}
         data:
           columns: [week, finance_current_year, finance_last_year, retail_last_year]
           rows:

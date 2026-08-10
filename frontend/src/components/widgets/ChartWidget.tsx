@@ -1103,14 +1103,14 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
   const gridColor = tokens["border"];
   const axisColor = tokens["text-muted"];
 
-  // Per-series line styling: grouped under y.series ({col:{color,curve,dash}}),
+  // Per-series line styling: grouped under widget.series ({col:{color,curve,dash}}),
   // each falling back to the chart-wide curve/dash. Overrides key by y-column, so
   // pass `own=false` in color-pivot mode where series are values, not columns.
   const curveType = (v?: string): "linear" | "stepAfter" | "monotone" =>
     v === "straight" ? "linear" : v === "stepline" ? "stepAfter" : "monotone";
   const DASH_ARRAY: Record<string, string> = { dotted: "1 5", dashed: "6 4", "long-dash": "12 6" };
   const dashArrayFor = (v?: string): string | undefined => (v && v !== "solid" ? DASH_ARRAY[v] : undefined);
-  const styleOf = (field: string) => widget.y?.series?.[field] ?? {};
+  const styleOf = (field: string) => widget.series?.[field] ?? {};
   const seriesCurve = (field: string, own: boolean) => curveType(own ? (styleOf(field).curve ?? widget.y?.curve) : widget.y?.curve);
   const seriesDash = (field: string, own: boolean) => dashArrayFor(own ? (styleOf(field).dash ?? widget.y?.dash) : widget.y?.dash);
   const seriesColor = (field: string, i: number, own: boolean) => (own && styleOf(field).color) || colors[i % colors.length];

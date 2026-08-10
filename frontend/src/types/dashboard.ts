@@ -89,6 +89,7 @@ export interface Widget {
   target?: string;     // sankey: target column / gauge: target (max) column
   bins?: number;       // histogram: number of bins
   lines?: string[];    // combo: which y series are lines
+  series?: Record<string, SeriesStyle>; // per-series line style overrides, keyed by y-column
   // xmr control limit column; line/bar/forest CI bound — a column name, or a
   // per-series map { series column: bound column } for multi-line CI bands.
   yMin?: string | Record<string, string>;
@@ -203,10 +204,9 @@ export interface AxisEncoding {
   markers?: boolean; // show point markers on line/area (default true)
   curve?: "smooth" | "straight" | "stepline"; // chart-wide line interpolation
   dash?: "solid" | "dotted" | "dashed" | "long-dash"; // chart-wide dash pattern (omitted = solid)
-  series?: Record<string, SeriesStyle>; // per-series style overrides {column: {color, curve, dash}}
 }
 
-/** Per-series style override, grouped under `y.series`. */
+/** Per-series style override, grouped under widget-level `series` (keyed by y-column). */
 export interface SeriesStyle {
   color?: string; // #hex; unset uses the palette
   curve?: "smooth" | "straight" | "stepline"; // falls back to y.curve

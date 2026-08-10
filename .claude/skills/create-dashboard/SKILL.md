@@ -455,7 +455,8 @@ Line/area (and combo) charts also accept these on `y`:
 - `markers` — `false` hides the point markers (dots) on sparse line/area series (default shows them).
 - `curve` — chart-wide line interpolation: `smooth` | `straight` | `stepline`. Use `straight` for period totals so the line doesn't imply movement between points.
 - `dash` — chart-wide dash pattern every series inherits: `dotted`, `dashed`, or `long-dash` (omitted = solid).
-- `series` — per-series style overrides grouped by column: `{ target: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` is optional and falls back to the chart-wide default (or the theme palette for colour). Store only genuine differences — a series with no entry inherits everything.
+
+Per-series style overrides live in a **widget-level `series`** map (a sibling of `x`/`y`, not inside `y`), keyed by y-column: `series: { target: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` is optional and falls back to the chart-wide default (or the theme palette for colour). Store only genuine differences — a column with no entry inherits everything.
 
 Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{ field: ... }`.
 
@@ -473,8 +474,8 @@ Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{
     format: "$,.0f"
     beginAtZero: true                                  # honest scale
     curve: straight                                    # chart-wide: no implied in-period movement
-    series:                                            # per-series overrides
-      revenue_last_year: { dash: dashed }              # dashed comparison line
+  series:                                              # widget-level per-series overrides, keyed by y-column
+    revenue_last_year: { dash: dashed }                # dashed comparison line
   col: 8
 ```
 

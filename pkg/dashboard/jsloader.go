@@ -537,6 +537,7 @@ func vnodeToWidget(n *vnode) Widget {
 		Target:     asString(n.Props["target"]),
 		Bins:       asInt(n.Props["bins"]),
 		Lines:      asStringSlice(n.Props["lines"]),
+		Series:     asSeriesStyles(n.Props["series"]),
 		YMin:       asBoundEncoding(n.Props["yMin"]),
 		YMax:       asBoundEncoding(n.Props["yMax"]),
 		RefLines:   asRefLines(n.Props["refLines"]),
@@ -752,7 +753,6 @@ func asAxisEncoding(v interface{}) *AxisEncoding {
 			Format: asString(val["format"]),
 			Curve:  asString(val["curve"]),
 			Dash:   asString(val["dash"]),
-			Series: asSeriesStyles(val["series"]),
 		}
 		if b, ok := val["beginAtZero"].(bool); ok {
 			a.BeginAtZero = &b
@@ -776,7 +776,7 @@ func asAxisEncoding(v interface{}) *AxisEncoding {
 			}
 		}
 		if a.Field == nil && a.Type == "" && a.Title == "" && a.Format == "" &&
-			a.Curve == "" && a.Dash == "" && a.BeginAtZero == nil && a.Markers == nil && len(a.Series) == 0 {
+			a.Curve == "" && a.Dash == "" && a.BeginAtZero == nil && a.Markers == nil {
 			return nil
 		}
 		return a
@@ -786,7 +786,7 @@ func asAxisEncoding(v interface{}) *AxisEncoding {
 }
 
 // asSeriesStyles reads the per-series style map ({column: {color, curve, dash}})
-// from a TSX/JSX dashboard's y.series prop.
+// from a TSX/JSX dashboard's widget-level series prop.
 func asSeriesStyles(v interface{}) map[string]SeriesStyle {
 	m, ok := v.(map[string]interface{})
 	if !ok {

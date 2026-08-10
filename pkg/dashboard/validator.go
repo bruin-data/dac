@@ -339,7 +339,8 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	}
 	errs = append(errs, validateRefAnnotations(prefix, w)...)
 
-	// Chart-wide line style + per-series overrides (grouped under y.series).
+	// Chart-wide line style lives on y; per-series overrides live on the widget
+	// (widget.series), keyed by y-column.
 	if w.Y != nil {
 		if w.Y.Curve != "" && !validCurves[w.Y.Curve] {
 			errs = append(errs, fmt.Sprintf("%s: y.curve must be smooth, straight, or stepline", prefix))
@@ -347,16 +348,16 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if w.Y.Dash != "" && !validDashes[w.Y.Dash] {
 			errs = append(errs, fmt.Sprintf("%s: y.dash must be solid, dotted, dashed, or long-dash", prefix))
 		}
-		for col, st := range w.Y.Series {
-			if st.Curve != "" && !validCurves[st.Curve] {
-				errs = append(errs, fmt.Sprintf("%s: y.series[%q].curve must be smooth, straight, or stepline", prefix, col))
-			}
-			if st.Dash != "" && !validDashes[st.Dash] {
-				errs = append(errs, fmt.Sprintf("%s: y.series[%q].dash must be solid, dotted, dashed, or long-dash", prefix, col))
-			}
-			if st.Color != "" && !isHexColor(st.Color) {
-				errs = append(errs, fmt.Sprintf("%s: y.series[%q].color must be a hex colour like #EC4899", prefix, col))
-			}
+	}
+	for col, st := range w.Series {
+		if st.Curve != "" && !validCurves[st.Curve] {
+			errs = append(errs, fmt.Sprintf("%s: series[%q].curve must be smooth, straight, or stepline", prefix, col))
+		}
+		if st.Dash != "" && !validDashes[st.Dash] {
+			errs = append(errs, fmt.Sprintf("%s: series[%q].dash must be solid, dotted, dashed, or long-dash", prefix, col))
+		}
+		if st.Color != "" && !isHexColor(st.Color) {
+			errs = append(errs, fmt.Sprintf("%s: series[%q].color must be a hex colour like #EC4899", prefix, col))
 		}
 	}
 

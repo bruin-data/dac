@@ -129,9 +129,10 @@ SQL-backed example:
 | `markers` | boolean | Show point markers on sparse line/area series. Default `true`; set `false` to hide the dots. |
 | `curve` | string | Chart-wide line interpolation: `smooth`, `straight`, or `stepline`. Use `straight` for period totals so the line doesn't imply movement between points. |
 | `dash` | string | Chart-wide dash pattern every series inherits: `dotted`, `dashed`, or `long-dash` (omitted = solid). |
-| `series` | object | Per-series style overrides, keyed by column: `{ revenue: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` falls back to the chart-wide default (or palette for colour). Store only genuine differences. |
 
-Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, `dash`, and `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
+Per-series style overrides live in a **widget-level `series`** map (a sibling of `x`/`y`, not inside `y`), keyed by y-column: `series: { revenue: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` falls back to the chart-wide default (or palette for colour). Store only genuine differences.
+
+Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, and `dash` (on `y`) plus the widget-level `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
 
 ### Series by category (color)
 
@@ -197,6 +198,7 @@ Common chart fields:
 | `horizontal` | boolean | Horizontal layout: bar charts put categories on the vertical axis; funnel charts lay stages left-to-right; forest charts are horizontal by default (`false` = vertical) |
 | `size` | string | Bubble size column for bubble charts |
 | `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
+| `series` | object | Per-series line style overrides keyed by y-column: `{ revenue: { color, curve, dash } }` — line/area/combo. Each key falls back to the chart-wide `y.curve`/`y.dash`/palette |
 | `bins` | integer | Number of bins for histogram charts (default 10) |
 | `yMin` | string \| object | CI lower bound: xmr control limit, line/area CI band, bar error-bar cap, forest interval. A column name, or a per-series map `{ seriesColumn: boundColumn }` for multi-line/grouped charts |
 | `yMax` | string \| object | CI upper bound (see `yMin`) |
