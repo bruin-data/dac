@@ -22,15 +22,11 @@ rows:
           title: Weekly Revenue
           format: "$,.0f"
           beginAtZero: true
-          # Per-series overrides; series without an entry keep the chart default.
-          curves:
-            finance_current_year: smooth
-            finance_last_year: stepline
-          dashes:
-            finance_current_year: dashed
-            finance_last_year: long-dash
-          colors:
-            finance_current_year: "#EC4899"
+          # Per-series style overrides, grouped by column; a series with no entry
+          # (retail_last_year) keeps the chart-wide defaults.
+          series:
+            finance_current_year: { color: "#EC4899", curve: smooth, dash: dashed }
+            finance_last_year: { curve: stepline, dash: long-dash }
         data:
           columns: [week, finance_current_year, finance_last_year, retail_last_year]
           rows:

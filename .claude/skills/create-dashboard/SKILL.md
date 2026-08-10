@@ -452,11 +452,10 @@ Reference top-level dimensions and metrics. SQL is auto-generated with GROUP BY,
 Line/area (and combo) charts also accept these on `y`:
 
 - `beginAtZero` — `true` anchors the value axis at 0 so variances read at true scale (default auto-scales).
+- `markers` — `false` hides the point markers (dots) on sparse line/area series (default shows them).
 - `curve` — chart-wide line interpolation: `smooth` | `straight` | `stepline`. Use `straight` for period totals so the line doesn't imply movement between points.
-- `curves` — per-series curve override keyed by column, e.g. `{ target: straight }` (falls back to `curve`).
 - `dash` — chart-wide dash pattern every series inherits: `dotted`, `dashed`, or `long-dash` (omitted = solid).
-- `dashes` — per-series dash pattern override keyed by column, e.g. `{ last_year: dashed }` for a dashed prior-year comparison line.
-- `colors` — per-series colour override keyed by column, e.g. `{ finance_current_year: "#EC4899" }`. Unset series use the theme palette. Prefer the palette so charts stay theme-aware; use a hex only to pin a specific series.
+- `series` — per-series style overrides grouped by column: `{ target: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` is optional and falls back to the chart-wide default (or the theme palette for colour). Store only genuine differences — a series with no entry inherits everything.
 
 Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{ field: ... }`.
 
@@ -473,8 +472,9 @@ Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{
     field: [revenue, revenue_last_year]
     format: "$,.0f"
     beginAtZero: true                                  # honest scale
-    curve: straight                                    # no implied in-period movement
-    dashes: { revenue_last_year: dashed }              # dashed comparison line
+    curve: straight                                    # chart-wide: no implied in-period movement
+    series:                                            # per-series overrides
+      revenue_last_year: { dash: dashed }              # dashed comparison line
   col: 8
 ```
 

@@ -1103,17 +1103,22 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
   const gridColor = tokens["border"];
   const axisColor = tokens["text-muted"];
 
-  // Per-series line styling from widget.y (curve/dash names → Recharts props,
-  // colour override, zero baseline). Overrides key by y-column, so pass
-  // `own=false` in color-pivot mode where series are values, not columns.
+  // Per-series line styling: grouped under y.series ({col:{color,curve,dash}}),
+  // each falling back to the chart-wide curve/dash. Overrides key by y-column, so
+  // pass `own=false` in color-pivot mode where series are values, not columns.
   const curveType = (v?: string): "linear" | "stepAfter" | "monotone" =>
     v === "straight" ? "linear" : v === "stepline" ? "stepAfter" : "monotone";
   const DASH_ARRAY: Record<string, string> = { dotted: "1 5", dashed: "6 4", "long-dash": "12 6" };
   const dashArrayFor = (v?: string): string | undefined => (v && v !== "solid" ? DASH_ARRAY[v] : undefined);
-  const seriesCurve = (field: string, own: boolean) => curveType(own ? (widget.y?.curves?.[field] ?? widget.y?.curve) : widget.y?.curve);
-  const seriesDash = (field: string, own: boolean) => dashArrayFor(own ? (widget.y?.dashes?.[field] ?? widget.y?.dash) : widget.y?.dash);
-  const seriesColor = (field: string, i: number, own: boolean) => (own && widget.y?.colors?.[field]) || colors[i % colors.length];
+  const styleOf = (field: string) => widget.y?.series?.[field] ?? {};
+  const seriesCurve = (field: string, own: boolean) => curveType(own ? (styleOf(field).curve ?? widget.y?.curve) : widget.y?.curve);
+  const seriesDash = (field: string, own: boolean) => dashArrayFor(own ? (styleOf(field).dash ?? widget.y?.dash) : widget.y?.dash);
+  const seriesColor = (field: string, i: number, own: boolean) => (own && styleOf(field).color) || colors[i % colors.length];
   const yDomain: [number, string] | undefined = widget.y?.beginAtZero ? [0, "auto"] : undefined;
+  // Point markers: shown on sparse line/area series by default, hidden when
+  // y.markers is false (dense series stay dotless to avoid clutter).
+  const showMarkers = widget.y?.markers !== false;
+  const dotFor = (n: number) => (showMarkers && n <= 30 ? { r: 2, strokeWidth: 0 } : false);
 
   const xKey = axisField(widget.x);
   const yKeys = axisFields(widget.y);
@@ -1180,7 +1185,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 stroke={seriesColor(field, i, !colorKey)}
                 strokeDasharray={seriesDash(field, !colorKey)}
                 strokeWidth={1.5}
-                dot={false}
+                dot={dotFor(rows.length)}
                 activeDot={{ r: 3, strokeWidth: 0 }}
                 isAnimationActive={false}
               />
@@ -1296,6 +1301,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 stroke={seriesColor(field, i, !colorKey)}
                 fill={seriesColor(field, i, !colorKey)}
                 strokeDasharray={seriesDash(field, !colorKey)}
+                dot={dotFor(rows.length)}
                 fillOpacity={0.06}
                 strokeWidth={1.5}
                 isAnimationActive={false}

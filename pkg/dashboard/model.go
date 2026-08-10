@@ -527,23 +527,28 @@ func (w *Widget) ResolvedQuery(dashboard *Dashboard) (sql, connection string, er
 	}
 }
 
+// SeriesStyle is a per-series style override, grouped under AxisEncoding.Series.
+type SeriesStyle struct {
+	Color string `yaml:"color,omitempty" json:"color,omitempty"` // #hex; unset uses the palette
+	Curve string `yaml:"curve,omitempty" json:"curve,omitempty"` // smooth | straight | stepline (falls back to Curve)
+	Dash  string `yaml:"dash,omitempty" json:"dash,omitempty"`   // solid | dotted | dashed | long-dash (falls back to Dash)
+}
+
 type AxisEncoding struct {
 	Field  any    `yaml:"field" json:"field"`
 	Type   string `yaml:"type,omitempty" json:"type,omitempty"`
 	Title  string `yaml:"title,omitempty" json:"title,omitempty"`
 	Format string `yaml:"format,omitempty" json:"format,omitempty"`
-	// Colors overrides the series colour per column ({column: #hex}); unset columns use the palette.
-	Colors map[string]string `yaml:"colors,omitempty" json:"colors,omitempty"`
 	// BeginAtZero anchors a line/area chart's value axis at 0 (opt-in).
 	BeginAtZero *bool `yaml:"beginAtZero,omitempty" json:"beginAtZero,omitempty"`
+	// Markers toggles point markers on line/area charts (default on; false hides).
+	Markers *bool `yaml:"markers,omitempty" json:"markers,omitempty"`
 	// Curve is the chart-wide line interpolation: smooth | straight | stepline.
 	Curve string `yaml:"curve,omitempty" json:"curve,omitempty"`
-	// Curves overrides the curve per series ({column: smooth|straight|stepline}).
-	Curves map[string]string `yaml:"curves,omitempty" json:"curves,omitempty"`
 	// Dash is the chart-wide dash pattern every series inherits: dotted | dashed | long-dash (empty = solid).
 	Dash string `yaml:"dash,omitempty" json:"dash,omitempty"`
-	// Dashes overrides the dash pattern per series ({column: dotted|dashed|long-dash}).
-	Dashes map[string]string `yaml:"dashes,omitempty" json:"dashes,omitempty"`
+	// Series holds per-series style overrides keyed by column: {column: {color, curve, dash}}.
+	Series map[string]SeriesStyle `yaml:"series,omitempty" json:"series,omitempty"`
 }
 
 func (a *AxisEncoding) FieldString() string {
@@ -588,16 +593,15 @@ func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
 		return fmt.Errorf("%s", axisEncodingHint)
 	}
 	type axisFields struct {
-		Field       yaml.Node         `yaml:"field"`
-		Type        string            `yaml:"type,omitempty"`
-		Title       string            `yaml:"title,omitempty"`
-		Format      string            `yaml:"format,omitempty"`
-		Colors      map[string]string `yaml:"colors,omitempty"`
-		BeginAtZero *bool             `yaml:"beginAtZero,omitempty"`
-		Curve       string            `yaml:"curve,omitempty"`
-		Curves      map[string]string `yaml:"curves,omitempty"`
-		Dash        string            `yaml:"dash,omitempty"`
-		Dashes      map[string]string `yaml:"dashes,omitempty"`
+		Field       yaml.Node              `yaml:"field"`
+		Type        string                 `yaml:"type,omitempty"`
+		Title       string                 `yaml:"title,omitempty"`
+		Format      string                 `yaml:"format,omitempty"`
+		BeginAtZero *bool                  `yaml:"beginAtZero,omitempty"`
+		Markers     *bool                  `yaml:"markers,omitempty"`
+		Curve       string                 `yaml:"curve,omitempty"`
+		Dash        string                 `yaml:"dash,omitempty"`
+		Series      map[string]SeriesStyle `yaml:"series,omitempty"`
 	}
 	var tmp axisFields
 	if err := node.Decode(&tmp); err != nil {
@@ -606,12 +610,11 @@ func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
 	a.Type = tmp.Type
 	a.Title = tmp.Title
 	a.Format = tmp.Format
-	a.Colors = tmp.Colors
 	a.BeginAtZero = tmp.BeginAtZero
+	a.Markers = tmp.Markers
 	a.Curve = tmp.Curve
-	a.Curves = tmp.Curves
 	a.Dash = tmp.Dash
-	a.Dashes = tmp.Dashes
+	a.Series = tmp.Series
 	switch tmp.Field.Kind {
 	case yaml.ScalarNode:
 		var s string
@@ -638,17 +641,16 @@ func (a *AxisEncoding) MarshalYAML() (any, error) {
 		return nil, nil
 	}
 	return struct {
-		Field       any               `yaml:"field"`
-		Type        string            `yaml:"type,omitempty"`
-		Title       string            `yaml:"title,omitempty"`
-		Format      string            `yaml:"format,omitempty"`
-		Colors      map[string]string `yaml:"colors,omitempty"`
-		BeginAtZero *bool             `yaml:"beginAtZero,omitempty"`
-		Curve       string            `yaml:"curve,omitempty"`
-		Curves      map[string]string `yaml:"curves,omitempty"`
-		Dash        string            `yaml:"dash,omitempty"`
-		Dashes      map[string]string `yaml:"dashes,omitempty"`
-	}{a.Field, a.Type, a.Title, a.Format, a.Colors, a.BeginAtZero, a.Curve, a.Curves, a.Dash, a.Dashes}, nil
+		Field       any                    `yaml:"field"`
+		Type        string                 `yaml:"type,omitempty"`
+		Title       string                 `yaml:"title,omitempty"`
+		Format      string                 `yaml:"format,omitempty"`
+		BeginAtZero *bool                  `yaml:"beginAtZero,omitempty"`
+		Markers     *bool                  `yaml:"markers,omitempty"`
+		Curve       string                 `yaml:"curve,omitempty"`
+		Dash        string                 `yaml:"dash,omitempty"`
+		Series      map[string]SeriesStyle `yaml:"series,omitempty"`
+	}{a.Field, a.Type, a.Title, a.Format, a.BeginAtZero, a.Markers, a.Curve, a.Dash, a.Series}, nil
 }
 
 func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
@@ -660,16 +662,15 @@ func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%s", axisEncodingHint)
 	}
 	var raw struct {
-		Field       json.RawMessage   `json:"field"`
-		Type        string            `json:"type,omitempty"`
-		Title       string            `json:"title,omitempty"`
-		Format      string            `json:"format,omitempty"`
-		Colors      map[string]string `json:"colors,omitempty"`
-		BeginAtZero *bool             `json:"beginAtZero,omitempty"`
-		Curve       string            `json:"curve,omitempty"`
-		Curves      map[string]string `json:"curves,omitempty"`
-		Dash        string            `json:"dash,omitempty"`
-		Dashes      map[string]string `json:"dashes,omitempty"`
+		Field       json.RawMessage        `json:"field"`
+		Type        string                 `json:"type,omitempty"`
+		Title       string                 `json:"title,omitempty"`
+		Format      string                 `json:"format,omitempty"`
+		BeginAtZero *bool                  `json:"beginAtZero,omitempty"`
+		Markers     *bool                  `json:"markers,omitempty"`
+		Curve       string                 `json:"curve,omitempty"`
+		Dash        string                 `json:"dash,omitempty"`
+		Series      map[string]SeriesStyle `json:"series,omitempty"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -677,12 +678,11 @@ func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
 	a.Type = raw.Type
 	a.Title = raw.Title
 	a.Format = raw.Format
-	a.Colors = raw.Colors
 	a.BeginAtZero = raw.BeginAtZero
+	a.Markers = raw.Markers
 	a.Curve = raw.Curve
-	a.Curves = raw.Curves
 	a.Dash = raw.Dash
-	a.Dashes = raw.Dashes
+	a.Series = raw.Series
 	fieldStr := strings.TrimSpace(string(raw.Field))
 	if fieldStr == "" || fieldStr == "null" {
 		return fmt.Errorf("axis encoding: field is required")
@@ -708,17 +708,16 @@ func (a *AxisEncoding) MarshalJSON() ([]byte, error) {
 		return []byte("null"), nil
 	}
 	return json.Marshal(struct {
-		Field       any               `json:"field"`
-		Type        string            `json:"type,omitempty"`
-		Title       string            `json:"title,omitempty"`
-		Format      string            `json:"format,omitempty"`
-		Colors      map[string]string `json:"colors,omitempty"`
-		BeginAtZero *bool             `json:"beginAtZero,omitempty"`
-		Curve       string            `json:"curve,omitempty"`
-		Curves      map[string]string `json:"curves,omitempty"`
-		Dash        string            `json:"dash,omitempty"`
-		Dashes      map[string]string `json:"dashes,omitempty"`
-	}{a.Field, a.Type, a.Title, a.Format, a.Colors, a.BeginAtZero, a.Curve, a.Curves, a.Dash, a.Dashes})
+		Field       any                    `json:"field"`
+		Type        string                 `json:"type,omitempty"`
+		Title       string                 `json:"title,omitempty"`
+		Format      string                 `json:"format,omitempty"`
+		BeginAtZero *bool                  `json:"beginAtZero,omitempty"`
+		Markers     *bool                  `json:"markers,omitempty"`
+		Curve       string                 `json:"curve,omitempty"`
+		Dash        string                 `json:"dash,omitempty"`
+		Series      map[string]SeriesStyle `json:"series,omitempty"`
+	}{a.Field, a.Type, a.Title, a.Format, a.BeginAtZero, a.Markers, a.Curve, a.Dash, a.Series})
 }
 
 func newAxisField(s string) *AxisEncoding {

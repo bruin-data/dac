@@ -126,13 +126,12 @@ SQL-backed example:
 | `title` | string | Human-readable axis label rendered next to the axis. |
 | `format` | string | d3-format / d3-time-format string for tick labels, e.g. `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`. |
 | `beginAtZero` | boolean | Anchor a line/area value axis at 0 so series scale honestly instead of auto-zooming. Opt-in (default auto-scales). |
+| `markers` | boolean | Show point markers on sparse line/area series. Default `true`; set `false` to hide the dots. |
 | `curve` | string | Chart-wide line interpolation: `smooth`, `straight`, or `stepline`. Use `straight` for period totals so the line doesn't imply movement between points. |
-| `curves` | object | Per-series curve override, keyed by column: `{ revenue: straight, target: smooth }`. Falls back to `curve`. |
 | `dash` | string | Chart-wide dash pattern every series inherits: `dotted`, `dashed`, or `long-dash` (omitted = solid). |
-| `dashes` | object | Per-series dash pattern override, keyed by column: `{ last_year: dashed }` for a dashed comparison line. Falls back to `dash`. |
-| `colors` | object | Per-series colour override, keyed by column: `{ finance_current_year: "#EC4899" }`. Unset series use the theme palette. |
+| `series` | object | Per-series style overrides, keyed by column: `{ revenue: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` falls back to the chart-wide default (or palette for colour). Store only genuine differences. |
 
-Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `curve`, `curves`, and `dashes` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
+Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, `dash`, and `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
 
 ### Series by category (color)
 
@@ -183,7 +182,7 @@ Common chart fields:
 |-------|------|-------------|
 | `chart` | string | Chart type |
 | `x` | object | X-axis encoding (`field`, `type`, `title`, `format`) |
-| `y` | object | Y-axis encoding (`field` may list several series columns; supports `beginAtZero`, `curve`, per-series `curves`/`dashes` for line/area — see [Axis encoding](#axis-encoding)) |
+| `y` | object | Y-axis encoding (`field` may list several series columns; supports `beginAtZero`, `markers`, `curve`, `dash`, and per-series `series` overrides for line/area — see [Axis encoding](#axis-encoding)) |
 | `label` | string | Label column for pie, funnel, and treemap charts |
 | `value` | object | Value encoding (`{ field: ... }`) for pie, funnel, sankey, heatmap, calendar, treemap, and gauge charts |
 | `source` | string | Source node column for sankey charts |

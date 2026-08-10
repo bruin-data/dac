@@ -584,30 +584,33 @@
         "format": {
           "type": "string"
         },
-        "colors": {
-          "description": "Per-series colour override {column: #hex}; unset columns use the palette.",
-          "type": "object",
-          "additionalProperties": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
-        },
         "beginAtZero": {
           "type": "boolean"
         },
-        "curve": {
-          "enum": ["smooth", "straight", "stepline"]
+        "markers": {
+          "description": "Show point markers on line/area charts (default true; false hides them).",
+          "type": "boolean"
         },
-        "curves": {
-          "description": "Per-series line interpolation {column: smooth|straight|stepline}.",
-          "type": "object",
-          "additionalProperties": { "enum": ["smooth", "straight", "stepline"] }
+        "curve": {
+          "description": "Chart-wide line interpolation every series inherits.",
+          "enum": ["smooth", "straight", "stepline"]
         },
         "dash": {
           "description": "Chart-wide dash pattern every series inherits (omitted = solid).",
           "enum": ["solid", "dotted", "dashed", "long-dash"]
         },
-        "dashes": {
-          "description": "Per-series dash pattern override {column: solid|dotted|dashed|long-dash}. 'solid' forces a solid line even when the chart-wide dash is set.",
+        "series": {
+          "description": "Per-series style overrides keyed by column: {column: {color, curve, dash}}. Only stores genuine differences from the chart-wide defaults.",
           "type": "object",
-          "additionalProperties": { "enum": ["solid", "dotted", "dashed", "long-dash"] }
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+              "curve": { "enum": ["smooth", "straight", "stepline"] },
+              "dash": { "enum": ["solid", "dotted", "dashed", "long-dash"] }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

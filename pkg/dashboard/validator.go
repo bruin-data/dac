@@ -271,9 +271,22 @@ var validChartTypes = map[string]bool{
 // validCurves is the allowed set for y.curve and per-series y.curves values.
 var validCurves = map[string]bool{"smooth": true, "straight": true, "stepline": true}
 
-// validDashes is the allowed set for y.dash and per-series y.dashes values
+// validDashes is the allowed set for y.dash and per-series dash values
 // ('solid' is a valid per-series override that forces a solid line).
 var validDashes = map[string]bool{"solid": true, "dotted": true, "dashed": true, "long-dash": true}
+
+// isHexColor reports whether s is a #rgb or #rrggbb colour.
+func isHexColor(s string) bool {
+	if (len(s) != 4 && len(s) != 7) || s[0] != '#' {
+		return false
+	}
+	for _, c := range s[1:] {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
 
 // validateRefAnnotations checks widget.refLines / widget.refBands: axis must be
 // x or y, and a band's range must be non-empty.
@@ -326,22 +339,23 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	}
 	errs = append(errs, validateRefAnnotations(prefix, w)...)
 
-	// Line interpolation enums (chart-wide y.curve and per-series y.curves).
+	// Chart-wide line style + per-series overrides (grouped under y.series).
 	if w.Y != nil {
 		if w.Y.Curve != "" && !validCurves[w.Y.Curve] {
 			errs = append(errs, fmt.Sprintf("%s: y.curve must be smooth, straight, or stepline", prefix))
 		}
-		for col, cv := range w.Y.Curves {
-			if !validCurves[cv] {
-				errs = append(errs, fmt.Sprintf("%s: y.curves[%q] must be smooth, straight, or stepline", prefix, col))
-			}
-		}
 		if w.Y.Dash != "" && !validDashes[w.Y.Dash] {
 			errs = append(errs, fmt.Sprintf("%s: y.dash must be solid, dotted, dashed, or long-dash", prefix))
 		}
-		for col, dv := range w.Y.Dashes {
-			if !validDashes[dv] {
-				errs = append(errs, fmt.Sprintf("%s: y.dashes[%q] must be solid, dotted, dashed, or long-dash", prefix, col))
+		for col, st := range w.Y.Series {
+			if st.Curve != "" && !validCurves[st.Curve] {
+				errs = append(errs, fmt.Sprintf("%s: y.series[%q].curve must be smooth, straight, or stepline", prefix, col))
+			}
+			if st.Dash != "" && !validDashes[st.Dash] {
+				errs = append(errs, fmt.Sprintf("%s: y.series[%q].dash must be solid, dotted, dashed, or long-dash", prefix, col))
+			}
+			if st.Color != "" && !isHexColor(st.Color) {
+				errs = append(errs, fmt.Sprintf("%s: y.series[%q].color must be a hex colour like #EC4899", prefix, col))
 			}
 		}
 	}
