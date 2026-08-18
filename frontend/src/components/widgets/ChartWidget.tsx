@@ -18,6 +18,8 @@ import { RowHeightContext } from "../../themes/RowContext";
 const DEFAULT_CHART_HEIGHT = 240;
 // Approx pixels consumed by the widget frame's title/padding above the chart.
 const FRAME_OVERHEAD = 60;
+// Keep auto-sized value axes from consuming the plot on narrow or dual-axis charts.
+const MAX_Y_AXIS_TICK_WIDTH = 96;
 
 // CI / annotation helpers (mirror the cloud ApexCharts renderer) ───────────
 const CI_BAND_OPACITY = 0.18;
@@ -1158,9 +1160,11 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     tickLine: false,
   };
   // Formatted values can be wider than Recharts' fixed 60px default. Measure
-  // Y axes from their rendered ticks so leading characters stay visible.
+  // Y axes from their rendered ticks so leading characters stay visible, but
+  // truncate exceptionally long labels before they consume the plot area.
   const autoWidthYAxisProps = {
     ...commonAxisProps,
+    tick: { ...commonAxisProps.tick, width: MAX_Y_AXIS_TICK_WIDTH, maxLines: 1, breakAll: true },
     width: "auto" as const,
   };
 
