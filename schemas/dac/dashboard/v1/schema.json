@@ -301,6 +301,10 @@
         "y": {
           "$ref": "#/$defs/axisEncoding"
         },
+        "y2": {
+          "$ref": "#/$defs/axisEncoding",
+          "description": "Optional second value axis on the right (line/area/bar/combo). A y-column listed in y2.field plots against the right axis; all others stay on the left. Lets two series on different scales share one chart."
+        },
         "label": {
           "type": "string"
         },

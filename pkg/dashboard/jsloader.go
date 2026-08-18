@@ -526,6 +526,7 @@ func vnodeToWidget(n *vnode) Widget {
 		Chart:      asString(n.Props["chart"]),
 		X:          asAxisEncoding(n.Props["x"]),
 		Y:          asAxisEncoding(n.Props["y"]),
+		Y2:         asAxisEncoding(n.Props["y2"]),
 		Label:      asString(n.Props["label"]),
 		Value:      asValueEncoding(n.Props["value"]),
 		Color:      asColorEncoding(n.Props["color"]),

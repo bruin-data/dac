@@ -268,6 +268,12 @@ var validChartTypes = map[string]bool{
 	"candlestick": true, "forest": true,
 }
 
+// dualAxisCharts are the cartesian composed charts that can render a second
+// (right-side) y axis via widget.y2.
+var dualAxisCharts = map[string]bool{
+	"line": true, "area": true, "bar": true, "combo": true,
+}
+
 // validCurves is the allowed set for y.curve and per-series y.curves values.
 var validCurves = map[string]bool{"smooth": true, "straight": true, "stepline": true}
 
@@ -358,6 +364,49 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		}
 		if st.Color != "" && !isHexColor(st.Color) {
 			errs = append(errs, fmt.Sprintf("%s: series[%q].color must be a hex colour like #EC4899", prefix, col))
+		}
+	}
+
+	// Second value axis (right side). Only cartesian composed charts render two
+	// y axes; a right-axis column must be numeric, non-empty, and disjoint from
+	// the left axis. Stacking across two axes is undefined, so reject the combo.
+	if w.Y2 != nil {
+		if !dualAxisCharts[w.Chart] {
+			errs = append(errs, fmt.Sprintf("%s: y2 is only supported on line, area, bar, and combo charts", prefix))
+		}
+		if len(w.Y2Fields()) == 0 {
+			errs = append(errs, fmt.Sprintf("%s: y2.field is required when y2 is set", prefix))
+		}
+		if w.Y2.Type != "" && w.Y2.Type != "number" {
+			errs = append(errs, fmt.Sprintf("%s: y2.type must be number", prefix))
+		}
+		if w.Y2.Curve != "" && !validCurves[w.Y2.Curve] {
+			errs = append(errs, fmt.Sprintf("%s: y2.curve must be smooth, straight, or stepline", prefix))
+		}
+		if w.Y2.Dash != "" && !validDashes[w.Y2.Dash] {
+			errs = append(errs, fmt.Sprintf("%s: y2.dash must be solid, dotted, dashed, or long-dash", prefix))
+		}
+		if w.Stacked {
+			errs = append(errs, fmt.Sprintf("%s: stacked cannot be combined with y2 (a second axis)", prefix))
+		}
+		// A horizontal bar plots its values on the x axis, so a right y axis has
+		// nothing to bind to; a color pivot splits one y series into categories,
+		// which has no notion of a per-column axis. Reject both rather than
+		// silently ignoring y2.
+		if w.Chart == "bar" && w.Horizontal != nil && *w.Horizontal {
+			errs = append(errs, fmt.Sprintf("%s: y2 cannot be combined with horizontal bars", prefix))
+		}
+		if w.Color != nil {
+			errs = append(errs, fmt.Sprintf("%s: y2 cannot be combined with color (a category split); list the right-axis columns in y2.field instead", prefix))
+		}
+		left := make(map[string]bool, len(w.YFields()))
+		for _, f := range w.YFields() {
+			left[f] = true
+		}
+		for _, f := range w.Y2Fields() {
+			if left[f] {
+				errs = append(errs, fmt.Sprintf("%s: y2 column %q also appears on the left y axis; a column belongs to one axis", prefix, f))
+			}
 		}
 	}
 

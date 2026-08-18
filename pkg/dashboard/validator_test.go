@@ -159,6 +159,126 @@ func TestValidate_StackedBarWithColor(t *testing.T) {
 	assertNoErr(t, Validate(d))
 }
 
+func TestValidate_DualAxisValid(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "combo", SQL: "SELECT 1",
+				Lines: []string{"conversion_rate"},
+				X:     &AxisEncoding{Field: "month"},
+				Y:     &AxisEncoding{Field: []string{"revenue"}},
+				Y2:    &AxisEncoding{Field: []string{"conversion_rate"}, Format: ".1%"},
+			}}},
+		},
+	}
+	assertNoErr(t, Validate(d))
+}
+
+func TestValidate_DualAxisUnsupportedChart(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "pie", SQL: "SELECT 1",
+				Label: "region", Value: &ValueEncoding{Field: "revenue"},
+				Y2: &AxisEncoding{Field: []string{"conversion_rate"}},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "y2 is only supported on line, area, bar, and combo charts")
+}
+
+func TestValidate_DualAxisColumnOverlap(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "line", SQL: "SELECT 1",
+				X:  &AxisEncoding{Field: "month"},
+				Y:  &AxisEncoding{Field: []string{"revenue", "orders"}},
+				Y2: &AxisEncoding{Field: []string{"orders"}},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "also appears on the left y axis")
+}
+
+func TestValidate_DualAxisRequiresField(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "line", SQL: "SELECT 1",
+				X:  &AxisEncoding{Field: "month"},
+				Y:  &AxisEncoding{Field: []string{"revenue"}},
+				Y2: &AxisEncoding{Title: "Orders"}, // no field
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "y2.field is required")
+}
+
+func TestValidate_DualAxisTypeMustBeNumber(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "line", SQL: "SELECT 1",
+				X:  &AxisEncoding{Field: "month"},
+				Y:  &AxisEncoding{Field: []string{"revenue"}},
+				Y2: &AxisEncoding{Field: []string{"orders"}, Type: "category"},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "y2.type must be number")
+}
+
+func TestValidate_DualAxisRejectsHorizontalBar(t *testing.T) {
+	horizontal := true
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "bar", SQL: "SELECT 1",
+				X:          &AxisEncoding{Field: "month"},
+				Y:          &AxisEncoding{Field: []string{"revenue"}},
+				Y2:         &AxisEncoding{Field: []string{"orders"}},
+				Horizontal: &horizontal,
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "y2 cannot be combined with horizontal bars")
+}
+
+func TestValidate_DualAxisRejectsColor(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "line", SQL: "SELECT 1",
+				X:     &AxisEncoding{Field: "month"},
+				Y:     &AxisEncoding{Field: []string{"revenue"}},
+				Y2:    &AxisEncoding{Field: []string{"orders"}},
+				Color: &ColorEncoding{Field: "region"},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "y2 cannot be combined with color")
+}
+
 func TestValidate_FilterTypes(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",
