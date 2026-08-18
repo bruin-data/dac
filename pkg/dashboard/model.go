@@ -114,12 +114,12 @@ type Widget struct {
 	Limit       int                    `yaml:"limit,omitempty" json:"limit,omitempty"` // LIMIT for dimensional queries
 
 	// Chart fields
-	Chart      string         `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick, forest
-	X          *AxisEncoding  `yaml:"x,omitempty" json:"x,omitempty"`
-	Y          *AxisEncoding  `yaml:"y,omitempty" json:"y,omitempty"`
+	Chart string        `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick, forest
+	X     *AxisEncoding `yaml:"x,omitempty" json:"x,omitempty"`
+	Y     *AxisEncoding `yaml:"y,omitempty" json:"y,omitempty"`
 	// Y2 is an optional second value axis on the right (line/area/bar/combo): a
 	// y-column plots against it when listed in y2.field, all others stay on y.
-	Y2 *AxisEncoding `yaml:"y2,omitempty" json:"y2,omitempty"`
+	Y2         *AxisEncoding  `yaml:"y2,omitempty" json:"y2,omitempty"`
 	Label      string         `yaml:"label,omitempty" json:"label,omitempty"` // for pie/funnel/treemap
 	Value      *ValueEncoding `yaml:"value,omitempty" json:"value,omitempty"` // metric: the value; pie/funnel/heatmap/calendar/treemap/gauge: value column
 	Color      *ColorEncoding `yaml:"color,omitempty" json:"color,omitempty"`
