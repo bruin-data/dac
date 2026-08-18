@@ -36,13 +36,15 @@ function boundColumn(bound: string | Record<string, string> | undefined, field: 
 
 // Reference guide lines (refLines) and shaded bands (refBands) as Recharts
 // <ReferenceLine>/<ReferenceArea> elements; dropped into any cartesian chart.
-function renderRefs(widget: Widget): ReactNode[] {
+// yAxisId binds them to an explicit axis on dual-axis charts (undefined = default).
+function renderRefs(widget: Widget, yAxisId?: "left" | "right"): ReactNode[] {
   const els: ReactNode[] = [];
   (widget.refLines ?? []).forEach((l, i) => {
     const pos = l.axis === "y" ? { y: l.value } : { x: l.value };
     els.push(
       <ReferenceLine
         key={`rl-${i}`}
+        yAxisId={yAxisId}
         {...pos}
         stroke={l.color ?? REF_LINE_COLOR}
         strokeDasharray="4 4"
@@ -55,6 +57,7 @@ function renderRefs(widget: Widget): ReactNode[] {
     els.push(
       <ReferenceArea
         key={`rb-${i}`}
+        yAxisId={yAxisId}
         {...pos}
         fill={b.color ?? REF_BAND_COLOR}
         fillOpacity={0.12}
@@ -1230,7 +1233,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 isAnimationActive={false}
               />
             ))}
-            {renderRefs(widget)}
+            {renderRefs(widget, leftAxisId)}
           </LineOrComposed>
         </ResponsiveContainer>
       );
@@ -1299,7 +1302,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 )}
               </Bar>
             ))}
-            {renderRefs(widget)}
+            {renderRefs(widget, horizontal ? undefined : leftAxisId)}
           </BarChart>
         </ResponsiveContainer>
       );
@@ -1351,7 +1354,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 isAnimationActive={false}
               />
             ))}
-            {renderRefs(widget)}
+            {renderRefs(widget, leftAxisId)}
           </AreaChart>
         </ResponsiveContainer>
       );
