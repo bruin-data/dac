@@ -1157,6 +1157,12 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     axisLine: false,
     tickLine: false,
   };
+  // Formatted values can be wider than Recharts' fixed 60px default. Measure
+  // Y axes from their rendered ticks so leading characters stay visible.
+  const autoWidthYAxisProps = {
+    ...commonAxisProps,
+    width: "auto" as const,
+  };
 
   const y2Tick = buildAxisFormatter(widget.y2, formatYTick);
   const y2TooltipValue = buildAxisFormatter(widget.y2, formatTooltipValue);
@@ -1171,7 +1177,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     <YAxis
       yAxisId="right"
       orientation="right"
-      {...commonAxisProps}
+      {...autoWidthYAxisProps}
       dx={4}
       tickFormatter={y2Tick}
       domain={y2Domain}
@@ -1181,7 +1187,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     />
   ) : null;
 
-  const cartesianMargin = { top: 4, right: hasDual ? 12 : 8, bottom: 4, left: -4 };
+  const cartesianMargin = { top: 4, right: hasDual ? 12 : 8, bottom: 4, left: 4 };
   const gridProps = { vertical: false, stroke: gridColor, strokeOpacity: 0.5, strokeDasharray: "3 3" };
   const cartesianTooltip = <CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} valueFormatterFor={valueFormatterFor} />;
 
@@ -1212,7 +1218,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <LineOrComposed data={lineRows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis yAxisId={leftAxisId} {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
@@ -1276,12 +1282,12 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             {horizontal ? (
               <>
                 <XAxis type="number" {...commonAxisProps} dy={6} tickFormatter={valueTick} />
-                <YAxis type="category" dataKey={xKey} {...commonAxisProps} dx={-4} width={80} tickFormatter={xTick} />
+                <YAxis type="category" dataKey={xKey} {...commonAxisProps} width={80} tickFormatter={xTick} />
               </>
             ) : (
               <>
                 <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-                <YAxis yAxisId={leftAxisId} {...commonAxisProps} dx={-4} tickFormatter={valueTick} />
+                <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={valueTick} />
                 {rightYAxis}
               </>
             )}
@@ -1332,7 +1338,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <AreaChart data={areaRows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis yAxisId={leftAxisId} {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
@@ -1405,7 +1411,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <XAxis dataKey={xKey} name={widget.x?.title ?? xKey} {...commonAxisProps} dy={6}
               tickFormatter={xTick} {...xLabelProps}
               type={xIsNumeric ? "number" : "category"} allowDuplicatedCategory={false} />
-            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]} {...commonAxisProps} dx={-4}
+            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]} {...autoWidthYAxisProps}
               tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
             <Tooltip content={cartesianTooltip} />
             <Scatter data={chartData} fill={colors[0]} r={3} isAnimationActive={false} />
@@ -1428,7 +1434,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <XAxis dataKey={xKey} name={widget.x?.title ?? xKey} {...commonAxisProps} dy={6}
               type={xIsNumeric ? "number" : "category"} allowDuplicatedCategory={false}
               tickFormatter={xTick} {...xLabelProps} />
-            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]} {...commonAxisProps} dx={-4}
+            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]} {...autoWidthYAxisProps}
               tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
             <ZAxis dataKey={widget.size} range={[40, 500]} name={widget.size} />
             <Tooltip content={cartesianTooltip} />
@@ -1446,7 +1452,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <ComposedChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis yAxisId={leftAxisId} {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
             <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
@@ -1486,7 +1492,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <BarChart data={histData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="bin" {...commonAxisProps} dy={6} angle={-30} textAnchor="end" height={50} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={formatYTick} />
+            <YAxis {...autoWidthYAxisProps} tickFormatter={formatYTick} />
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="count" fill={colors[0]} radius={[2, 2, 0, 0]} isAnimationActive={false} />
           </BarChart>
@@ -1502,7 +1508,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <ComposedChart data={boxData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="category" {...commonAxisProps} dy={6} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <YAxis {...autoWidthYAxisProps} tickFormatter={yTick} />
             <Tooltip content={<CustomTooltip />} />
             {/* Invisible base to offset */}
             <Bar dataKey="min" fill="transparent" stackId="box" isAnimationActive={false} />
@@ -1603,7 +1609,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <BarChart data={wfData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="name" {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <YAxis {...autoWidthYAxisProps} tickFormatter={yTick} />
             <Tooltip content={cartesianTooltip} />
             <Bar dataKey="base" fill="transparent" stackId="wf" isAnimationActive={false} />
             <Bar dataKey="value" stackId="wf" radius={[2, 2, 0, 0]} isAnimationActive={false}>
@@ -1623,7 +1629,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <LineChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+            <YAxis {...autoWidthYAxisProps} tickFormatter={yTick} />
             <Tooltip content={cartesianTooltip} />
             <Line type="monotone" dataKey={yField} stroke={colors[0]} strokeWidth={1.5} dot={{ r: 2, strokeWidth: 0, fill: colors[0] }} isAnimationActive={false} />
             {typeof widget.yMin === "string" && (
@@ -1789,15 +1795,15 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               <>
                 <XAxis type="number" dataKey="x" {...commonAxisProps} dy={6} tickFormatter={yTick} />
                 {multi
-                  ? <YAxis dataKey="y" {...commonAxisProps} dx={-4} width={80} {...slotAxisProps} />
-                  : <YAxis type="category" dataKey="y" {...commonAxisProps} dx={-4} width={80} tickFormatter={xTick} />}
+                  ? <YAxis dataKey="y" {...commonAxisProps} width={80} {...slotAxisProps} />
+                  : <YAxis type="category" dataKey="y" {...commonAxisProps} width={80} tickFormatter={xTick} />}
               </>
             ) : (
               <>
                 {multi
                   ? <XAxis dataKey="x" {...commonAxisProps} dy={6} {...slotAxisProps} {...xLabelProps} />
                   : <XAxis type="category" dataKey="x" {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />}
-                <YAxis type="number" dataKey="y" {...commonAxisProps} dx={-4} tickFormatter={yTick} />
+                <YAxis type="number" dataKey="y" {...autoWidthYAxisProps} tickFormatter={yTick} />
               </>
             )}
             <ZAxis range={[36, 36]} />
