@@ -76,6 +76,9 @@ export interface Widget {
   chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick" | "forest";
   x?: AxisEncoding;
   y?: AxisEncoding;
+  // Optional second value axis on the right (line/area/bar/combo). A y-column
+  // listed in y2.field plots against the right axis; all others stay on the left.
+  y2?: AxisEncoding;
   label?: string;
   // metric: the value + formatting; pie/funnel/heatmap/calendar/treemap/gauge: value column
   value?: ValueEncoding;

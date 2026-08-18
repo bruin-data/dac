@@ -81,7 +81,9 @@ rows:
           FROM sales
           GROUP BY 1 ORDER BY 1
         x: { field: month }
-        y: { field: [revenue, orders] }
+        # Dual axis: revenue bars on the left ($), orders line on the right (count).
+        y:  { field: [revenue], title: Revenue, format: "$,.0f" }
+        y2: { field: [orders],  title: Orders,  format: ",.0f" }
       - name: Monthly Revenue Changes
         type: chart
         chart: waterfall

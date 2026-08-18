@@ -36,13 +36,15 @@ function boundColumn(bound: string | Record<string, string> | undefined, field: 
 
 // Reference guide lines (refLines) and shaded bands (refBands) as Recharts
 // <ReferenceLine>/<ReferenceArea> elements; dropped into any cartesian chart.
-function renderRefs(widget: Widget): ReactNode[] {
+// yAxisId binds them to an explicit axis on dual-axis charts (undefined = default).
+function renderRefs(widget: Widget, yAxisId?: "left" | "right"): ReactNode[] {
   const els: ReactNode[] = [];
   (widget.refLines ?? []).forEach((l, i) => {
     const pos = l.axis === "y" ? { y: l.value } : { x: l.value };
     els.push(
       <ReferenceLine
         key={`rl-${i}`}
+        yAxisId={yAxisId}
         {...pos}
         stroke={l.color ?? REF_LINE_COLOR}
         strokeDasharray="4 4"
@@ -55,6 +57,7 @@ function renderRefs(widget: Widget): ReactNode[] {
     els.push(
       <ReferenceArea
         key={`rb-${i}`}
+        yAxisId={yAxisId}
         {...pos}
         fill={b.color ?? REF_BAND_COLOR}
         fillOpacity={0.12}
@@ -136,12 +139,15 @@ interface TooltipPayloadEntry {
   value?: unknown;
 }
 
-function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue }: {
+function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue, valueFormatterFor }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
   label?: unknown;
   labelFormatter?: (val: unknown) => string;
   valueFormatter?: (val: unknown) => string;
+  // Per-series formatter keyed by dataKey; used for dual-axis charts so each
+  // row formats against its own axis. Falls back to valueFormatter.
+  valueFormatterFor?: (dataKey: unknown) => (val: unknown) => string;
 }) {
   if (!active || !payload?.length) return null;
   return (
@@ -151,7 +157,7 @@ function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick
         <div key={i} className="dac-tooltip-row">
           <span className="dac-tooltip-dot" style={{ background: p.color ?? p.fill }} />
           <span className="dac-tooltip-name">{p.name ?? p.dataKey}</span>
-          <span className="dac-tooltip-value">{valueFormatter(p.value)}</span>
+          <span className="dac-tooltip-value">{(valueFormatterFor?.(p.dataKey) ?? valueFormatter)(p.value)}</span>
         </div>
       ))}
     </div>
@@ -1103,6 +1109,16 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
   const gridColor = tokens["border"];
   const axisColor = tokens["text-muted"];
 
+  // Right value axis: a y-column plots against it when listed in widget.y2.field.
+  // hasDual gates every branch so single-axis charts render exactly as before.
+  const y2Keys = axisFields(widget.y2);
+  const hasDual = y2Keys.length > 0;
+  const rightSet = new Set(y2Keys);
+  const allYKeys = [...axisFields(widget.y), ...y2Keys];
+  // undefined yAxisId = Recharts' default axis, so non-dual charts pass no id.
+  const axisIdFor = (field: string): "left" | "right" | undefined =>
+    hasDual ? (rightSet.has(field) ? "right" : "left") : undefined;
+
   // Per-series line styling: grouped under widget.series ({col:{color,curve,dash}}),
   // each falling back to the chart-wide curve/dash. Overrides key by y-column, so
   // pass `own=false` in color-pivot mode where series are values, not columns.
@@ -1111,8 +1127,10 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
   const DASH_ARRAY: Record<string, string> = { dotted: "1 5", dashed: "6 4", "long-dash": "12 6" };
   const dashArrayFor = (v?: string): string | undefined => (v && v !== "solid" ? DASH_ARRAY[v] : undefined);
   const styleOf = (field: string) => widget.series?.[field] ?? {};
-  const seriesCurve = (field: string, own: boolean) => curveType(own ? (styleOf(field).curve ?? widget.y?.curve) : widget.y?.curve);
-  const seriesDash = (field: string, own: boolean) => dashArrayFor(own ? (styleOf(field).dash ?? widget.y?.dash) : widget.y?.dash);
+  // Right-axis series inherit their chart-wide curve/dash from y2, not y.
+  const axisOf = (field: string) => (rightSet.has(field) ? widget.y2 : widget.y);
+  const seriesCurve = (field: string, own: boolean) => curveType(own ? (styleOf(field).curve ?? axisOf(field)?.curve) : widget.y?.curve);
+  const seriesDash = (field: string, own: boolean) => dashArrayFor(own ? (styleOf(field).dash ?? axisOf(field)?.dash) : widget.y?.dash);
   const seriesColor = (field: string, i: number, own: boolean) => (own && styleOf(field).color) || colors[i % colors.length];
   const yDomain: [number, string] | undefined = widget.y?.beginAtZero ? [0, "auto"] : undefined;
   // Point markers: shown on sparse line/area series by default, hidden when
@@ -1140,16 +1158,39 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     tickLine: false,
   };
 
-  const cartesianMargin = { top: 4, right: 8, bottom: 4, left: -4 };
+  const y2Tick = buildAxisFormatter(widget.y2, formatYTick);
+  const y2TooltipValue = buildAxisFormatter(widget.y2, formatTooltipValue);
+  const y2Domain: [number, string] | undefined = widget.y2?.beginAtZero ? [0, "auto"] : undefined;
+  const leftAxisId = hasDual ? "left" : undefined;
+  // Each tooltip row formats against its owning axis, so a right-axis % value
+  // never borrows the left axis' $ format.
+  const valueFormatterFor = hasDual
+    ? (dataKey: unknown) => (rightSet.has(String(dataKey)) ? y2TooltipValue : yTooltipValue)
+    : undefined;
+  const rightYAxis = hasDual ? (
+    <YAxis
+      yAxisId="right"
+      orientation="right"
+      {...commonAxisProps}
+      dx={4}
+      tickFormatter={y2Tick}
+      domain={y2Domain}
+      {...(widget.y2?.title
+        ? { label: { value: widget.y2.title, angle: 90, position: "insideRight" as const, style: { ...AXIS_STYLE, fill: axisColor } } }
+        : {})}
+    />
+  ) : null;
+
+  const cartesianMargin = { top: 4, right: hasDual ? 12 : 8, bottom: 4, left: -4 };
   const gridProps = { vertical: false, stroke: gridColor, strokeOpacity: 0.5, strokeDasharray: "3 3" };
-  const cartesianTooltip = <CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} />;
+  const cartesianTooltip = <CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} valueFormatterFor={valueFormatterFor} />;
 
   switch (widget.chart) {
     case "line": {
       const colorKey = widget.color?.field;
       const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
       const rows = pivoted ? pivoted.rows : chartData;
-      const series = pivoted ? pivoted.series : yKeys;
+      const series = pivoted ? pivoted.series : allYKeys;
       // CI band: shade each series' yMin/yMax interval (a range <Area>) behind its
       // line. Needs a ComposedChart to mix Area + Line. Scalar or per-series map.
       const bandBounds = series.map((f) => ({ f, lo: boundColumn(widget.yMin, f), hi: boundColumn(widget.yMax, f) }));
@@ -1171,15 +1212,17 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <LineOrComposed data={lineRows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            <YAxis yAxisId={leftAxisId} {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            {rightYAxis}
             <Tooltip content={cartesianTooltip} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {hasBand && bandBounds.map((b, i) => (b.lo && b.hi ? (
-              <Area key={`ci-${b.f}`} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} />
+              <Area key={`ci-${b.f}`} yAxisId={axisIdFor(b.f)} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} />
             ) : null))}
             {series.map((field, i) => (
               <Line
                 key={field}
+                yAxisId={axisIdFor(field)}
                 type={seriesCurve(field, !colorKey)}
                 dataKey={field}
                 stroke={seriesColor(field, i, !colorKey)}
@@ -1190,7 +1233,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 isAnimationActive={false}
               />
             ))}
-            {renderRefs(widget)}
+            {renderRefs(widget, leftAxisId)}
           </LineOrComposed>
         </ResponsiveContainer>
       );
@@ -1199,7 +1242,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     case "bar": {
       const colorKey = widget.color?.field;
       const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
-      const series = pivoted ? pivoted.series : yKeys;
+      const series = pivoted ? pivoted.series : allYKeys;
       const isStacked = widget.stacked && !!colorKey;
       const rows = pivoted
         ? (widget.normalized ? normalizeRows(pivoted.rows, pivoted.series) : pivoted.rows)
@@ -1238,14 +1281,16 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             ) : (
               <>
                 <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-                <YAxis {...commonAxisProps} dx={-4} tickFormatter={valueTick} />
+                <YAxis yAxisId={leftAxisId} {...commonAxisProps} dx={-4} tickFormatter={valueTick} />
+                {rightYAxis}
               </>
             )}
-            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
+            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} valueFormatterFor={valueFormatterFor} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {series.map((field, i) => (
               <Bar
                 key={field}
+                yAxisId={horizontal ? undefined : axisIdFor(field)}
                 dataKey={field}
                 fill={seriesColor(field, i, !colorKey)}
                 stackId={isStacked ? "stack" : undefined}
@@ -1257,7 +1302,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 )}
               </Bar>
             ))}
-            {renderRefs(widget)}
+            {renderRefs(widget, horizontal ? undefined : leftAxisId)}
           </BarChart>
         </ResponsiveContainer>
       );
@@ -1267,7 +1312,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const colorKey = widget.color?.field;
       const pivoted = colorKey && xKey && yKeys[0] ? pivotByColor(chartData, xKey, yKeys[0], colorKey) : null;
       const rows = pivoted ? pivoted.rows : chartData;
-      const series = pivoted ? pivoted.series : yKeys;
+      const series = pivoted ? pivoted.series : allYKeys;
       // CI band: a translucent range <Area> per series (yMin/yMax) behind the fill.
       const bandBounds = series.map((f) => ({ f, lo: boundColumn(widget.yMin, f), hi: boundColumn(widget.yMax, f) }));
       const hasBand = !colorKey && bandBounds.some((b) => b.lo && b.hi);
@@ -1287,15 +1332,17 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <AreaChart data={areaRows} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            <YAxis yAxisId={leftAxisId} {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            {rightYAxis}
             <Tooltip content={cartesianTooltip} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {hasBand && bandBounds.map((b, i) => (b.lo && b.hi ? (
-              <Area key={`ci-${b.f}`} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} />
+              <Area key={`ci-${b.f}`} yAxisId={axisIdFor(b.f)} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} />
             ) : null))}
             {series.map((field, i) => (
               <Area
                 key={field}
+                yAxisId={axisIdFor(field)}
                 type={seriesCurve(field, !colorKey)}
                 dataKey={field}
                 stroke={seriesColor(field, i, !colorKey)}
@@ -1307,7 +1354,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 isAnimationActive={false}
               />
             ))}
-            {renderRefs(widget)}
+            {renderRefs(widget, leftAxisId)}
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -1392,20 +1439,22 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     }
 
     case "combo": {
-      const yFields = yKeys;
+      const yFields = allYKeys;
       const lineSet = new Set(widget.lines ?? []);
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <ComposedChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
-            <YAxis {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            <YAxis yAxisId={leftAxisId} {...commonAxisProps} dx={-4} tickFormatter={yTick} domain={yDomain} />
+            {rightYAxis}
             <Tooltip content={cartesianTooltip} />
             <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
             {yFields.map((field, i) =>
               lineSet.has(field) ? (
                 <Line
                   key={field}
+                  yAxisId={axisIdFor(field)}
                   type={seriesCurve(field, true)}
                   dataKey={field}
                   stroke={seriesColor(field, i, true)}
@@ -1417,6 +1466,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               ) : (
                 <Bar
                   key={field}
+                  yAxisId={axisIdFor(field)}
                   dataKey={field}
                   fill={seriesColor(field, i, true)}
                   radius={[2, 2, 0, 0]}

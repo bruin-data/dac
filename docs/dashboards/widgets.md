@@ -77,13 +77,13 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 
 | Chart | Required | Optional | Description |
 |-------|----------|----------|-------------|
-| `line` | `x`, `y` | `color`, `yMin`, `yMax` | Line chart. `yMin`/`yMax` shade a CI band behind the line |
-| `bar` | `x`, `y` | `color`, `stacked`, `normalized`, `horizontal`, `yMin`, `yMax` | Bar chart. `yMin`/`yMax` add error-bar caps |
-| `area` | `x`, `y` | `color`, `yMin`, `yMax` | Area chart. `yMin`/`yMax` shade a CI band |
+| `line` | `x`, `y` | `color`, `y2`, `yMin`, `yMax` | Line chart. `yMin`/`yMax` shade a CI band behind the line |
+| `bar` | `x`, `y` | `color`, `y2`, `stacked`, `normalized`, `horizontal`, `yMin`, `yMax` | Bar chart. `yMin`/`yMax` add error-bar caps |
+| `area` | `x`, `y` | `color`, `y2`, `yMin`, `yMax` | Area chart. `yMin`/`yMax` shade a CI band |
 | `pie` | `label`, `value` | | Pie/donut chart |
 | `scatter` | `x`, `y` | | Scatter plot |
 | `bubble` | `x`, `y`, `size` | | Bubble chart |
-| `combo` | `x`, `y` | `lines` | Mixed bar + line chart (y series in `lines` render as lines, the rest as bars) |
+| `combo` | `x`, `y` | `lines`, `y2` | Mixed bar + line chart (y series in `lines` render as lines, the rest as bars) |
 | `histogram` | `x` | `bins` | Histogram (client-side binning) |
 | `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
 | `funnel` | `label`, `value` | `horizontal` | Conversion funnel: one bar per stage with each stage's share of the top and step-to-step conversion. Rows render in query order — put the top of the funnel first. `horizontal: true` lays stages left-to-right |
@@ -133,6 +133,30 @@ SQL-backed example:
 Per-series style overrides live in a **widget-level `series`** map (a sibling of `x`/`y`, not inside `y`), keyed by y-column: `series: { revenue: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` falls back to the chart-wide default (or palette for colour). Store only genuine differences.
 
 Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, and `dash` (on `y`) plus the widget-level `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
+
+### Second value axis (`y2`)
+
+`y2` adds a right-hand value axis so two series on different scales share one chart without the smaller one being squashed flat — e.g. revenue in dollars against conversion rate in percent. A y-column plots against the right axis when it is listed in `y2.field`; every other series stays on the left `y` axis. `y2` is a full axis encoding, so it takes the same `title`, `format`, `beginAtZero`, `curve`, and `dash` keys as `y`, and each axis's ticks and tooltip values format independently.
+
+`y2` is supported on `line`, `area`, `bar`, and `combo` charts. A column must belong to exactly one axis (no overlap between `y.field` and `y2.field`), `y2.type` must be `number`, and `y2` cannot be combined with `stacked`, `horizontal` bars, or `color` (a category split — list the right-axis columns in `y2.field` instead).
+
+Axis assignment (`y` vs `y2`) and shape (bar vs line, via `lines`) are independent — the classic combo puts revenue bars on the left and a conversion-rate line on the right:
+
+```yaml
+- name: Revenue vs Conversion
+  type: chart
+  chart: combo
+  lines: [conversion_rate]        # this series draws as a line, the rest as bars
+  sql: |
+    SELECT month, revenue, conversion_rate
+    FROM monthly ORDER BY month
+  x:  { field: month }
+  y:  { field: [revenue],         title: Revenue,    format: "$,.0f", beginAtZero: true }
+  y2: { field: [conversion_rate], title: Conversion, format: ".1%" }
+  col: 6
+```
+
+The left `y` axis title renders above the plot (as for single-axis charts); the `y2` title renders rotated alongside the right axis. Left/right gridlines are not tick-aligned.
 
 ### Series by category (color)
 
