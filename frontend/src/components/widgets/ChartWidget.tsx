@@ -1411,7 +1411,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <XAxis dataKey={xKey} name={widget.x?.title ?? xKey} {...commonAxisProps} dy={6}
               tickFormatter={xTick} {...xLabelProps}
               type={xIsNumeric ? "number" : "category"} allowDuplicatedCategory={false} />
-            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]} {...autoWidthYAxisProps}
+            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]}
+              {...(yIsNumeric ? autoWidthYAxisProps : commonAxisProps)}
               tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
             <Tooltip content={cartesianTooltip} />
             <Scatter data={chartData} fill={colors[0]} r={3} isAnimationActive={false} />
@@ -1434,7 +1435,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <XAxis dataKey={xKey} name={widget.x?.title ?? xKey} {...commonAxisProps} dy={6}
               type={xIsNumeric ? "number" : "category"} allowDuplicatedCategory={false}
               tickFormatter={xTick} {...xLabelProps} />
-            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]} {...autoWidthYAxisProps}
+            <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]}
+              {...(yIsNumeric ? autoWidthYAxisProps : commonAxisProps)}
               tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
             <ZAxis dataKey={widget.size} range={[40, 500]} name={widget.size} />
             <Tooltip content={cartesianTooltip} />
