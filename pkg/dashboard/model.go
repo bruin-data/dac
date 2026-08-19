@@ -127,10 +127,11 @@ type Widget struct {
 	Normalized bool           `yaml:"normalized,omitempty" json:"normalized,omitempty"`
 	Horizontal *bool          `yaml:"horizontal,omitempty" json:"horizontal,omitempty"` // bar/funnel: horizontal layout; forest: defaults horizontal, set false for a vertical dot-and-whisker. Pointer so an explicit false survives JSON marshaling.
 	Size       string         `yaml:"size,omitempty" json:"size,omitempty"`
-	Source     string         `yaml:"source,omitempty" json:"source,omitempty"` // sankey: source column
-	Target     string         `yaml:"target,omitempty" json:"target,omitempty"` // sankey: target column, gauge: target (max) column
-	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`     // histogram: number of bins
-	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`   // combo: which y series render as lines
+	Source     string         `yaml:"source,omitempty" json:"source,omitempty"`         // sankey: source column
+	Target     string         `yaml:"target,omitempty" json:"target,omitempty"`         // sankey: target column, gauge: target (max) column
+	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`             // histogram: number of bins
+	ShowValues bool           `yaml:"showValues,omitempty" json:"showValues,omitempty"` // heatmap: print each cell's value inside the cell
+	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`           // combo: which y series render as lines
 	// Series holds per-series line style overrides keyed by y-column: {column: {color, curve, dash}}.
 	Series   map[string]SeriesStyle `yaml:"series,omitempty" json:"series,omitempty"`
 	YMin     *BoundEncoding         `yaml:"yMin,omitempty" json:"yMin,omitempty"`         // xmr: min control limit column; line/bar/forest: CI lower bound (column or per-series map)

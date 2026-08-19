@@ -337,6 +337,10 @@
           "type": "integer",
           "minimum": 1
         },
+        "showValues": {
+          "type": "boolean",
+          "description": "Heatmap charts: print each cell's value inside the cell."
+        },
         "lines": {
           "$ref": "#/$defs/stringList"
         },

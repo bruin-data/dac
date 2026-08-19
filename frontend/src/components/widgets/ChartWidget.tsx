@@ -482,6 +482,12 @@ const HEATMAP_SHADES = [
   { color: "#1E3A8A", name: "Very High" },
 ];
 
+// Ink for a value printed on a shaded cell. getTreemapTextColor's 0.32 threshold
+// would put white on #3B82F6 (3.7:1) — at 11px the darker ink wins there (5.3:1).
+function heatmapCellInk(fill: string): string {
+  return (getHexLuminance(fill) ?? 1) > 0.18 ? "#111827" : "#F9FAFB";
+}
+
 function HeatmapChart({
   data,
   xKey,
@@ -489,6 +495,8 @@ function HeatmapChart({
   valueKey,
   xTitle,
   axisColor,
+  showValues,
+  valueFmt,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
@@ -496,6 +504,8 @@ function HeatmapChart({
   valueKey: string;
   xTitle?: string;
   axisColor: string;
+  showValues?: boolean;
+  valueFmt: (val: unknown) => string;
 }) {
   const [hover, setHover] = useState<{ x: number; y: number; xLabel: string; yLabel: string; value: number } | null>(null);
 
@@ -546,6 +556,22 @@ function HeatmapChart({
   const width = Math.max(240, boxW);
   const gridW = Math.max(48, width - leftPad - rightPad);
   const cellW = gridW / xLabels.length;
+  const rectW = Math.max(1, cellW - 4);
+  const rectH = Math.max(1, cellH - 4);
+
+  // Cell values, formatted and width-checked once per data/size change — hovering
+  // re-renders the whole grid, so this keeps the formatter off that path. A label
+  // that would not fit its cell is dropped: the shade carries the magnitude and
+  // the tooltip has the exact number.
+  const cellLabels = useMemo(() => {
+    if (!showValues) return null;
+    const fitted = new Map<string, string>();
+    for (const [key, val] of cells) {
+      const label = valueFmt(val);
+      if (truncateTreemapLabel(label, rectW, 11) === label) fitted.set(key, label);
+    }
+    return fitted;
+  }, [cells, showValues, valueFmt, rectW]);
 
   return (
     <div ref={wrapRef} style={{ width: "100%" }}>
@@ -577,8 +603,8 @@ function HeatmapChart({
                 key={`${i}-${j}`}
                 x={rx}
                 y={ry}
-                width={Math.max(1, cellW - 4)}
-                height={Math.max(1, cellH - 4)}
+                width={rectW}
+                height={rectH}
                 rx={3}
                 fill={fill}
                 opacity={present ? 1 : 0.4}
@@ -587,6 +613,27 @@ function HeatmapChart({
               />
             );
           }),
+        )}
+        {cellLabels && cellLabels.size > 0 && (
+          <g {...AXIS_STYLE} textAnchor="middle" pointerEvents="none">
+            {xLabels.map((x, i) =>
+              yLabels.map((y, j) => {
+                const label = cellLabels.get(`${x}_${y}`);
+                if (!label) return null;
+                const val = cells.get(`${x}_${y}`) ?? 0;
+                return (
+                  <text
+                    key={`${i}-${j}`}
+                    x={leftPad + i * cellW + 2 + rectW / 2}
+                    y={topPad + j * cellH + 2 + rectH / 2 + 4}
+                    fill={heatmapCellInk(HEATMAP_SHADES[bucketOf(val)].color)}
+                  >
+                    {label}
+                  </text>
+                );
+              }),
+            )}
+          </g>
         )}
         {xLabels.map((x, i) => (
           <text key={`xt-${i}`} x={leftPad + i * cellW + cellW / 2} y={tickY} fill={axisColor} fontSize={12} fontFamily='"Geist", system-ui' textAnchor="middle">
@@ -600,7 +647,7 @@ function HeatmapChart({
         )}
         {hover && (
           <SvgTooltip x={hover.x} y={hover.y}
-            lines={[`${formatAxisTick(hover.xLabel)}, ${hover.yLabel}`, formatTooltipValue(hover.value)]} />
+            lines={[`${formatAxisTick(hover.xLabel)}, ${hover.yLabel}`, valueFmt(hover.value)]} />
         )}
       </svg>
     </div>
@@ -1574,6 +1621,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           valueKey={valueField(widget.value) || "value"}
           xTitle={widget.x?.title}
           axisColor={axisColor}
+          showValues={widget.showValues}
+          valueFmt={buildAxisFormatter(widget.value, formatTooltipValue)}
         />
       );
 

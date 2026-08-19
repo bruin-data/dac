@@ -537,6 +537,7 @@ func vnodeToWidget(n *vnode) Widget {
 		Source:     asString(n.Props["source"]),
 		Target:     asString(n.Props["target"]),
 		Bins:       asInt(n.Props["bins"]),
+		ShowValues: asBool(n.Props["showValues"]),
 		Lines:      asStringSlice(n.Props["lines"]),
 		Series:     asSeriesStyles(n.Props["series"]),
 		YMin:       asBoundEncoding(n.Props["yMin"]),

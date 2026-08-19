@@ -408,6 +408,26 @@ export default (
 	}
 }
 
+func TestEvalTSX_HeatmapShowValues(t *testing.T) {
+	source := `
+export default (
+  <Dashboard name="Heat" connection="db">
+    <Row>
+      <Chart name="Orders" chart="heatmap" showValues={true} col={12}
+        sql="SELECT day, region, orders FROM orders"
+        x="day" y="region" value="orders" />
+    </Row>
+  </Dashboard>
+)
+`
+	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
+	assertNoErr(t, err)
+
+	if !d.Rows[0].Widgets[0].ShowValues {
+		t.Error("expected showValues=true")
+	}
+}
+
 func TestEvalTSX_ErrorNoDefaultExport(t *testing.T) {
 	source := `const x = 1`
 	_, err := evalTSX(source, "test.tsx", &tsxConfig{})

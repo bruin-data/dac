@@ -159,6 +159,36 @@ func TestValidate_StackedBarWithColor(t *testing.T) {
 	assertNoErr(t, Validate(d))
 }
 
+func TestValidate_ShowValuesOnlyOnHeatmap(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "bar", SQL: "SELECT 1",
+				X: &AxisEncoding{Field: "month"}, Y: &AxisEncoding{Field: "revenue"},
+				ShowValues: true,
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "showValues is only valid on heatmap charts")
+}
+
+func TestValidate_ShowValuesOnHeatmap(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "heatmap", SQL: "SELECT 1",
+				X: &AxisEncoding{Field: "day"}, Y: &AxisEncoding{Field: "region"},
+				Value: &ValueEncoding{Field: "orders"}, ShowValues: true,
+			}}},
+		},
+	}
+	assertNoErr(t, Validate(d))
+}
+
 func TestValidate_DualAxisValid(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",

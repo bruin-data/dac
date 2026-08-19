@@ -91,6 +91,7 @@ export interface Widget {
   source?: string;     // sankey: source column
   target?: string;     // sankey: target column / gauge: target (max) column
   bins?: number;       // histogram: number of bins
+  showValues?: boolean; // heatmap: print each cell's value inside the cell
   lines?: string[];    // combo: which y series are lines
   series?: Record<string, SeriesStyle>; // per-series line style overrides, keyed by y-column
   // xmr control limit column; line/bar/forest CI bound — a column name, or a
