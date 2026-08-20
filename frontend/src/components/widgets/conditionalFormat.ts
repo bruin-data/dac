@@ -121,7 +121,7 @@ function percentileValue(sorted: number[], p: number): number {
 }
 
 /** Interpolate the background/text colors for a single cell value. */
-function cellColor(scale: ResolvedScale, value: number | null): { background: string; text: string } | undefined {
+export function cellColor(scale: ResolvedScale, value: number | null): { background: string; text: string } | undefined {
   if (value === null) return undefined;
 
   const { stops } = scale;

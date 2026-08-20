@@ -428,6 +428,34 @@ export default (
 	}
 }
 
+func TestEvalTSX_HeatmapColorScale(t *testing.T) {
+	source := `
+export default (
+  <Dashboard name="Heat" connection="db">
+    <Row>
+      <Chart name="Orders" chart="heatmap" col={12}
+        colorScale={{ backgroundColor: ["red", "white", "green"], range: [-500, 0, 500], unit: "absolute" }}
+        sql="SELECT day, region, delta FROM orders"
+        x="day" y="region" value="delta" />
+    </Row>
+  </Dashboard>
+)
+`
+	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
+	assertNoErr(t, err)
+
+	cs := d.Rows[0].Widgets[0].ColorScale
+	if cs == nil {
+		t.Fatal("expected colorScale to be mapped")
+	}
+	if len(cs.BackgroundColor) != 3 || cs.BackgroundColor[1] != "white" {
+		t.Errorf("unexpected colors: %v", cs.BackgroundColor)
+	}
+	if len(cs.Range) != 3 || cs.Range[2] != 500 || cs.Unit != "absolute" {
+		t.Errorf("unexpected range/unit: %v %q", cs.Range, cs.Unit)
+	}
+}
+
 func TestEvalTSX_ErrorNoDefaultExport(t *testing.T) {
 	source := `const x = 1`
 	_, err := evalTSX(source, "test.tsx", &tsxConfig{})

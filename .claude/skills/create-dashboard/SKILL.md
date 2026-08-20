@@ -619,6 +619,10 @@ Client-side quartile computation from raw data rows.
   y: { field: [day_of_week] }              # REQUIRED: Y axis column (array with 1 element)
   value: { field: event_count }            # REQUIRED: intensity column
   showValues: true                         # optional: print each cell's value in the cell
+  colorScale:                              # optional: replaces the default blue buckets
+    backgroundColor: [red, white, green]   #   2+ colors, low -> high
+    range: [-500, 0, 500]                  #   one anchor per color; omit for auto min/max
+    unit: absolute                         #   absolute (default) | percent | percentile
   col: 8
 ```
 
@@ -1012,7 +1016,7 @@ Every YAML widget type has a corresponding JSX tag. Props map directly to YAML f
 | `<Query>` | (named query) | `name`, `sql`, `file`, `connection` |
 | `<Semantic>` | (semantic layer) | `source`, `metrics`, `dimensions` |
 | `<Metric>` | `metric` | `name`, `col`, `sql`, `query`, `value`, `metric` |
-| `<Chart>` | `chart` | `name`, `col`, `chart`, `sql`, `x`, `y`, `label`, `value`, `color`, `stacked`, `normalized`, `horizontal`, `showValues`, `dimension`, `metrics`, `limit`, etc. |
+| `<Chart>` | `chart` | `name`, `col`, `chart`, `sql`, `x`, `y`, `label`, `value`, `color`, `stacked`, `normalized`, `horizontal`, `showValues`, `colorScale`, `dimension`, `metrics`, `limit`, etc. |
 | `<Table>` | `table` | `name`, `col`, `sql`, `query`, `columns` |
 | `<Text>` | `text` | `name`, `col`, `content` |
 | `<Divider>` | `divider` | `name`, `col` |
@@ -1584,7 +1588,7 @@ rows:
 | `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
 | `funnel` | `label`, `value` | | Funnel chart |
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
-| `heatmap` | `x`, `y`, `value` | `showValues` | Grid heatmap. `showValues: true` prints each cell's value inside the cell |
+| `heatmap` | `x`, `y`, `value` | `showValues`, `colorScale` | Grid heatmap. `showValues: true` prints each cell's value inside the cell; `colorScale` sets a custom ramp |
 | `calendar` | `x`, `value` | | Calendar heatmap (GitHub-style) |
 | `sparkline` | `x`, `y` | | Compact inline line (60px) |
 | `waterfall` | `x`, `y` | | Waterfall chart |

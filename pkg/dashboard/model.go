@@ -131,6 +131,7 @@ type Widget struct {
 	Target     string         `yaml:"target,omitempty" json:"target,omitempty"`         // sankey: target column, gauge: target (max) column
 	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`             // histogram: number of bins
 	ShowValues bool           `yaml:"showValues,omitempty" json:"showValues,omitempty"` // heatmap: print each cell's value inside the cell
+	ColorScale *ColorScale    `yaml:"colorScale,omitempty" json:"colorScale,omitempty"` // heatmap: custom color ramp, same keys as a table gradient
 	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`           // combo: which y series render as lines
 	// Series holds per-series line style overrides keyed by y-column: {column: {color, curve, dash}}.
 	Series   map[string]SeriesStyle `yaml:"series,omitempty" json:"series,omitempty"`
@@ -300,6 +301,17 @@ type FormatLayer struct {
 	Italic          bool      `yaml:"italic,omitempty" json:"italic,omitempty"`
 	Underline       bool      `yaml:"underline,omitempty" json:"underline,omitempty"`
 	Strikethrough   bool      `yaml:"strikethrough,omitempty" json:"strikethrough,omitempty"`
+}
+
+// ColorScale is a heatmap's color ramp. It deliberately borrows the table
+// gradient's keys (backgroundColor + range + unit) so an author who has written
+// conditional formatting already knows this, and the frontend resolves both
+// through the same code. Unlike a table gradient, which is scaled per column,
+// this one is scaled across every cell in the grid.
+type ColorScale struct {
+	BackgroundColor []string  `yaml:"backgroundColor" json:"backgroundColor"` // at least 2 colors, low → high
+	Range           []float64 `yaml:"range,omitempty" json:"range,omitempty"` // one anchor per color; omit for auto min/max
+	Unit            string    `yaml:"unit,omitempty" json:"unit,omitempty"`   // absolute (default) | percent | percentile
 }
 
 // WidgetData holds inline result data for a widget so it can render without a

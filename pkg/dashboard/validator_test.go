@@ -189,6 +189,48 @@ func TestValidate_ShowValuesOnHeatmap(t *testing.T) {
 	assertNoErr(t, Validate(d))
 }
 
+func TestValidate_ColorScale(t *testing.T) {
+	heatmap := func(cs *ColorScale, chart string) *Dashboard {
+		return &Dashboard{
+			Name: "test",
+			Rows: []Row{
+				{Widgets: []Widget{{
+					Name: "w", Type: WidgetTypeChart, Chart: chart, SQL: "SELECT 1",
+					X: &AxisEncoding{Field: "day"}, Y: &AxisEncoding{Field: "region"},
+					Value: &ValueEncoding{Field: "orders"}, ColorScale: cs,
+				}}},
+			},
+		}
+	}
+
+	cases := []struct {
+		name  string
+		chart string
+		scale *ColorScale
+		want  string // "" means valid
+	}{
+		{"auto min/max", "heatmap", &ColorScale{BackgroundColor: []string{"red", "white", "green"}}, ""},
+		{"pinned anchors", "heatmap", &ColorScale{BackgroundColor: []string{"red", "white", "green"}, Range: []float64{-500, 0, 500}, Unit: "absolute"}, ""},
+		{"percentile", "heatmap", &ColorScale{BackgroundColor: []string{"white", "indigo"}, Range: []float64{10, 90}, Unit: "percentile"}, ""},
+		{"one color", "heatmap", &ColorScale{BackgroundColor: []string{"red"}}, "at least 2 colors"},
+		{"anchor count mismatch", "heatmap", &ColorScale{BackgroundColor: []string{"red", "green"}, Range: []float64{0, 1, 2}}, "one anchor per color"},
+		{"bad unit", "heatmap", &ColorScale{BackgroundColor: []string{"red", "green"}, Unit: "quantile"}, "must be absolute, percent or percentile"},
+		{"wrong chart", "bar", &ColorScale{BackgroundColor: []string{"red", "green"}}, "only valid on heatmap charts"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Validate(heatmap(tc.scale, tc.chart))
+			if tc.want == "" {
+				assertNoErr(t, err)
+				return
+			}
+			assertErr(t, err)
+			assertValidationContains(t, err, tc.want)
+		})
+	}
+}
+
 func TestValidate_DualAxisValid(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",
