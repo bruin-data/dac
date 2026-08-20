@@ -10,9 +10,10 @@ import {
   ReferenceLine, ReferenceArea, ErrorBar,
 } from "recharts";
 import type { TreemapNode } from "recharts";
-import type { Widget, WidgetData } from "../../types/dashboard";
+import type { ColorScale, Widget, WidgetData } from "../../types/dashboard";
 import { axisField, axisFields, buildAxisFormatter, valueField } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
+import { cellColor, resolveScale } from "./conditionalFormat";
 import { RowHeightContext } from "../../themes/RowContext";
 
 const DEFAULT_CHART_HEIGHT = 240;
@@ -497,6 +498,8 @@ function HeatmapChart({
   axisColor,
   showValues,
   valueFmt,
+  colorScale,
+  tokens,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
@@ -506,6 +509,8 @@ function HeatmapChart({
   axisColor: string;
   showValues?: boolean;
   valueFmt: (val: unknown) => string;
+  colorScale?: ColorScale;
+  tokens: Record<string, string>;
 }) {
   const [hover, setHover] = useState<{ x: number; y: number; xLabel: string; yLabel: string; value: number } | null>(null);
 
@@ -529,6 +534,28 @@ function HeatmapChart({
   // Discrete 4-bucket scale (equal-width min→max); a continuous opacity ramp made near-equal values indistinguishable.
   const span = maxVal > minVal ? maxVal - minVal : 1;
   const bucketOf = (v: number) => Math.min(3, Math.max(0, Math.floor(((v - minVal) / span) * 4)));
+
+  // A `colorScale` replaces the buckets with the table gradient's continuous ramp,
+  // resolved by the same code — the difference is the domain: every cell in the
+  // grid, not one column. Scaled once per data/scale change.
+  const scale = useMemo(() => {
+    if (!colorScale?.backgroundColor?.length) return null;
+    return resolveScale(
+      { backgroundColor: colorScale.backgroundColor, range: colorScale.range, unit: colorScale.unit },
+      [...cells.values()],
+      tokens,
+    );
+  }, [colorScale, cells, tokens]);
+
+  // Fill + readable ink for one cell, from whichever scale is in play.
+  const paint = (v: number): { fill: string; ink: string } => {
+    if (scale) {
+      const c = cellColor(scale, v);
+      if (c) return { fill: c.background, ink: c.text };
+    }
+    const shade = HEATMAP_SHADES[bucketOf(v)].color;
+    return { fill: shade, ink: heatmapCellInk(shade) };
+  };
 
   // Measure width to draw 1:1; a small viewBox scaled to 100% magnified fonts/cells.
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -575,6 +602,22 @@ function HeatmapChart({
 
   return (
     <div ref={wrapRef} style={{ width: "100%" }}>
+      {scale ? (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: axisColor, fontFamily: '"Geist", system-ui' }}>{valueFmt(scale.stops[0].value)}</span>
+          <span
+            style={{
+              width: 160,
+              height: 10,
+              borderRadius: 2,
+              background: `linear-gradient(to right, ${scale.stops.map((st) => `rgb(${st.rgb.join(",")})`).join(", ")})`,
+            }}
+          />
+          <span style={{ fontSize: 12, color: axisColor, fontFamily: '"Geist", system-ui' }}>
+            {valueFmt(scale.stops[scale.stops.length - 1].value)}
+          </span>
+        </div>
+      ) : (
       <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
         {HEATMAP_SHADES.map((s) => (
           <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -583,6 +626,7 @@ function HeatmapChart({
           </div>
         ))}
       </div>
+      )}
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}
         onMouseLeave={() => setHover(null)}>
         {yLabels.map((y, j) => (
@@ -595,7 +639,7 @@ function HeatmapChart({
             const raw = cells.get(`${x}_${y}`);
             const present = raw !== undefined;
             const val = raw ?? 0;
-            const fill = present ? HEATMAP_SHADES[bucketOf(val)].color : "#E5E7EB";
+            const fill = present ? paint(val).fill : "#E5E7EB";
             const rx = leftPad + i * cellW + 2;
             const ry = topPad + j * cellH + 2;
             return (
@@ -626,7 +670,7 @@ function HeatmapChart({
                     key={`${i}-${j}`}
                     x={leftPad + i * cellW + 2 + rectW / 2}
                     y={topPad + j * cellH + 2 + rectH / 2 + 4}
-                    fill={heatmapCellInk(HEATMAP_SHADES[bucketOf(val)].color)}
+                    fill={paint(val).ink}
                   >
                     {label}
                   </text>
@@ -1623,6 +1667,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           axisColor={axisColor}
           showValues={widget.showValues}
           valueFmt={buildAxisFormatter(widget.value, formatTooltipValue)}
+          colorScale={widget.colorScale}
+          tokens={tokens}
         />
       );
 

@@ -88,7 +88,7 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 | `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
 | `funnel` | `label`, `value` | `horizontal` | Conversion funnel: one bar per stage with each stage's share of the top and step-to-step conversion. Rows render in query order — put the top of the funnel first. `horizontal: true` lays stages left-to-right |
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
-| `heatmap` | `x`, `y`, `value` | `showValues` | Grid heatmap. `showValues: true` prints each cell's value inside the cell |
+| `heatmap` | `x`, `y`, `value` | `showValues`, `colorScale` | Grid heatmap. `showValues: true` prints each cell's value inside the cell; `colorScale` replaces the default blue buckets |
 | `calendar` | `x`, `value` | | GitHub-style calendar heatmap |
 | `sparkline` | `x`, `y` | | Compact inline line (60px), no axes |
 | `waterfall` | `x`, `y` | | Waterfall chart |
@@ -221,6 +221,7 @@ Common chart fields:
 | `normalized` | boolean | Render stacked bars as percentages of the row total (requires `stacked`) |
 | `horizontal` | boolean | Horizontal layout: bar charts put categories on the vertical axis; funnel charts lay stages left-to-right; forest charts are horizontal by default (`false` = vertical) |
 | `size` | string | Bubble size column for bubble charts |
+| `colorScale` | object | Heatmap color ramp: `backgroundColor` (2+ colors, low→high) plus optional `range` anchors and `unit` — the same keys a table gradient uses, resolved by the same code. Scaled across every cell in the grid, unlike a table gradient which is scaled per column. Omit for the default blue buckets |
 | `showValues` | boolean | Print each cell's value inside the cell (heatmap charts only). A number too wide for its cell is omitted — the shade still carries the magnitude and the tooltip has the exact value |
 | `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
 | `series` | object | Per-series line style overrides keyed by y-column: `{ revenue: { color, curve, dash } }` — line/area/combo. Each key falls back to the chart-wide `y.curve`/`y.dash`/palette |
@@ -238,6 +239,39 @@ Common chart fields:
 | `limit` | integer | Row limit |
 
 Charts using `dimension`, `metrics`, `segments`, or semantic `filters` are compiled through the backend semantic layer instead of requiring hand-written SQL.
+
+### Heatmap color scale
+
+By default a heatmap paints four blue buckets (Low → Very High) scaled across the
+whole grid. `colorScale` replaces them with a continuous ramp described in the
+same vocabulary as a table gradient:
+
+```yaml
+- name: Revenue vs Channel Average
+  type: chart
+  chart: heatmap
+  x: { field: channel, type: category }
+  y: { field: [region] }
+  value: { field: delta, format: "$,.0f" }
+  showValues: true
+  colorScale:
+    backgroundColor: [red, white, green]   # low → high, 2 or more colors
+    range: [-500, 0, 500]                  # one anchor per color; omit for auto min/max
+    unit: absolute                         # absolute (default) | percent | percentile
+```
+
+Pinning `range` does two things worth knowing: it puts the neutral color exactly
+on zero (so the sign is readable at a glance), and it keeps the colors stable as
+filters change — without it the ramp rescales to whatever the current result set
+contains, so two filtered views are not comparable.
+
+The default buckets round near-equal values to the same shade; a `colorScale`
+interpolates, so small differences stay visible.
+
+Colors accept the same names as table formatting (`red`, `green`, `blue`,
+`indigo`, `cyan`, `purple`, `pink`, `amber`, plus `white`/`black` and the
+`positive`/`negative`/`warning` aliases) or hex. Cell-value ink is derived from
+each cell's fill, so `showValues` stays readable on any ramp.
 
 ## Table
 

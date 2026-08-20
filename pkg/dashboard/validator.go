@@ -552,6 +552,20 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	if w.ShowValues && w.Chart != "heatmap" {
 		errs = append(errs, fmt.Sprintf("%s: showValues is only valid on heatmap charts", prefix))
 	}
+	if cs := w.ColorScale; cs != nil {
+		if w.Chart != "heatmap" {
+			errs = append(errs, fmt.Sprintf("%s: colorScale is only valid on heatmap charts", prefix))
+		}
+		if len(cs.BackgroundColor) < 2 {
+			errs = append(errs, fmt.Sprintf("%s: colorScale.backgroundColor needs at least 2 colors", prefix))
+		}
+		if len(cs.Range) > 0 && len(cs.Range) != len(cs.BackgroundColor) {
+			errs = append(errs, fmt.Sprintf("%s: colorScale.range needs one anchor per color (%d colors, %d anchors)", prefix, len(cs.BackgroundColor), len(cs.Range)))
+		}
+		if cs.Unit != "" && cs.Unit != "absolute" && cs.Unit != "percent" && cs.Unit != "percentile" {
+			errs = append(errs, fmt.Sprintf("%s: colorScale.unit must be absolute, percent or percentile", prefix))
+		}
+	}
 
 	return errs
 }

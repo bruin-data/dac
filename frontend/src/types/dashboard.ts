@@ -92,6 +92,7 @@ export interface Widget {
   target?: string;     // sankey: target column / gauge: target (max) column
   bins?: number;       // histogram: number of bins
   showValues?: boolean; // heatmap: print each cell's value inside the cell
+  colorScale?: ColorScale; // heatmap: color ramp, same keys as a table gradient
   lines?: string[];    // combo: which y series are lines
   series?: Record<string, SeriesStyle>; // per-series line style overrides, keyed by y-column
   // xmr control limit column; line/bar/forest CI bound — a column name, or a
@@ -185,6 +186,17 @@ export type RuleValue = number | string | ColumnRef | Array<number | string | Co
  * `range` + `unit` (`absolute` | `percent` | `percentile`) pin a gradient's
  * anchors; omit `range` for an auto min/max gradient.
  */
+/**
+ * A heatmap's color ramp. Borrows the table gradient's keys so both resolve
+ * through the same code (see conditionalFormat.resolveScale); the difference is
+ * that this scale spans the whole grid, not one column.
+ */
+export interface ColorScale {
+  backgroundColor: string[]; // at least 2 colors, low → high
+  range?: number[];          // one anchor per color; omit for auto min/max
+  unit?: "absolute" | "percent" | "percentile";
+}
+
 export interface FormatLayer {
   if?: FormatOperator;
   value?: RuleValue;

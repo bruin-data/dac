@@ -538,6 +538,7 @@ func vnodeToWidget(n *vnode) Widget {
 		Target:     asString(n.Props["target"]),
 		Bins:       asInt(n.Props["bins"]),
 		ShowValues: asBool(n.Props["showValues"]),
+		ColorScale: asColorScale(n.Props["colorScale"]),
 		Lines:      asStringSlice(n.Props["lines"]),
 		Series:     asSeriesStyles(n.Props["series"]),
 		YMin:       asBoundEncoding(n.Props["yMin"]),
@@ -810,6 +811,22 @@ func asSeriesStyles(v interface{}) map[string]SeriesStyle {
 		return nil
 	}
 	return out
+}
+
+func asColorScale(v interface{}) *ColorScale {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	colors := asStringSlice(m["backgroundColor"])
+	if len(colors) == 0 {
+		return nil
+	}
+	return &ColorScale{
+		BackgroundColor: colors,
+		Range:           asFloatSlice(m["range"]),
+		Unit:            asString(m["unit"]),
+	}
 }
 
 func asValueEncoding(v interface{}) *ValueEncoding {
