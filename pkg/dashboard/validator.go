@@ -549,6 +549,9 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	if w.Horizontal != nil && *w.Horizontal && w.Chart != "bar" && w.Chart != "funnel" && w.Chart != "forest" {
 		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar, funnel and forest charts", prefix))
 	}
+	if w.ShowValues && w.Chart != "heatmap" {
+		errs = append(errs, fmt.Sprintf("%s: showValues is only valid on heatmap charts", prefix))
+	}
 
 	return errs
 }

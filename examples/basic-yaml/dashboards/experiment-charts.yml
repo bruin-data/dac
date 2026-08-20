@@ -247,6 +247,7 @@ rows:
         type: chart
         chart: heatmap
         col: 6
+        showValues: true
         x:
           field: nf_arm
           type: category

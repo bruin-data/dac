@@ -618,10 +618,13 @@ Client-side quartile computation from raw data rows.
   x: { field: hour }                       # REQUIRED: X axis column
   y: { field: [day_of_week] }              # REQUIRED: Y axis column (array with 1 element)
   value: { field: event_count }            # REQUIRED: intensity column
+  showValues: true                         # optional: print each cell's value in the cell
   col: 8
 ```
 
-Custom SVG rendering with hover tooltips.
+Custom SVG rendering with hover tooltips. `showValues` prints the value inside
+each cell (formatted with `value.format`); numbers too wide for their cell are
+omitted.
 
 #### Calendar
 
@@ -1009,7 +1012,7 @@ Every YAML widget type has a corresponding JSX tag. Props map directly to YAML f
 | `<Query>` | (named query) | `name`, `sql`, `file`, `connection` |
 | `<Semantic>` | (semantic layer) | `source`, `metrics`, `dimensions` |
 | `<Metric>` | `metric` | `name`, `col`, `sql`, `query`, `value`, `metric` |
-| `<Chart>` | `chart` | `name`, `col`, `chart`, `sql`, `x`, `y`, `label`, `value`, `color`, `stacked`, `normalized`, `horizontal`, `dimension`, `metrics`, `limit`, etc. |
+| `<Chart>` | `chart` | `name`, `col`, `chart`, `sql`, `x`, `y`, `label`, `value`, `color`, `stacked`, `normalized`, `horizontal`, `showValues`, `dimension`, `metrics`, `limit`, etc. |
 | `<Table>` | `table` | `name`, `col`, `sql`, `query`, `columns` |
 | `<Text>` | `text` | `name`, `col`, `content` |
 | `<Divider>` | `divider` | `name`, `col` |
@@ -1581,7 +1584,7 @@ rows:
 | `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
 | `funnel` | `label`, `value` | | Funnel chart |
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
-| `heatmap` | `x`, `y`, `value` | | Grid heatmap |
+| `heatmap` | `x`, `y`, `value` | `showValues` | Grid heatmap. `showValues: true` prints each cell's value inside the cell |
 | `calendar` | `x`, `value` | | Calendar heatmap (GitHub-style) |
 | `sparkline` | `x`, `y` | | Compact inline line (60px) |
 | `waterfall` | `x`, `y` | | Waterfall chart |

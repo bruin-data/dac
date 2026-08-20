@@ -88,7 +88,7 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 | `boxplot` | `x`, `y` | | Box-and-whisker plot (client-side quartiles) |
 | `funnel` | `label`, `value` | `horizontal` | Conversion funnel: one bar per stage with each stage's share of the top and step-to-step conversion. Rows render in query order — put the top of the funnel first. `horizontal: true` lays stages left-to-right |
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
-| `heatmap` | `x`, `y`, `value` | | Grid heatmap |
+| `heatmap` | `x`, `y`, `value` | `showValues` | Grid heatmap. `showValues: true` prints each cell's value inside the cell |
 | `calendar` | `x`, `value` | | GitHub-style calendar heatmap |
 | `sparkline` | `x`, `y` | | Compact inline line (60px), no axes |
 | `waterfall` | `x`, `y` | | Waterfall chart |
@@ -221,6 +221,7 @@ Common chart fields:
 | `normalized` | boolean | Render stacked bars as percentages of the row total (requires `stacked`) |
 | `horizontal` | boolean | Horizontal layout: bar charts put categories on the vertical axis; funnel charts lay stages left-to-right; forest charts are horizontal by default (`false` = vertical) |
 | `size` | string | Bubble size column for bubble charts |
+| `showValues` | boolean | Print each cell's value inside the cell (heatmap charts only). A number too wide for its cell is omitted — the shade still carries the magnitude and the tooltip has the exact value |
 | `lines` | string[] | Which `y` series render as lines (rest as bars) for combo charts |
 | `series` | object | Per-series line style overrides keyed by y-column: `{ revenue: { color, curve, dash } }` — line/area/combo. Each key falls back to the chart-wide `y.curve`/`y.dash`/palette |
 | `bins` | integer | Number of bins for histogram charts (default 10) |
