@@ -310,6 +310,8 @@ DAC executes the widget's `sql`, named `query`, semantic query, or inline `data`
 
 For a single or layered view, DAC supplies responsive width, row-derived height, and fit autosizing when the spec does not set them. Explicit `width`, `height`, `autosize`, and `config` values win. DAC also supplies theme-aware axes, legends, tooltips, typography, and the `chart-1` through `chart-8` categorical palette; values in `spec.config` override those defaults.
 
+PNG and PDF exports wait for Vega-Lite's asynchronous render to finish before capturing the widget or dashboard.
+
 See `examples/basic-yaml/dashboards/vega-lite.yml` for layered confidence intervals, independent dual axes, a lollipop chart, and a SQL-backed revenue heatmap with centered, contrast-aware value labels.
 
 ## Table

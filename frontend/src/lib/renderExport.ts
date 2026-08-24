@@ -1,4 +1,7 @@
 const EXPORT_CONTROL_SELECTOR = "[data-dac-export-control]";
+export const DAC_EXPORT_PENDING_ATTRIBUTE = "data-dac-export-pending";
+const EXPORT_PENDING_SELECTOR = `[${DAC_EXPORT_PENDING_ATTRIBUTE}]`;
+const EXPORT_READY_TIMEOUT_MS = 15_000;
 
 function exportFilter(node: HTMLElement): boolean {
   if (!(node instanceof Element)) return true;
@@ -33,8 +36,39 @@ async function waitForFonts(): Promise<void> {
   }
 }
 
+function hasPendingExportContent(element: HTMLElement): boolean {
+  return element.matches(EXPORT_PENDING_SELECTOR) || element.querySelector(EXPORT_PENDING_SELECTOR) !== null;
+}
+
+async function waitForExportContent(element: HTMLElement): Promise<void> {
+  if (!hasPendingExportContent(element)) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const observer = new MutationObserver(() => {
+      if (!hasPendingExportContent(element)) finish();
+    });
+    const timeout = window.setTimeout(() => {
+      finish(new Error("Timed out waiting for dashboard content to finish rendering"));
+    }, EXPORT_READY_TIMEOUT_MS);
+    const finish = (error?: Error) => {
+      window.clearTimeout(timeout);
+      observer.disconnect();
+      if (error) reject(error);
+      else resolve();
+    };
+
+    observer.observe(element, {
+      attributeFilter: [DAC_EXPORT_PENDING_ATTRIBUTE],
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+    if (!hasPendingExportContent(element)) finish();
+  });
+}
+
 async function elementToPNGDataURL(element: HTMLElement): Promise<string> {
-  await waitForFonts();
+  await Promise.all([waitForFonts(), waitForExportContent(element)]);
 
   const { toPng } = await import("html-to-image");
   const { width, height } = elementSize(element);

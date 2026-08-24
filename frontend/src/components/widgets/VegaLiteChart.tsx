@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { View } from "vega";
 import type { VisualizationSpec } from "vega-embed";
 import type { Widget, WidgetData } from "../../types/dashboard";
+import { DAC_EXPORT_PENDING_ATTRIBUTE } from "../../lib/renderExport";
 import { RowHeightContext } from "../../themes/RowContext";
 import { useTokens } from "../../themes/TemplateProvider";
 
@@ -158,6 +159,7 @@ export function VegaLiteChart({ widget, data }: Props) {
     if (!container || records.length === 0) return;
 
     if (resolvedSpec instanceof Error) {
+      container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
       setRenderError(resolvedSpec.message);
       return;
     }
@@ -170,6 +172,7 @@ export function VegaLiteChart({ widget, data }: Props) {
     let lastHeight = -1;
 
     setRenderError(null);
+    container.setAttribute(DAC_EXPORT_PENDING_ATTRIBUTE, "true");
     container.replaceChildren();
     syncTooltipTheme(tokens);
 
@@ -184,7 +187,7 @@ export function VegaLiteChart({ widget, data }: Props) {
           defaultStyle: false,
         },
       ))
-      .then((result) => {
+      .then(async (result) => {
         if (disposed) {
           result.view.finalize();
           return;
@@ -202,8 +205,11 @@ export function VegaLiteChart({ widget, data }: Props) {
           });
         });
         observer.observe(container);
+        await result.view.resize().runAsync();
+        if (!disposed) container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
       })
       .catch((error: unknown) => {
+        container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
         if (!disposed) {
           setRenderError(error instanceof Error ? error.message : String(error));
         }
@@ -214,6 +220,7 @@ export function VegaLiteChart({ widget, data }: Props) {
       cancelAnimationFrame(animationFrame);
       observer?.disconnect();
       view?.finalize();
+      container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
       container.replaceChildren();
     };
   }, [records, resolvedSpec, tokens]);
@@ -224,7 +231,11 @@ export function VegaLiteChart({ widget, data }: Props) {
 
   return (
     <div className="relative" style={{ height: chartHeight }}>
-      <div ref={containerRef} className="dac-vega-lite h-full w-full" />
+      <div
+        ref={containerRef}
+        className="dac-vega-lite h-full w-full"
+        data-dac-export-pending="true"
+      />
       {renderError && (
         <div className="absolute inset-0 flex items-center justify-center bg-[var(--dac-background)]/90 px-4 text-center font-mono text-xs text-[var(--dac-error)]">
           {renderError}
