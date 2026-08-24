@@ -209,8 +209,8 @@ export function VegaLiteChart({ widget, data }: Props) {
         if (!disposed) container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
       })
       .catch((error: unknown) => {
-        container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
         if (!disposed) {
+          container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
           setRenderError(error instanceof Error ? error.message : String(error));
         }
       });
