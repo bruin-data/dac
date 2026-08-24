@@ -1,0 +1,254 @@
+name: Vega-Lite Layered Charts
+description: Advanced composed charts using DAC data and Vega-Lite specifications
+connection: local_duckdb
+
+rows:
+  - widgets:
+      - name: Vega-Lite in DAC
+        type: text
+        col: 12
+        content: |
+          Vega-Lite is the advanced chart escape hatch. DAC still owns the data,
+          filters, layout, theme, and exports; the `spec` controls the visualization.
+          The first examples use illustrative inline data. The final heatmap executes
+          a live DuckDB query and renders the result as layered rectangles and labels.
+
+  - height: 420
+    widgets:
+      - name: Revenue forecast and confidence interval
+        description: Area, line, point, and rule marks share one temporal scale
+        type: chart
+        chart: vega-lite
+        col: 12
+        data:
+          columns: [month, actual, forecast, lower, upper, plan]
+          rows:
+            - ["2026-01-01", 92, null, null, null, 145]
+            - ["2026-02-01", 101, null, null, null, 145]
+            - ["2026-03-01", 98, null, null, null, 145]
+            - ["2026-04-01", 112, null, null, null, 145]
+            - ["2026-05-01", 119, null, null, null, 145]
+            - ["2026-06-01", 126, null, null, null, 145]
+            - ["2026-07-01", 132, 130, 121, 139, 145]
+            - ["2026-08-01", 138, 137, 126, 148, 145]
+            - ["2026-09-01", null, 143, 130, 156, 145]
+            - ["2026-10-01", null, 151, 136, 166, 145]
+            - ["2026-11-01", null, 157, 140, 174, 145]
+            - ["2026-12-01", null, 166, 147, 185, 145]
+        spec:
+          $schema: https://vega.github.io/schema/vega-lite/v6.json
+          data: { name: dac }
+          layer:
+            - mark: { type: area, opacity: 0.14 }
+              encoding:
+                x: { field: month, type: temporal, axis: { title: null, format: "%b", tickCount: 12 } }
+                y:
+                  field: lower
+                  type: quantitative
+                  title: Revenue ($k)
+                  scale: { zero: false }
+                y2: { field: upper }
+                color: { datum: Forecast, type: nominal }
+                tooltip:
+                  - { field: month, type: temporal, title: Month, format: "%B %Y" }
+                  - { field: lower, type: quantitative, title: Low, format: "$,.0f" }
+                  - { field: upper, type: quantitative, title: High, format: "$,.0f" }
+            - transform:
+                - aggregate:
+                    - { op: max, field: plan, as: plan }
+              mark: { type: rule, strokeDash: [5, 4], strokeWidth: 1.25 }
+              encoding:
+                y: { field: plan, type: quantitative }
+                color: { datum: Plan, type: nominal }
+                tooltip:
+                  - { field: plan, type: quantitative, title: Plan, format: "$,.0f" }
+            - mark: { type: line, strokeWidth: 2.25 }
+              encoding:
+                x: { field: month, type: temporal, axis: { title: null, format: "%b", tickCount: 12 } }
+                y: { field: actual, type: quantitative }
+                color: { datum: Actual, type: nominal }
+                tooltip:
+                  - { field: month, type: temporal, title: Month, format: "%B %Y" }
+                  - { field: actual, type: quantitative, title: Actual, format: "$,.0f" }
+            - mark: { type: point, filled: true, size: 42 }
+              encoding:
+                x: { field: month, type: temporal, axis: { title: null, format: "%b", tickCount: 12 } }
+                y: { field: actual, type: quantitative }
+                color: { datum: Actual, type: nominal }
+                tooltip:
+                  - { field: month, type: temporal, title: Month, format: "%B %Y" }
+                  - { field: actual, type: quantitative, title: Actual, format: "$,.0f" }
+            - mark: { type: line, strokeDash: [7, 4], strokeWidth: 2 }
+              encoding:
+                x: { field: month, type: temporal, axis: { title: null, format: "%b", tickCount: 12 } }
+                y: { field: forecast, type: quantitative }
+                color: { datum: Forecast, type: nominal }
+                tooltip:
+                  - { field: month, type: temporal, title: Month, format: "%B %Y" }
+                  - { field: forecast, type: quantitative, title: Forecast, format: "$,.0f" }
+
+  - height: 350
+    widgets:
+      - name: Revenue and margin
+        description: Independent left and right scales in one layered view
+        type: chart
+        chart: vega-lite
+        col: 6
+        data:
+          columns: [quarter, revenue, margin]
+          rows:
+            - [Q1, 220, 0.18]
+            - [Q2, 268, 0.21]
+            - [Q3, 251, 0.19]
+            - [Q4, 314, 0.24]
+        spec:
+          data: { name: dac }
+          encoding:
+            x: { field: quarter, type: ordinal, axis: { title: null } }
+          layer:
+            - mark: { type: bar, cornerRadiusTopLeft: 2, cornerRadiusTopRight: 2, opacity: 0.8 }
+              encoding:
+                y:
+                  field: revenue
+                  type: quantitative
+                  title: Revenue ($k)
+                  axis: { format: "$,.0f" }
+                color: { datum: Revenue, type: nominal }
+                tooltip:
+                  - { field: quarter, type: ordinal, title: Quarter }
+                  - { field: revenue, type: quantitative, title: Revenue, format: "$,.0f" }
+            - mark: { type: line, strokeWidth: 2.25, point: { filled: true, size: 48 } }
+              encoding:
+                y:
+                  field: margin
+                  type: quantitative
+                  title: Margin
+                  axis: { orient: right, format: ".0%" }
+                  scale: { zero: false }
+                color: { datum: Margin, type: nominal }
+                tooltip:
+                  - { field: quarter, type: ordinal, title: Quarter }
+                  - { field: margin, type: quantitative, title: Margin, format: ".1%" }
+          resolve:
+            scale: { y: independent }
+
+      - name: Variance by segment
+        description: Rules, points, text, and a zero reference share one scale
+        type: chart
+        chart: vega-lite
+        col: 6
+        data:
+          columns: [segment, variance, direction]
+          rows:
+            - [Enterprise, 0.084, Above plan]
+            - [Mid-market, 0.031, Above plan]
+            - [SMB, -0.046, Below plan]
+            - [Self-serve, 0.057, Above plan]
+            - [Partners, -0.021, Below plan]
+        spec:
+          data: { name: dac }
+          layer:
+            - mark: { type: rule, color: "#868C98", strokeDash: [3, 3] }
+              encoding:
+                x:
+                  datum: 0
+                  type: quantitative
+                  axis: { title: Variance to plan, format: "+.0%" }
+                  scale: { domain: [-0.07, 0.1] }
+            - mark: { type: rule, strokeWidth: 2.5 }
+              encoding:
+                y:
+                  field: segment
+                  type: nominal
+                  sort: { field: variance, order: descending }
+                  axis: { title: null }
+                x: { datum: 0, type: quantitative }
+                x2: { field: variance, type: quantitative }
+                color: { field: direction, type: nominal, title: null }
+            - mark: { type: point, filled: true, size: 72 }
+              encoding:
+                y:
+                  field: segment
+                  type: nominal
+                  sort: { field: variance, order: descending }
+                  axis: { title: null }
+                x: { field: variance, type: quantitative }
+                color: { field: direction, type: nominal, title: null }
+                tooltip:
+                  - { field: segment, type: nominal, title: Segment }
+                  - { field: variance, type: quantitative, title: Variance, format: "+.1%" }
+            - mark:
+                type: text
+                align: { expr: "datum.variance < 0 ? 'right' : 'left'" }
+                baseline: middle
+                dx: { expr: "datum.variance < 0 ? -8 : 8" }
+                fontSize: 10
+              encoding:
+                y:
+                  field: segment
+                  type: nominal
+                  sort: { field: variance, order: descending }
+                  axis: { title: null }
+                x: { field: variance, type: quantitative }
+                text: { field: variance, type: quantitative, format: "+.1%" }
+                color: { field: direction, type: nominal, title: null }
+
+  - height: 380
+    widgets:
+      - name: Monthly revenue by region
+        description: Live DuckDB results; color encodes revenue while labels show every value
+        type: chart
+        chart: vega-lite
+        col: 12
+        sql: |
+          WITH monthly_revenue AS (
+            SELECT
+              region,
+              STRFTIME(created_at, '%b') AS month,
+              MONTH(created_at) AS month_number,
+              ROUND(SUM(amount), 0) AS revenue
+            FROM sales
+            WHERE YEAR(created_at) = (SELECT MAX(YEAR(created_at)) FROM sales)
+            GROUP BY 1, 2, 3
+          ), ranked AS (
+            SELECT
+              *,
+              PERCENT_RANK() OVER (ORDER BY revenue) AS intensity
+            FROM monthly_revenue
+          )
+          SELECT region, month, revenue, intensity
+          FROM ranked
+          ORDER BY month_number, region
+        spec:
+          data: { name: dac }
+          encoding:
+            x:
+              field: month
+              type: ordinal
+              sort: [Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec]
+              axis: { title: null, labelAngle: 0 }
+              scale: { paddingInner: 0.04, paddingOuter: 0.02 }
+            y:
+              field: region
+              type: ordinal
+              sort: [North America, Europe, Asia Pacific, Latin America, Middle East]
+              axis: { title: null }
+              scale: { paddingInner: 0.06, paddingOuter: 0.03 }
+            tooltip:
+              - { field: region, type: nominal, title: Region }
+              - { field: month, type: ordinal, title: Month }
+              - { field: revenue, type: quantitative, title: Revenue, format: "$,.0f" }
+          layer:
+            - mark: { type: rect, cornerRadius: 2 }
+              encoding:
+                color:
+                  field: revenue
+                  type: quantitative
+                  title: Revenue
+                  scale: { scheme: blues }
+            - mark: { type: text, fontSize: 11, fontWeight: 600 }
+              encoding:
+                text: { field: revenue, type: quantitative, format: "$.3s" }
+                color:
+                  condition: { test: "datum.intensity >= 0.55", value: white }
+                  value: "#172033"

@@ -292,8 +292,13 @@
             "treemap",
             "radar",
             "candlestick",
-            "forest"
+            "forest",
+            "vega-lite"
           ]
+        },
+        "spec": {
+          "type": "object",
+          "description": "Vega-Lite specification. Widget query data is available as the named dataset 'dac'."
         },
         "x": {
           "$ref": "#/$defs/axisEncoding"

@@ -113,6 +113,66 @@ func TestValidate_ChartWidgetMissingChartType(t *testing.T) {
 	assertValidationContains(t, err, "chart type is required")
 }
 
+func TestValidate_VegaLiteChart(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{{Widgets: []Widget{{
+			Name: "Layered", Type: WidgetTypeChart, Chart: "vega-lite", SQL: "SELECT 1 AS value",
+			Spec: map[string]any{
+				"data": map[string]any{"name": "dac"},
+				"layer": []any{
+					map[string]any{"mark": "line"},
+					map[string]any{"mark": "point"},
+				},
+			},
+		}}}},
+	}
+	assertNoErr(t, Validate(d))
+}
+
+func TestValidate_VegaLiteChartRequiresSpec(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{{Widgets: []Widget{{
+			Name: "Layered", Type: WidgetTypeChart, Chart: "vega-lite", SQL: "SELECT 1 AS value",
+		}}}},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "spec is required for vega-lite charts")
+}
+
+func TestValidate_VegaLiteChartRejectsRemoteData(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{{Widgets: []Widget{{
+			Name: "Remote", Type: WidgetTypeChart, Chart: "vega-lite", SQL: "SELECT 1 AS value",
+			Spec: map[string]any{
+				"mark": "line",
+				"data": map[string]any{"url": "https://example.com/data.json"},
+			},
+		}}}},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "spec.data must be { name: dac }")
+	assertValidationContains(t, err, "data.url is not allowed")
+}
+
+func TestValidate_VegaLiteSpecOnlyOnVegaLiteCharts(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{{Widgets: []Widget{{
+			Name: "Line", Type: WidgetTypeChart, Chart: "line", SQL: "SELECT 1 AS x, 2 AS y",
+			X: &AxisEncoding{Field: "x"}, Y: &AxisEncoding{Field: "y"},
+			Spec: map[string]any{"mark": "line"},
+		}}}},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "spec is only valid on vega-lite charts")
+}
+
 func TestValidate_StackedRequiresColor(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",

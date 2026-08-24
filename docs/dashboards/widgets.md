@@ -99,6 +99,7 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 | `radar` | `x`, `y` | | Multi-axis polar comparison |
 | `candlestick` | `x`, `open`, `high`, `low`, `close` | | OHLC chart |
 | `forest` | `x`, `y` | `yMin`, `yMax`, `horizontal` | Point estimate + CI interval per category (grey when the interval spans 0). `horizontal: false` → vertical dot-and-whisker; multiple `y` = grouped |
+| `vega-lite` | `spec` | | Advanced Vega-Lite visualization using DAC query data. Supports layers, facets, concatenation, transforms, and selections |
 
 SQL-backed example:
 
@@ -230,6 +231,7 @@ Common chart fields:
 | `yMax` | string \| object | CI upper bound (see `yMin`) |
 | `refLines` | object[] | Reference guide lines: `[{ axis: x\|y, value, label?, color? }]` — dashed line (e.g. a 0 no-effect mark). line/area/bar/forest |
 | `refBands` | object[] | Shaded reference bands: `[{ axis: x\|y, from, to, label?, color? }]` — a translucent range (e.g. a ±MDE band). line/area/bar/forest |
+| `spec` | object | Vega-Lite specification for `chart: vega-lite`. DAC data is injected as the named `dac` dataset |
 | `dimension` | string | Semantic dimension name |
 | `granularity` | string | Semantic time grain for `dimension` |
 | `metrics` | string[] | Semantic metric names |
@@ -272,6 +274,43 @@ Colors accept the same names as table formatting (`red`, `green`, `blue`,
 `indigo`, `cyan`, `purple`, `pink`, `amber`, plus `white`/`black` and the
 `positive`/`negative`/`warning` aliases) or hex. Cell-value ink is derived from
 each cell's fill, so `showValues` stays readable on any ramp.
+
+### Vega-Lite charts
+
+Use `chart: vega-lite` when a visualization needs composition beyond DAC's built-in chart options, such as layered marks, independent scales, faceting, concatenation, or Vega-Lite transforms. Built-in charts remain the concise default for standard visualizations.
+
+DAC executes the widget's `sql`, named `query`, semantic query, or inline `data` exactly like any other chart. The result is converted to records and made available to the Vega-Lite specification as the named `dac` dataset:
+
+```yaml
+- name: Revenue with confidence interval
+  type: chart
+  chart: vega-lite
+  col: 12
+  sql: |
+    SELECT month, revenue, lower_ci, upper_ci
+    FROM monthly_revenue ORDER BY month
+  spec:
+    data: { name: dac }
+    encoding:
+      x: { field: month, type: temporal }
+    layer:
+      - mark: { type: area, opacity: 0.14 }
+        encoding:
+          y: { field: lower_ci, type: quantitative, title: Revenue }
+          y2: { field: upper_ci }
+      - mark: { type: line, strokeWidth: 2 }
+        encoding:
+          y: { field: revenue, type: quantitative }
+      - mark: { type: point, filled: true }
+        encoding:
+          y: { field: revenue, type: quantitative }
+```
+
+`spec.data` may be omitted; DAC inserts `{ name: dac }` automatically. If present, it must use that name. `data.url` and `datasets.dac` are rejected: load primary chart data through DAC so filters, validation, CSV export, and static builds continue to work consistently. Other inline named datasets may be included for small supporting values.
+
+For a single or layered view, DAC supplies responsive width, row-derived height, and fit autosizing when the spec does not set them. Explicit `width`, `height`, `autosize`, and `config` values win. DAC also supplies theme-aware axes, legends, tooltips, typography, and the `chart-1` through `chart-8` categorical palette; values in `spec.config` override those defaults.
+
+See `examples/basic-yaml/dashboards/vega-lite.yml` for layered confidence intervals, independent dual axes, a lollipop chart, and a SQL-backed revenue heatmap with centered, contrast-aware value labels.
 
 ## Table
 

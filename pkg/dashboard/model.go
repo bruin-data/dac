@@ -114,9 +114,10 @@ type Widget struct {
 	Limit       int                    `yaml:"limit,omitempty" json:"limit,omitempty"` // LIMIT for dimensional queries
 
 	// Chart fields
-	Chart string        `yaml:"chart,omitempty" json:"chart,omitempty"` // line, bar, area, pie, scatter, bubble, combo, histogram, boxplot, funnel, sankey, heatmap, calendar, sparkline, waterfall, xmr, dumbbell, gauge, treemap, radar, candlestick, forest
-	X     *AxisEncoding `yaml:"x,omitempty" json:"x,omitempty"`
-	Y     *AxisEncoding `yaml:"y,omitempty" json:"y,omitempty"`
+	Chart string         `yaml:"chart,omitempty" json:"chart,omitempty"` // built-in chart type, or vega-lite
+	Spec  map[string]any `yaml:"spec,omitempty" json:"spec,omitempty"`   // vega-lite: visualization spec; DAC query data is injected as the named "dac" dataset
+	X     *AxisEncoding  `yaml:"x,omitempty" json:"x,omitempty"`
+	Y     *AxisEncoding  `yaml:"y,omitempty" json:"y,omitempty"`
 	// Y2 is an optional second value axis on the right (line/area/bar/combo): a
 	// y-column plots against it when listed in y2.field, all others stay on y.
 	Y2         *AxisEncoding  `yaml:"y2,omitempty" json:"y2,omitempty"`

@@ -15,6 +15,7 @@ import { axisField, axisFields, buildAxisFormatter, valueField } from "../../lib
 import { useTokens } from "../../themes/TemplateProvider";
 import { cellColor, resolveScale } from "./conditionalFormat";
 import { RowHeightContext } from "../../themes/RowContext";
+import { VegaLiteChart } from "./VegaLiteChart";
 
 const DEFAULT_CHART_HEIGHT = 240;
 // Approx pixels consumed by the widget frame's title/padding above the chart.
@@ -1172,6 +1173,9 @@ const Y_TITLE_OFFSET = 18;
 
 export function ChartWidget({ widget, data }: Props) {
   const tokens = useTokens();
+  if (widget.chart === "vega-lite") {
+    return <VegaLiteChart widget={widget} data={data} />;
+  }
   const yTitle = widget.y?.title;
   if (!yTitle) {
     return <ChartBody widget={widget} data={data} />;
