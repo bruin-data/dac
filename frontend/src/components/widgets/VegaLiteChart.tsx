@@ -170,6 +170,7 @@ export function VegaLiteChart({ widget, data }: Props) {
     let animationFrame = 0;
     let lastWidth = -1;
     let lastHeight = -1;
+    let resizeGeneration = 0;
 
     setRenderError(null);
     container.setAttribute(DAC_EXPORT_PENDING_ATTRIBUTE, "true");
@@ -193,20 +194,36 @@ export function VegaLiteChart({ widget, data }: Props) {
           return;
         }
         view = result.view;
+        await result.view.resize().runAsync();
+        if (disposed) return;
+        container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
+
         observer = new ResizeObserver(([entry]) => {
           const width = Math.round(entry.contentRect.width);
           const height = Math.round(entry.contentRect.height);
           if (width === lastWidth && height === lastHeight) return;
           lastWidth = width;
           lastHeight = height;
+          const generation = ++resizeGeneration;
+          container.setAttribute(DAC_EXPORT_PENDING_ATTRIBUTE, "true");
           cancelAnimationFrame(animationFrame);
           animationFrame = requestAnimationFrame(() => {
-            void view?.resize().runAsync();
+            const activeView = view;
+            if (!activeView || disposed || generation !== resizeGeneration) return;
+            void activeView.resize().runAsync()
+              .catch((error: unknown) => {
+                if (!disposed && generation === resizeGeneration) {
+                  setRenderError(error instanceof Error ? error.message : String(error));
+                }
+              })
+              .finally(() => {
+                if (!disposed && generation === resizeGeneration) {
+                  container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
+                }
+              });
           });
         });
         observer.observe(container);
-        await result.view.resize().runAsync();
-        if (!disposed) container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
       })
       .catch((error: unknown) => {
         if (!disposed) {
