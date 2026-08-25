@@ -312,7 +312,7 @@ For a single or layered view, DAC supplies responsive width, row-derived height,
 
 PNG and PDF exports wait for Vega-Lite's asynchronous render to finish before capturing the widget or dashboard.
 
-See `examples/basic-yaml/dashboards/vega-lite.yml` for layered confidence intervals, independent dual axes, a lollipop chart, and a SQL-backed revenue heatmap with centered, contrast-aware value labels.
+See `examples/basic-yaml/dashboards/vega-lite.yml` for a Sankey-style customer journey built from curved weighted ribbons, layered confidence intervals, independent dual axes, a lollipop chart, and a SQL-backed revenue heatmap with centered, contrast-aware value labels.
 
 ## Table
 

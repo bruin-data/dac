@@ -10,8 +10,124 @@ rows:
         content: |
           Vega-Lite is the advanced chart escape hatch. DAC still owns the data,
           filters, layout, theme, and exports; the `spec` controls the visualization.
-          The first examples use illustrative inline data. The final heatmap executes
-          a live DuckDB query and renders the result as layered rectangles and labels.
+          The first examples use illustrative inline data, including a Sankey-style
+          flow composed from curved ribbons, nodes, and labels. The final heatmap
+          executes a live DuckDB query and renders layered rectangles and labels.
+
+  - height: 460
+    widgets:
+      - name: Customer journey Sankey
+        description: Curved weighted ribbons connect acquisition channels to evaluation paths and outcomes
+        type: chart
+        chart: vega-lite
+        col: 12
+        data:
+          columns: [flow, source_x, source_y, target_x, target_y, value, source, target, group]
+          rows:
+            - [organic-tour, 0, 14.6, 1, 20.8, 2100, Organic, Product tour, Organic]
+            - [organic-docs, 0, 24.6, 1, 57.6, 1100, Organic, Docs & demos, Organic]
+            - [paid-tour, 0, 46.6, 1, 32.5, 1500, Paid, Product tour, Paid]
+            - [paid-docs, 0, 54.6, 1, 64.7, 1100, Paid, Docs & demos, Paid]
+            - [partner-tour, 0, 73.5, 1, 38.7, 400, Partner, Product tour, Partner]
+            - [partner-docs, 0, 79.5, 1, 72.1, 1200, Partner, Docs & demos, Partner]
+            - [tour-activated, 1, 23.1, 2, 22.1, 2800, Product tour, Activated, Product tour]
+            - [tour-nurture, 1, 34.8, 2, 58.5, 800, Product tour, Needs nurture, Product tour]
+            - [tour-dropped, 1, 38.7, 2, 79.3, 400, Product tour, Dropped, Product tour]
+            - [docs-activated, 1, 58.9, 2, 36.1, 1500, Docs & demos, Activated, Docs & demos]
+            - [docs-nurture, 1, 67.3, 2, 64.5, 1100, Docs & demos, Needs nurture, Docs & demos]
+            - [docs-dropped, 1, 73.4, 2, 83.3, 800, Docs & demos, Dropped, Docs & demos]
+        spec:
+          data: { name: dac }
+          datasets:
+            nodes:
+              - { stage: 0, x: 0, x0: -0.035, x1: 0.035, y: 18, y0: 8, y1: 28, node: Organic, label: "Organic · 3.2k", value: 3200, group: Organic }
+              - { stage: 0, x: 0, x0: -0.035, x1: 0.035, y: 50, y0: 42, y1: 58, node: Paid, label: "Paid · 2.6k", value: 2600, group: Paid }
+              - { stage: 0, x: 0, x0: -0.035, x1: 0.035, y: 78, y0: 72, y1: 84, node: Partner, label: "Partner · 1.6k", value: 1600, group: Partner }
+              - { stage: 1, x: 1, x0: 0.965, x1: 1.035, y: 27, y0: 14, y1: 40, node: Product tour, label: "Product tour · 4.0k", value: 4000, group: Product tour }
+              - { stage: 1, x: 1, x0: 0.965, x1: 1.035, y: 65, y0: 54, y1: 76, node: Docs & demos, label: "Docs & demos · 3.4k", value: 3400, group: Docs & demos }
+              - { stage: 2, x: 2, x0: 1.965, x1: 2.035, y: 27, y0: 13, y1: 41, node: Activated, label: "Activated · 4.3k", value: 4300, group: Activated }
+              - { stage: 2, x: 2, x0: 1.965, x1: 2.035, y: 62, y0: 56, y1: 68, node: Needs nurture, label: "Needs nurture · 1.9k", value: 1900, group: Needs nurture }
+              - { stage: 2, x: 2, x0: 1.965, x1: 2.035, y: 82, y0: 78, y1: 86, node: Dropped, label: "Dropped · 1.2k", value: 1200, group: Dropped }
+            stages:
+              - { x: 0, label: ACQUISITION }
+              - { x: 1, label: EVALUATION }
+              - { x: 2, label: OUTCOME }
+          layer:
+            - transform:
+                - calculate: "[datum.source_x, datum.source_x + 0.34, datum.target_x - 0.34, datum.target_x]"
+                  as: x_path
+                - calculate: "[datum.source_y, datum.source_y, datum.target_y, datum.target_y]"
+                  as: y_path
+                - flatten: [x_path, y_path]
+                  as: [x, y]
+                - calculate: "datum.y - datum.value * 0.003125"
+                  as: y_top
+                - calculate: "datum.y + datum.value * 0.003125"
+                  as: y_bottom
+              params:
+                - name: flow_hover
+                  select: { type: point, fields: [flow], on: pointerover, clear: pointerout }
+              mark: { type: area, interpolate: basis }
+              encoding:
+                x:
+                  field: x
+                  type: quantitative
+                  scale: { domain: [-0.25, 2.32] }
+                  axis: null
+                y:
+                  field: y_top
+                  type: quantitative
+                  scale: { domain: [0, 94], reverse: true }
+                  axis: null
+                y2: { field: y_bottom }
+                detail: { field: flow, type: nominal }
+                color: { field: group, type: nominal, legend: null }
+                opacity:
+                  condition: { param: flow_hover, empty: false, value: 0.78 }
+                  value: 0.34
+                tooltip:
+                  - { field: source, type: nominal, title: From }
+                  - { field: target, type: nominal, title: To }
+                  - { field: value, type: quantitative, title: People, format: ",.0f" }
+            - data: { name: nodes }
+              mark: { type: rect, cornerRadius: 2, opacity: 0.96 }
+              encoding:
+                x: { field: x0, type: quantitative, scale: { domain: [-0.25, 2.32] }, axis: null }
+                x2: { field: x1 }
+                y: { field: y0, type: quantitative, scale: { domain: [0, 94], reverse: true }, axis: null }
+                y2: { field: y1 }
+                color: { field: group, type: nominal, legend: null }
+                tooltip:
+                  - { field: node, type: nominal, title: Stage }
+                  - { field: value, type: quantitative, title: People, format: ",.0f" }
+            - data: { name: nodes }
+              mark:
+                type: text
+                align: { expr: "datum.stage === 0 ? 'right' : 'left'" }
+                dx: { expr: "datum.stage === 0 ? -10 : 10" }
+                baseline: middle
+                fontSize: 11
+                fontWeight: 600
+                color: "#868C98"
+              encoding:
+                x: { field: x, type: quantitative, scale: { domain: [-0.25, 2.32] }, axis: null }
+                y: { field: y, type: quantitative, scale: { domain: [0, 94], reverse: true }, axis: null }
+                text: { field: label, type: nominal }
+                tooltip:
+                  - { field: node, type: nominal, title: Stage }
+                  - { field: value, type: quantitative, title: People, format: ",.0f" }
+            - data: { name: stages }
+              mark:
+                type: text
+                align: center
+                baseline: top
+                fontSize: 10
+                fontWeight: 600
+                color: "#868C98"
+              encoding:
+                x: { field: x, type: quantitative, scale: { domain: [-0.25, 2.32] }, axis: null }
+                y: { datum: 0, type: quantitative, scale: { domain: [0, 94], reverse: true }, axis: null }
+                text: { field: label, type: nominal }
 
   - height: 420
     widgets:
