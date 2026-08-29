@@ -182,11 +182,20 @@ All widget components accept the same props as their YAML equivalents.
 ```tsx
 <Metric name="Revenue" col={4} sql="..." value={{ field: "value", type: "number", format: "$,.2f" }} />
 <Chart name="Trend" chart="area" col={8} sql="..." x={{ field: "month" }} y={{ field: ["revenue"] }} />
+<Chart name="Layered" chart="vega-lite" col={12} sql="..." spec={{
+  data: { name: "dac" },
+  layer: [
+    { mark: "line", encoding: { x: { field: "month", type: "temporal" }, y: { field: "revenue", type: "quantitative" } } },
+    { mark: "point", encoding: { x: { field: "month", type: "temporal" }, y: { field: "revenue", type: "quantitative" } } },
+  ],
+}} />
 <Table name="Orders" col={12} sql="..." />
 <Text name="Note" col={6} content="**Important:** This data updates daily." />
 <Divider name="sep" col={12} />
 <Image name="logo" col={3} src="https://example.com/logo.png" alt="Logo" />
 ```
+
+For `chart="vega-lite"`, the `spec` prop is the Vega-Lite specification and DAC injects the widget result as the named `dac` dataset. The same data-source and remote-URL rules documented for YAML Vega-Lite charts apply.
 
 ## How It Works
 
@@ -197,4 +206,4 @@ DAC:
 3. extracts the default export
 4. converts it to the same dashboard model used by YAML
 
-TSX dashboards are fully compatible with filters, named queries, external semantic models, validation, static builds, and Slides export.
+TSX dashboards are fully compatible with filters, named queries, external semantic models, validation, and static builds. Google Slides export supports the same widget subset documented for YAML dashboards.

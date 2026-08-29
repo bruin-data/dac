@@ -24,7 +24,10 @@
     "react-router-dom": "^7.18.2",
     "react-select": "^5.10.2",
     "recharts": "^3.8.0",
-    "shiki": "^4.0.1"
+    "shiki": "^4.0.1",
+    "vega": "^6.2.0",
+    "vega-embed": "^7.1.0",
+    "vega-lite": "^6.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

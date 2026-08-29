@@ -73,7 +73,9 @@ export interface Widget {
   sort?: SemanticSort[];
 
   // Chart
-  chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick" | "forest";
+  chart?: "line" | "bar" | "area" | "pie" | "scatter" | "bubble" | "combo" | "histogram" | "boxplot" | "funnel" | "sankey" | "heatmap" | "calendar" | "sparkline" | "waterfall" | "xmr" | "dumbbell" | "gauge" | "treemap" | "radar" | "candlestick" | "forest" | "vega-lite";
+  /** Vega-Lite spec. Widget query results are injected as the named `dac` dataset. */
+  spec?: Record<string, unknown>;
   x?: AxisEncoding;
   y?: AxisEncoding;
   // Optional second value axis on the right (line/area/bar/combo). A y-column

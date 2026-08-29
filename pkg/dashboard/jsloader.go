@@ -524,6 +524,7 @@ func vnodeToWidget(n *vnode) Widget {
 
 		// Chart fields
 		Chart:      asString(n.Props["chart"]),
+		Spec:       asMap(n.Props["spec"]),
 		X:          asAxisEncoding(n.Props["x"]),
 		Y:          asAxisEncoding(n.Props["y"]),
 		Y2:         asAxisEncoding(n.Props["y2"]),

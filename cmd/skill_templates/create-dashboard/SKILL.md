@@ -228,6 +228,31 @@ The `funnel` chart shows conversion through ordered stages: one bar per stage wi
 
 Confidence intervals use `yMin`/`yMax` (the lower/upper bound columns): on `line`/`area` they shade a CI **band** behind the estimate line; on `bar` they become **error-bar caps**; the `forest` chart draws a point estimate + horizontal CI per category (grey when the interval spans 0, `horizontal: false` for a vertical dot-and-whisker). `y` is the estimate only. `yMin`/`yMax` are a single column, or a per-series map `{seriesColumn: boundColumn}` for multi-line bands. Compute the bounds in SQL (e.g. `effect ± 1.96*stderr`). Reference guides: `refLines: [{ axis: x|y, value, label? }]` (dashed line, e.g. a 0 "no-effect" mark) and `refBands: [{ axis: x|y, from, to, label? }]` (a shaded range, e.g. a ±MDE band).
 
+### Vega-Lite charts
+
+Use `chart: vega-lite` with a `spec` object for advanced layered, faceted, concatenated, or transformed visualizations. DAC still owns the query and injects its result as the named `dac` dataset:
+
+```yaml
+- name: Revenue with confidence interval
+  type: chart
+  chart: vega-lite
+  sql: SELECT month, revenue, lower_ci, upper_ci FROM monthly_revenue ORDER BY month
+  spec:
+    data: { name: dac }
+    encoding:
+      x: { field: month, type: temporal }
+    layer:
+      - mark: { type: area, opacity: 0.14 }
+        encoding:
+          y: { field: lower_ci, type: quantitative }
+          y2: { field: upper_ci }
+      - mark: { type: line, strokeWidth: 2 }
+        encoding:
+          y: { field: revenue, type: quantitative }
+```
+
+`spec.data` is optional and defaults to `{ name: dac }`. If provided, it must use that name. Do not use `data.url` or define `datasets.dac`; load primary data through `sql`, `query`, semantic fields, or the widget's illustrative inline `data`. DAC supplies theme and responsive-size defaults, while explicit Vega-Lite `config`, `width`, `height`, and `autosize` values override them.
+
 Every query is an inline `sql:` block or a named `query:` reference — YAML widgets do not take file paths. In TSX, `include("queries/revenue.sql")` reads a `.sql` file into an inline query at load time.
 
 ## Inline (Static) Data

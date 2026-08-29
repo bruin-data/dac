@@ -106,7 +106,7 @@ The repository includes four self-contained example projects under [`examples/`]
 
 | Example | What it shows |
 | --- | --- |
-| [`examples/basic-yaml`](examples/basic-yaml) | A standard YAML dashboard with filters, SQL queries, and query files. |
+| [`examples/basic-yaml`](examples/basic-yaml) | Standard YAML dashboards with filters, SQL queries, and a self-contained Vega-Lite layered-chart demo. |
 | [`examples/basic-tsx`](examples/basic-tsx) | A TSX dashboard that uses load-time queries to generate layout from the database. |
 | [`examples/semantic-yaml`](examples/semantic-yaml) | A YAML dashboard that reads semantic models from `semantic/` and compiles widgets in the backend. |
 | [`examples/semantic-tsx`](examples/semantic-tsx) | A TSX dashboard using external semantic models and backend semantic query compilation. |

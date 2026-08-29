@@ -46,6 +46,25 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard vega-lite chart",
+			schemaID: DashboardV1ID,
+			yaml: `name: Vega-Lite
+rows:
+  - widgets:
+      - name: Layered
+        type: chart
+        chart: vega-lite
+        data:
+          columns: [x, y]
+          rows: [[A, 1], [B, 2]]
+        spec:
+          data: { name: dac }
+          layer:
+            - mark: line
+            - mark: point
+`,
+		},
+		{
 			name:     "theme",
 			schemaID: ThemeV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/theme/v1

@@ -406,7 +406,7 @@ The SQL must return at least one row. The value from `value.field` in the first 
 
 ### Chart Widget
 
-Visualizations using Recharts. **17 chart types** available. Two modes: **dimensional** (using top-level dimensions + metrics) or **query-based** (using SQL with x/y columns).
+Visualizations use 22 built-in chart types rendered with Recharts, plus `vega-lite` for advanced composition. Built-in charts have two modes: **dimensional** (using top-level dimensions + metrics) or **query-based** (using SQL with x/y columns).
 
 #### Dimensional Charts (no SQL needed)
 
@@ -765,6 +765,31 @@ Multi-axis comparison across a small number of entities.
 ```
 
 OHLC chart for financial/pricing data. Green when close ≥ open, red otherwise.
+
+#### Vega-Lite (advanced composition)
+
+Use `chart: vega-lite` with a `spec` object for layered, faceted, concatenated, or transformed visualizations. DAC owns the widget data and injects query results as the named `dac` dataset:
+
+```yaml
+- name: Revenue with confidence interval
+  type: chart
+  chart: vega-lite
+  sql: SELECT month, revenue, lower_ci, upper_ci FROM monthly_revenue ORDER BY month
+  spec:
+    data: { name: dac }
+    encoding:
+      x: { field: month, type: temporal }
+    layer:
+      - mark: { type: area, opacity: 0.14 }
+        encoding:
+          y: { field: lower_ci, type: quantitative }
+          y2: { field: upper_ci }
+      - mark: { type: line, strokeWidth: 2 }
+        encoding:
+          y: { field: revenue, type: quantitative }
+```
+
+`spec.data` is optional and defaults to `{ name: dac }`. If provided, it must use that name. `data.url` and `datasets.dac` are invalid: load primary data through DAC `sql`, `query`, semantic fields, or illustrative inline `data`. DAC supplies theme and responsive sizing defaults; explicit Vega-Lite `config`, `width`, `height`, and `autosize` values override them.
 
 ### Table Widget
 
@@ -1567,7 +1592,7 @@ rows:
 | Type | Required Fields | Query Source | Description |
 |------|----------------|--------------|-------------|
 | `metric` | `metric:` ref OR `value` + query | Declarative or SQL | Single KPI number card |
-| `chart` | `dimension` + `metrics` OR `chart` + x/y + query | Declarative or SQL | Visualization (21 chart types) |
+| `chart` | `dimension` + `metrics`, built-in `chart` + encodings, OR `chart: vega-lite` + `spec` | Declarative, SQL, or inline | Visualization (22 built-in types plus Vega-Lite) |
 | `table` | — | SQL | Data table with optional column config |
 | `text` | `content` | None | Markdown/text content |
 | `divider` | — | None | Horizontal separator line |
@@ -1598,6 +1623,7 @@ rows:
 | `treemap` | `label`, `value` | | Rectangular part-to-whole hierarchy |
 | `radar` | `x`, `y` | | Polar/spider chart for multi-metric comparison |
 | `candlestick` | `x`, `open`, `high`, `low`, `close` | | OHLC chart |
+| `vega-lite` | `spec` | | Advanced layered/composed chart; DAC data is the named `dac` dataset |
 
 ---
 

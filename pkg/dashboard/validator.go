@@ -90,6 +90,10 @@ func Validate(d *Dashboard) error {
 				errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, text, divider, or image)", prefix, w.Type))
 			}
 
+			if len(w.Spec) > 0 && (w.Type != WidgetTypeChart || w.Chart != "vega-lite") {
+				errs = append(errs, fmt.Sprintf("%s: spec is only valid on vega-lite charts", prefix))
+			}
+
 			errs = append(errs, validateInlineData(prefix, &w)...)
 
 			if w.Col < 0 || w.Col > 12 {
@@ -265,7 +269,71 @@ var validChartTypes = map[string]bool{
 	"boxplot": true, "funnel": true, "sankey": true, "heatmap": true,
 	"calendar": true, "sparkline": true, "waterfall": true, "xmr": true,
 	"dumbbell": true, "gauge": true, "treemap": true, "radar": true,
-	"candlestick": true, "forest": true,
+	"candlestick": true, "forest": true, "vega-lite": true,
+}
+
+func validateVegaLiteSpec(prefix string, w *Widget, d *Dashboard) []string {
+	var errs []string
+	if len(w.Spec) == 0 {
+		errs = append(errs, fmt.Sprintf("%s: spec is required for vega-lite charts", prefix))
+	} else {
+		if !hasVegaLiteView(w.Spec) {
+			errs = append(errs, fmt.Sprintf("%s: vega-lite spec must define mark, layer, facet, concat, hconcat, vconcat, or repeat", prefix))
+		}
+		if rawData, ok := w.Spec["data"]; ok {
+			data, ok := rawData.(map[string]any)
+			if !ok || data["name"] != "dac" {
+				errs = append(errs, fmt.Sprintf("%s: vega-lite spec.data must be { name: dac } when provided", prefix))
+			}
+			if _, ok := data["values"]; ok {
+				errs = append(errs, fmt.Sprintf("%s: vega-lite spec.data.values is not allowed; use the widget query or data field", prefix))
+			}
+		}
+		if datasets, ok := w.Spec["datasets"].(map[string]any); ok {
+			if _, reserved := datasets["dac"]; reserved {
+				errs = append(errs, fmt.Sprintf("%s: vega-lite spec.datasets.dac is reserved for widget query data", prefix))
+			}
+		}
+		if hasExternalVegaDataURL(w.Spec) {
+			errs = append(errs, fmt.Sprintf("%s: vega-lite data.url is not allowed; load data through DAC queries", prefix))
+		}
+	}
+	errs = append(errs, validateQuerySource(prefix, w, d)...)
+	return errs
+}
+
+func hasVegaLiteView(spec map[string]any) bool {
+	for _, key := range []string{"mark", "layer", "facet", "concat", "hconcat", "vconcat", "repeat"} {
+		if _, ok := spec[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func hasExternalVegaDataURL(value any) bool {
+	switch v := value.(type) {
+	case map[string]any:
+		for key, child := range v {
+			if key == "data" {
+				if data, ok := child.(map[string]any); ok {
+					if _, external := data["url"]; external {
+						return true
+					}
+				}
+			}
+			if hasExternalVegaDataURL(child) {
+				return true
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if hasExternalVegaDataURL(child) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // dualAxisCharts are the cartesian composed charts that can render a second
@@ -342,6 +410,9 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 	if !validChartTypes[w.Chart] {
 		errs = append(errs, fmt.Sprintf("%s: unknown chart type %q", prefix, w.Chart))
 		return errs
+	}
+	if w.Chart == "vega-lite" {
+		return validateVegaLiteSpec(prefix, w, d)
 	}
 	errs = append(errs, validateRefAnnotations(prefix, w)...)
 

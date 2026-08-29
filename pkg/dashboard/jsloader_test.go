@@ -456,6 +456,39 @@ export default (
 	}
 }
 
+func TestEvalTSX_VegaLiteSpec(t *testing.T) {
+	source := `
+export default (
+  <Dashboard name="Vega TSX" connection="db">
+    <Row>
+      <Chart name="Layered" chart="vega-lite" sql="SELECT 1 AS value" spec={{
+        data: { name: "dac" },
+        layer: [
+          { mark: "line", encoding: { y: { field: "value", type: "quantitative" } } },
+          { mark: "point", encoding: { y: { field: "value", type: "quantitative" } } },
+        ],
+      }} />
+    </Row>
+  </Dashboard>
+)
+`
+	d, err := evalTSX(source, "vega.dashboard.tsx", &tsxConfig{})
+	assertNoErr(t, err)
+
+	w := d.Rows[0].Widgets[0]
+	if w.Chart != "vega-lite" {
+		t.Fatalf("expected vega-lite chart, got %q", w.Chart)
+	}
+	data, ok := w.Spec["data"].(map[string]interface{})
+	if !ok || data["name"] != "dac" {
+		t.Fatalf("expected named dac data source, got %#v", w.Spec["data"])
+	}
+	layers, ok := w.Spec["layer"].([]interface{})
+	if !ok || len(layers) != 2 {
+		t.Fatalf("expected two Vega-Lite layers, got %#v", w.Spec["layer"])
+	}
+}
+
 func TestEvalTSX_ErrorNoDefaultExport(t *testing.T) {
 	source := `const x = 1`
 	_, err := evalTSX(source, "test.tsx", &tsxConfig{})
