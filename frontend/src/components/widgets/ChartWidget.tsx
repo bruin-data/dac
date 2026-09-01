@@ -10,7 +10,7 @@ import {
   ReferenceLine, ReferenceArea, ErrorBar,
 } from "recharts";
 import type { TreemapNode } from "recharts";
-import type { ColorScale, Widget, WidgetData } from "../../types/dashboard";
+import type { ColorScale, SliceStyle, Widget, WidgetData } from "../../types/dashboard";
 import { axisField, axisFields, buildAxisFormatter, valueField } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
 import { cellColor, resolveScale } from "./conditionalFormat";
@@ -143,7 +143,7 @@ interface TooltipPayloadEntry {
   value?: unknown;
 }
 
-function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue, valueFormatterFor }: {
+function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue, valueFormatterFor, nameFormatter }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
   label?: unknown;
@@ -152,6 +152,8 @@ function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick
   // Per-series formatter keyed by dataKey; used for dual-axis charts so each
   // row formats against its own axis. Falls back to valueFormatter.
   valueFormatterFor?: (dataKey: unknown) => (val: unknown) => string;
+  // Maps a payload entry's name for display (e.g. pie slice renames).
+  nameFormatter?: (name: unknown) => string;
 }) {
   if (!active || !payload?.length) return null;
   return (
@@ -160,7 +162,7 @@ function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick
       {payload.map((p, i) => (
         <div key={i} className="dac-tooltip-row">
           <span className="dac-tooltip-dot" style={{ background: p.color ?? p.fill }} />
-          <span className="dac-tooltip-name">{p.name ?? p.dataKey}</span>
+          <span className="dac-tooltip-name">{nameFormatter ? nameFormatter(p.name) : (p.name ?? p.dataKey)}</span>
           <span className="dac-tooltip-value">{(valueFormatterFor?.(p.dataKey) ?? valueFormatter)(p.value)}</span>
         </div>
       ))}
@@ -1031,6 +1033,7 @@ function FunnelChart({
   labelKey,
   valueKey,
   colors,
+  slices,
   tokens,
   height,
   horizontal = false,
@@ -1040,6 +1043,7 @@ function FunnelChart({
   labelKey: string;
   valueKey: string;
   colors: string[];
+  slices?: Record<string, SliceStyle>;
   tokens: Record<string, string>;
   height: number;
   horizontal?: boolean;
@@ -1069,6 +1073,10 @@ function FunnelChart({
     stepConv: i === 0 ? null : raw[i - 1].value > 0 ? (s.value / raw[i - 1].value) * 100 : 0,
     // Fade successive stages so depth reads without extra chrome.
     opacity: 1 - (i / Math.max(raw.length, 1)) * 0.55,
+    // Per-stage slices[label] override, else the single funnel colour.
+    color: slices?.[s.label]?.color || barColor,
+    // Renamed display name, else the raw label.
+    name: slices?.[s.label]?.label?.trim() || s.label,
   }));
 
   if (horizontal) {
@@ -1090,14 +1098,14 @@ function FunnelChart({
               <span
                 className="w-full truncate text-center text-[11px] font-medium leading-tight"
                 style={{ color: textPrimary }}
-                title={s.label}
+                title={s.name}
               >
-                {s.label}
+                {s.name}
               </span>
               <div className="flex w-full flex-1 items-center justify-center py-1">
                 <div
                   className="flex w-[72%] items-center justify-center rounded-[3px]"
-                  style={{ height: `${s.extent}%`, background: barColor, opacity: s.opacity }}
+                  style={{ height: `${s.extent}%`, background: s.color, opacity: s.opacity }}
                 >
                   <span
                     className="px-1 text-[11px] font-semibold tabular-nums text-white"
@@ -1138,9 +1146,9 @@ function FunnelChart({
             <span
               className="truncate text-[11px] font-medium"
               style={{ color: textPrimary }}
-              title={s.label}
+              title={s.name}
             >
-              {s.label}
+              {s.name}
             </span>
             <span className="shrink-0 text-[10px] tabular-nums" style={{ color: textMuted }}>
               {Math.round(s.pctOfTop)}%
@@ -1149,7 +1157,7 @@ function FunnelChart({
           <div className="mt-1 flex w-full justify-center">
             <div
               className="flex h-7 items-center justify-center rounded-[3px]"
-              style={{ width: `${s.extent}%`, background: barColor, opacity: s.opacity }}
+              style={{ width: `${s.extent}%`, background: s.color, opacity: s.opacity }}
             >
               <span
                 className="px-2 text-[11px] font-semibold tabular-nums text-white"
@@ -1229,6 +1237,11 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
   const seriesCurve = (field: string, own: boolean) => curveType(own ? (styleOf(field).curve ?? axisOf(field)?.curve) : widget.y?.curve);
   const seriesDash = (field: string, own: boolean) => dashArrayFor(own ? (styleOf(field).dash ?? axisOf(field)?.dash) : widget.y?.dash);
   const seriesColor = (field: string, i: number, own: boolean) => (own && styleOf(field).color) || colors[i % colors.length];
+  // Per-slice colour for label/value charts (pie/treemap/funnel), keyed by the
+  // slice's data label; falls back to the palette by position.
+  const sliceColor = (label: unknown, i: number) => widget.slices?.[String(label ?? "")]?.color || colors[i % colors.length];
+  // Display name for a slice: the slices[label].label rename, else the raw label.
+  const sliceLabel = (label: unknown) => widget.slices?.[String(label ?? "")]?.label?.trim() || String(label ?? "");
   const yDomain: [number, string] | undefined = widget.y?.beginAtZero ? [0, "auto"] : undefined;
   // Point markers: shown on sparse line/area series by default, hidden when
   // y.markers is false (dense series stay dotless to avoid clutter).
@@ -1466,13 +1479,16 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     }
 
     case "pie": {
+      const nameKey = widget.label || "label";
+      // Rename only at the display layer (label/legend/tooltip) so the underlying
+      // data is never mutated; Cells key colours off the raw label.
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <PieChart>
             <Pie
               data={chartData}
               dataKey={valueField(widget.value) || "value"}
-              nameKey={widget.label || "label"}
+              nameKey={nameKey}
               cx="50%"
               cy="45%"
               outerRadius={75}
@@ -1480,17 +1496,17 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               strokeWidth={0}
               isAnimationActive={false}
               label={({ name, percent }: { name?: string; percent?: number }) =>
-                `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`
+                `${sliceLabel(name)} ${((percent ?? 0) * 100).toFixed(0)}%`
               }
               labelLine={false}
               style={AXIS_STYLE}
             >
-              {chartData.map((_, i) => (
-                <Cell key={i} fill={colors[i % colors.length]} />
+              {chartData.map((row, i) => (
+                <Cell key={i} fill={sliceColor(row[nameKey], i)} />
               ))}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
+            <Tooltip content={<CustomTooltip nameFormatter={sliceLabel} />} />
+            <Legend wrapperStyle={AXIS_STYLE} iconSize={7} formatter={(value) => sliceLabel(value)} />
           </PieChart>
         </ResponsiveContainer>
       );
@@ -1629,6 +1645,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           labelKey={widget.label || "label"}
           valueKey={valueField(widget.value) || "value"}
           colors={colors}
+          slices={widget.slices}
           tokens={tokens}
           height={chartHeight}
           horizontal={widget.horizontal}
@@ -1784,9 +1801,9 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const labelKey = widget.label || "label";
       const valueKey = valueField(widget.value) || "value";
       const tmData = chartData.map((d, i) => ({
-        name: String(d[labelKey]),
+        name: sliceLabel(d[labelKey]),
         size: Number(d[valueKey]) || 0,
-        fill: colors[i % colors.length],
+        fill: sliceColor(d[labelKey], i),
       }));
       return (
         <ResponsiveContainer width="100%" height={240}>

@@ -456,7 +456,7 @@ Line/area (and combo) charts also accept these on `y`:
 - `curve` — chart-wide line interpolation: `smooth` | `straight` | `stepline`. Use `straight` for period totals so the line doesn't imply movement between points.
 - `dash` — chart-wide dash pattern every series inherits: `dotted`, `dashed`, or `long-dash` (omitted = solid).
 
-Per-series style overrides live in a **widget-level `series`** map (a sibling of `x`/`y`, not inside `y`), keyed by y-column: `series: { target: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` is optional and falls back to the chart-wide default (or the theme palette for colour). Store only genuine differences — a column with no entry inherits everything.
+Per-series style overrides live in a **widget-level `series`** map (a sibling of `x`/`y`, not inside `y`), keyed by y-column: `series: { target: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` is optional and falls back to the chart-wide default (or the theme palette for colour). Store only genuine differences — a column with no entry inherits everything. Label/value charts (`pie`/`treemap`/`funnel`) have no y-column series; style their **slices** with a sibling **`slices`** map keyed by the slice's data label: `slices: { Enterprise: { color: "#8B5CF6", label: "Enterprise (2026)" } }`. `color` overrides the palette; `label` renames the displayed slice. Both optional.
 
 Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{ field: ... }`.
 

@@ -135,15 +135,17 @@ type Widget struct {
 	ColorScale *ColorScale    `yaml:"colorScale,omitempty" json:"colorScale,omitempty"` // heatmap: custom color ramp, same keys as a table gradient
 	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`           // combo: which y series render as lines
 	// Series holds per-series line style overrides keyed by y-column: {column: {color, curve, dash}}.
-	Series   map[string]SeriesStyle `yaml:"series,omitempty" json:"series,omitempty"`
-	YMin     *BoundEncoding         `yaml:"yMin,omitempty" json:"yMin,omitempty"`         // xmr: min control limit column; line/bar/forest: CI lower bound (column or per-series map)
-	YMax     *BoundEncoding         `yaml:"yMax,omitempty" json:"yMax,omitempty"`         // xmr: max control limit column; line/bar/forest: CI upper bound (column or per-series map)
-	Open     string                 `yaml:"open,omitempty" json:"open,omitempty"`         // candlestick: open price column
-	High     string                 `yaml:"high,omitempty" json:"high,omitempty"`         // candlestick: high price column
-	Low      string                 `yaml:"low,omitempty" json:"low,omitempty"`           // candlestick: low price column
-	Close    string                 `yaml:"close,omitempty" json:"close,omitempty"`       // candlestick: close price column
-	RefLines []RefLine              `yaml:"refLines,omitempty" json:"refLines,omitempty"` // reference guide lines (axis + value + optional label)
-	RefBands []RefBand              `yaml:"refBands,omitempty" json:"refBands,omitempty"` // shaded reference bands (axis + from/to + optional label)
+	Series map[string]SeriesStyle `yaml:"series,omitempty" json:"series,omitempty"`
+	// Slices holds per-slice style overrides for label/value charts (pie/treemap/funnel), keyed by slice label: {label: {color}}.
+	Slices   map[string]SliceStyle `yaml:"slices,omitempty" json:"slices,omitempty"`
+	YMin     *BoundEncoding        `yaml:"yMin,omitempty" json:"yMin,omitempty"`         // xmr: min control limit column; line/bar/forest: CI lower bound (column or per-series map)
+	YMax     *BoundEncoding        `yaml:"yMax,omitempty" json:"yMax,omitempty"`         // xmr: max control limit column; line/bar/forest: CI upper bound (column or per-series map)
+	Open     string                `yaml:"open,omitempty" json:"open,omitempty"`         // candlestick: open price column
+	High     string                `yaml:"high,omitempty" json:"high,omitempty"`         // candlestick: high price column
+	Low      string                `yaml:"low,omitempty" json:"low,omitempty"`           // candlestick: low price column
+	Close    string                `yaml:"close,omitempty" json:"close,omitempty"`       // candlestick: close price column
+	RefLines []RefLine             `yaml:"refLines,omitempty" json:"refLines,omitempty"` // reference guide lines (axis + value + optional label)
+	RefBands []RefBand             `yaml:"refBands,omitempty" json:"refBands,omitempty"` // shaded reference bands (axis + from/to + optional label)
 
 	// Table fields
 	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
@@ -552,6 +554,13 @@ type SeriesStyle struct {
 	Color string `yaml:"color,omitempty" json:"color,omitempty"` // #hex; unset uses the palette
 	Curve string `yaml:"curve,omitempty" json:"curve,omitempty"` // smooth | straight | stepline (falls back to y.curve)
 	Dash  string `yaml:"dash,omitempty" json:"dash,omitempty"`   // solid | dotted | dashed | long-dash (falls back to y.dash)
+}
+
+// SliceStyle is a per-slice style override for label/value charts, grouped under
+// Widget.Slices and keyed by the slice's displayed label.
+type SliceStyle struct {
+	Color string `yaml:"color,omitempty" json:"color,omitempty"` // #hex; unset uses the palette
+	Label string `yaml:"label,omitempty" json:"label,omitempty"` // display name; unset uses the raw data label
 }
 
 type AxisEncoding struct {
