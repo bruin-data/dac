@@ -133,6 +133,8 @@ SQL-backed example:
 
 Per-series style overrides live in a **widget-level `series`** map (a sibling of `x`/`y`, not inside `y`), keyed by y-column: `series: { revenue: { color: "#EC4899", curve: straight, dash: dashed } }`. Each of `color`/`curve`/`dash` falls back to the chart-wide default (or palette for colour). Store only genuine differences.
 
+Label/value charts (`pie`, `treemap`, `funnel`) have no y-column series — style their **slices** with a widget-level **`slices`** map keyed by the slice's data label: `slices: { Enterprise: { color: "#8B5CF6", label: "Enterprise (2026)" } }`. `color` overrides the palette; `label` renames the displayed slice. Both optional.
+
 Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, and `dash` (on `y`) plus the widget-level `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
 
 ### Second value axis (`y2`)
@@ -211,6 +213,7 @@ Common chart fields:
 | `y` | object | Y-axis encoding (`field` may list several series columns; supports `beginAtZero`, `markers`, `curve`, `dash`, and per-series `series` overrides for line/area — see [Axis encoding](#axis-encoding)) |
 | `label` | string | Label column for pie, funnel, and treemap charts |
 | `value` | object | Value encoding (`{ field: ... }`) for pie, funnel, sankey, heatmap, calendar, treemap, and gauge charts |
+| `slices` | object | Per-slice style overrides for pie/treemap/funnel, keyed by slice label: `{ Enterprise: { color: "#8B5CF6", label: "Enterprise (2026)" } }` |
 | `source` | string | Source node column for sankey charts |
 | `target` | string | Target/max column for gauge charts (also sankey target node) |
 | `open` | string | Open column for candlestick charts |

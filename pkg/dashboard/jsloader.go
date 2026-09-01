@@ -542,6 +542,7 @@ func vnodeToWidget(n *vnode) Widget {
 		ColorScale: asColorScale(n.Props["colorScale"]),
 		Lines:      asStringSlice(n.Props["lines"]),
 		Series:     asSeriesStyles(n.Props["series"]),
+		Slices:     asSliceStyles(n.Props["slices"]),
 		YMin:       asBoundEncoding(n.Props["yMin"]),
 		YMax:       asBoundEncoding(n.Props["yMax"]),
 		RefLines:   asRefLines(n.Props["refLines"]),
@@ -807,6 +808,25 @@ func asSeriesStyles(v interface{}) map[string]SeriesStyle {
 			Curve: asString(sm["curve"]),
 			Dash:  asString(sm["dash"]),
 		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func asSliceStyles(v interface{}) map[string]SliceStyle {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	out := make(map[string]SliceStyle, len(m))
+	for k, item := range m {
+		sm, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out[k] = SliceStyle{Color: asString(sm["color"]), Label: asString(sm["label"])}
 	}
 	if len(out) == 0 {
 		return nil

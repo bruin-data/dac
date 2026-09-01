@@ -355,6 +355,9 @@
         "series": {
           "$ref": "#/$defs/seriesStyles"
         },
+        "slices": {
+          "$ref": "#/$defs/sliceStyles"
+        },
         "yMin": {
           "$ref": "#/$defs/boundEncoding"
         },
@@ -657,6 +660,18 @@
           "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
           "curve": { "enum": ["smooth", "straight", "stepline"] },
           "dash": { "enum": ["solid", "dotted", "dashed", "long-dash"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "sliceStyles": {
+      "description": "Per-slice style overrides for label/value charts (pie/treemap/funnel), keyed by the slice's data label: {label: {color, label}}. The nested `label` renames the slice's displayed name.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+          "label": { "type": "string" }
         },
         "additionalProperties": false
       }

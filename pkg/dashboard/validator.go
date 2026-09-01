@@ -438,6 +438,13 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		}
 	}
 
+	// Per-slice overrides (widget.slices) for label/value charts, keyed by label.
+	for label, st := range w.Slices {
+		if st.Color != "" && !isHexColor(st.Color) {
+			errs = append(errs, fmt.Sprintf("%s: slices[%q].color must be a hex colour like #EC4899", prefix, label))
+		}
+	}
+
 	// Second value axis (right side). Only cartesian composed charts render two
 	// y axes; a right-axis column must be numeric, non-empty, and disjoint from
 	// the left axis. Stacking across two axes is undefined, so reject the combo.

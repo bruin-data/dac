@@ -97,6 +97,7 @@ export interface Widget {
   colorScale?: ColorScale; // heatmap: color ramp, same keys as a table gradient
   lines?: string[];    // combo: which y series are lines
   series?: Record<string, SeriesStyle>; // per-series line style overrides, keyed by y-column
+  slices?: Record<string, SliceStyle>; // per-slice style overrides (pie/treemap/funnel), keyed by slice label
   // xmr control limit column; line/bar/forest CI bound — a column name, or a
   // per-series map { series column: bound column } for multi-line CI bands.
   yMin?: string | Record<string, string>;
@@ -229,6 +230,12 @@ export interface SeriesStyle {
   color?: string; // #hex; unset uses the palette
   curve?: "smooth" | "straight" | "stepline"; // falls back to y.curve
   dash?: "solid" | "dotted" | "dashed" | "long-dash"; // falls back to y.dash
+}
+
+/** Per-slice style override, grouped under widget-level `slices` (keyed by slice label). */
+export interface SliceStyle {
+  color?: string; // #hex; unset uses the palette
+  label?: string; // display name; unset uses the raw data label
 }
 
 /** Encoding for the color channel: the category column that splits y into series. */
