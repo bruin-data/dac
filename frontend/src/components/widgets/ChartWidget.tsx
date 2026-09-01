@@ -143,7 +143,7 @@ interface TooltipPayloadEntry {
   value?: unknown;
 }
 
-function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue, valueFormatterFor }: {
+function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick, valueFormatter = formatTooltipValue, valueFormatterFor, nameFormatter }: {
   active?: boolean;
   payload?: TooltipPayloadEntry[];
   label?: unknown;
@@ -152,6 +152,8 @@ function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick
   // Per-series formatter keyed by dataKey; used for dual-axis charts so each
   // row formats against its own axis. Falls back to valueFormatter.
   valueFormatterFor?: (dataKey: unknown) => (val: unknown) => string;
+  // Maps a payload entry's name for display (e.g. pie slice renames).
+  nameFormatter?: (name: unknown) => string;
 }) {
   if (!active || !payload?.length) return null;
   return (
@@ -160,7 +162,7 @@ function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick
       {payload.map((p, i) => (
         <div key={i} className="dac-tooltip-row">
           <span className="dac-tooltip-dot" style={{ background: p.color ?? p.fill }} />
-          <span className="dac-tooltip-name">{p.name ?? p.dataKey}</span>
+          <span className="dac-tooltip-name">{nameFormatter ? nameFormatter(p.name) : (p.name ?? p.dataKey)}</span>
           <span className="dac-tooltip-value">{(valueFormatterFor?.(p.dataKey) ?? valueFormatter)(p.value)}</span>
         </div>
       ))}
@@ -1478,16 +1480,15 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
 
     case "pie": {
       const nameKey = widget.label || "label";
-      // Display name in a dedicated key so it never clobbers the value column
-      // (label and value can be the same column); Cells key colours off the raw label.
-      const pieData = chartData.map((d) => ({ ...d, __sliceName: sliceLabel(d[nameKey]) }));
+      // Rename only at the display layer (label/legend/tooltip) so the underlying
+      // data is never mutated; Cells key colours off the raw label.
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <PieChart>
             <Pie
-              data={pieData}
+              data={chartData}
               dataKey={valueField(widget.value) || "value"}
-              nameKey="__sliceName"
+              nameKey={nameKey}
               cx="50%"
               cy="45%"
               outerRadius={75}
@@ -1495,7 +1496,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               strokeWidth={0}
               isAnimationActive={false}
               label={({ name, percent }: { name?: string; percent?: number }) =>
-                `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`
+                `${sliceLabel(name)} ${((percent ?? 0) * 100).toFixed(0)}%`
               }
               labelLine={false}
               style={AXIS_STYLE}
@@ -1504,8 +1505,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 <Cell key={i} fill={sliceColor(row[nameKey], i)} />
               ))}
             </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
+            <Tooltip content={<CustomTooltip nameFormatter={sliceLabel} />} />
+            <Legend wrapperStyle={AXIS_STYLE} iconSize={7} formatter={(value) => sliceLabel(value)} />
           </PieChart>
         </ResponsiveContainer>
       );
