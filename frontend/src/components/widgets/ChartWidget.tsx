@@ -1478,15 +1478,16 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
 
     case "pie": {
       const nameKey = widget.label || "label";
-      // Rename slices for display; Cells still key colours off the raw label.
-      const pieData = chartData.map((d) => ({ ...d, [nameKey]: sliceLabel(d[nameKey]) }));
+      // Display name in a dedicated key so it never clobbers the value column
+      // (label and value can be the same column); Cells key colours off the raw label.
+      const pieData = chartData.map((d) => ({ ...d, __sliceName: sliceLabel(d[nameKey]) }));
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <PieChart>
             <Pie
               data={pieData}
               dataKey={valueField(widget.value) || "value"}
-              nameKey={nameKey}
+              nameKey="__sliceName"
               cx="50%"
               cy="45%"
               outerRadius={75}
