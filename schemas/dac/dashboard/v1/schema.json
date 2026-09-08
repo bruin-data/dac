@@ -198,7 +198,7 @@
           "type": "string"
         },
         "type": {
-          "enum": ["metric", "chart", "table", "text", "divider", "image"]
+          "enum": ["metric", "chart", "table", "pivot_table", "text", "divider", "image"]
         },
         "col": {
           "type": "integer",
@@ -390,6 +390,10 @@
             "$ref": "#/$defs/tableColumn"
           }
         },
+        "pivot": {
+          "$ref": "#/$defs/pivot",
+          "description": "pivot_table widgets: reshape the flat result set into a pivot table, computed client-side. rows/columns are nested group-by levels; columns' distinct values spread across the grid; values are the aggregated measures; heatmap colours the value cells by a gradient (cohort tables). Row filtering is the dashboard's job."
+        },
         "content": {
           "type": "string"
         },
@@ -403,7 +407,17 @@
       "patternProperties": {
         "^x-": true
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": ["type"],
+            "properties": { "type": { "const": "pivot_table" } }
+          },
+          "then": { "required": ["pivot"] },
+          "else": { "not": { "required": ["pivot"] } }
+        }
+      ]
     },
     "dimensionRef": {
       "type": "object",
@@ -495,6 +509,73 @@
             { "type": "array", "items": { "$ref": "#/$defs/formatLayer" } }
           ]
         }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "pivot": {
+      "type": "object",
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pivotField" }
+        },
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pivotField" }
+        },
+        "values": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pivotValue" }
+        },
+        "heatmap": {
+          "type": "boolean",
+          "description": "colour the value cells by a red→amber→green gradient over their range (cohort/retention tables)"
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "pivotField": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "order": { "enum": ["asc", "desc"] },
+        "showTotals": { "type": "boolean" }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "pivotValue": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "summarize": {
+          "enum": [
+            "sum",
+            "counta",
+            "count",
+            "countunique",
+            "average",
+            "max",
+            "min",
+            "median",
+            "product",
+            "stdev",
+            "stdevp",
+            "var",
+            "varp"
+          ]
+        },
+        "label": { "type": "string" }
       },
       "patternProperties": {
         "^x-": true

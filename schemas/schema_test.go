@@ -65,6 +65,25 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard pivot table",
+			schemaID: DashboardV1ID,
+			yaml: `name: Pivot
+rows:
+  - widgets:
+      - name: Sales
+        type: pivot_table
+        sql: SELECT region, product, sales FROM orders
+        pivot:
+          rows:
+            - { field: region, order: asc, showTotals: true }
+          columns:
+            - { field: product }
+          values:
+            - { field: sales, summarize: sum, label: Total Sales }
+          heatmap: true
+`,
+		},
+		{
 			name:     "theme",
 			schemaID: ThemeV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/theme/v1
@@ -143,6 +162,33 @@ rows:
 			schemaID: ThemeV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/theme/v1
 name: corporate
+`,
+		},
+		{
+			name:     "pivot on non-pivot_table widget",
+			schemaID: DashboardV1ID,
+			yaml: `name: Pivot On Table
+rows:
+  - widgets:
+      - name: Sales
+        type: table
+        sql: SELECT region, sales FROM orders
+        pivot:
+          rows:
+            - { field: region }
+          values:
+            - { field: sales }
+`,
+		},
+		{
+			name:     "pivot_table widget without pivot",
+			schemaID: DashboardV1ID,
+			yaml: `name: Pivot Missing
+rows:
+  - widgets:
+      - name: Sales
+        type: pivot_table
+        sql: SELECT region, sales FROM orders
 `,
 		},
 	}

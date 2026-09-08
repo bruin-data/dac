@@ -411,6 +411,152 @@ func TestValidate_DualAxisRejectsColor(t *testing.T) {
 	assertValidationContains(t, err, "y2 cannot be combined with color")
 }
 
+func TestValidate_PivotValid(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region, product, sales FROM orders",
+				Pivot: &PivotConfig{
+					Rows:    []PivotField{{Field: "region", Order: "asc", ShowTotals: true}},
+					Columns: []PivotField{{Field: "product"}},
+					Values:  []PivotValue{{Field: "sales", Summarize: "sum", Label: "Total Sales"}},
+					Heatmap: true,
+				},
+			}}},
+		},
+	}
+	assertNoErr(t, Validate(d))
+}
+
+func TestValidate_PivotOnlyOnTables(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeChart, Chart: "line", SQL: "SELECT 1",
+				X:     &AxisEncoding{Field: "month"},
+				Y:     &AxisEncoding{Field: []string{"revenue"}},
+				Pivot: &PivotConfig{Values: []PivotValue{{Field: "revenue"}}},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "pivot is only valid on pivot_table widgets")
+}
+
+func TestValidate_PivotRequiresValues(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region FROM orders",
+				Pivot: &PivotConfig{Rows: []PivotField{{Field: "region"}}},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "pivot.values must list at least one value")
+}
+
+func TestValidate_PivotFieldOnBothAxes(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region, sales FROM orders",
+				Pivot: &PivotConfig{
+					Rows:    []PivotField{{Field: "region"}},
+					Columns: []PivotField{{Field: "region"}},
+					Values:  []PivotValue{{Field: "sales"}},
+				},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "can't be in both rows and columns")
+}
+
+func TestValidate_PivotDuplicateFieldInAxis(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region, sales FROM orders",
+				Pivot: &PivotConfig{
+					Rows:   []PivotField{{Field: "region"}, {Field: "region"}},
+					Values: []PivotValue{{Field: "sales"}},
+				},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "is listed more than once")
+}
+
+func TestValidate_PivotRequiresPivotType(t *testing.T) {
+	// A pivot config on a plain table is rejected — it must be a pivot_table.
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{{Widgets: []Widget{{
+			Name: "w", Type: WidgetTypeTable, SQL: "SELECT region, sales FROM orders",
+			Pivot: &PivotConfig{Values: []PivotValue{{Field: "sales"}}},
+		}}}},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "pivot is only valid on pivot_table widgets")
+}
+
+func TestValidate_PivotTableNeedsPivot(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{{Widgets: []Widget{{
+			Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region FROM orders",
+		}}}},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "pivot_table widgets need a pivot")
+}
+
+func TestValidate_PivotInvalidSummarize(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT sales FROM orders",
+				Pivot: &PivotConfig{Values: []PivotValue{{Field: "sales", Summarize: "total"}}},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "summarize \"total\" is invalid")
+}
+
+func TestValidate_PivotInvalidOrder(t *testing.T) {
+	d := &Dashboard{
+		Name: "test",
+		Rows: []Row{
+			{Widgets: []Widget{{
+				Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region, sales FROM orders",
+				Pivot: &PivotConfig{
+					Rows:   []PivotField{{Field: "region", Order: "ascending"}},
+					Values: []PivotValue{{Field: "sales"}},
+				},
+			}}},
+		},
+	}
+	err := Validate(d)
+	assertErr(t, err)
+	assertValidationContains(t, err, "pivot.rows[0].order must be asc or desc")
+}
+
 func TestValidate_FilterTypes(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",
@@ -595,7 +741,7 @@ func TestValidate_InlineDataInvalidOnText(t *testing.T) {
 	}
 	err := Validate(d)
 	assertErr(t, err)
-	assertValidationContains(t, err, "data is only valid on metric, chart, or table widgets")
+	assertValidationContains(t, err, "data is only valid on metric, chart, table, or pivot_table widgets")
 }
 
 func TestValidate_InlineDataEmptyColumns(t *testing.T) {

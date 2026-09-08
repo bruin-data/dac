@@ -1,0 +1,52 @@
+name: Pivot Table
+description: >
+  Pivot tables from inline data — nested rows/columns, subtotals, grand totals,
+  and a heatmap-coloured cohort retention table.
+connection: local_duckdb
+
+rows:
+  # Region › Month × Product, summed, with subtotals + grand total.
+  - widgets:
+      - name: Sales by Region / Month × Product
+        type: pivot_table
+        col: 12
+        data:
+          columns: [region, product, month, sales]
+          rows:
+            - [East, Shoes, Jan, 100]
+            - [West, Shoes, Jan, 80]
+            - [East, Hats, Jan, 40]
+            - [East, Shoes, Feb, 120]
+            - [West, Hats, Feb, 60]
+        pivot:
+          rows:
+            - { field: region, showTotals: true }
+            - { field: month, showTotals: true }
+          columns:
+            - { field: product, showTotals: true }
+          values:
+            - { field: sales, summarize: sum }
+
+  # Cohort retention: rows = signup cohort, columns = months since signup,
+  # values = active users, heatmap coloured so retention decay is visible.
+  - widgets:
+      - name: Retention cohort
+        type: pivot_table
+        col: 12
+        data:
+          columns: [cohort, month_since, active_users]
+          rows:
+            - [Jan, 0, 100]
+            - [Jan, 1, 62]
+            - [Jan, 2, 45]
+            - [Jan, 3, 38]
+            - [Feb, 0, 120]
+            - [Feb, 1, 78]
+            - [Feb, 2, 60]
+            - [Mar, 0, 90]
+            - [Mar, 1, 50]
+        pivot:
+          rows: [{ field: cohort }]
+          columns: [{ field: month_since }]
+          values: [{ field: active_users, summarize: sum }]
+          heatmap: true

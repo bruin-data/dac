@@ -101,7 +101,7 @@ rows:
         col: 3
 ```
 
-Widget types are `metric`, `chart`, `table`, `text`, `divider`, and `image`.
+Widget types are `metric`, `chart`, `table`, `pivot_table`, `text`, `divider`, and `image`.
 
 A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
 
@@ -159,6 +159,19 @@ rows:
             format:                                                     # a condition wins over the gradient base below
               - { if: is_equal_to, value: 0, backgroundColor: red, bold: true }
               - { backgroundColor: [red, white, green] }                # base, last (always matches)
+```
+
+**Pivot tables.** A `pivot_table` widget reshapes its flat result set into a spreadsheet-style pivot, computed client-side. `rows`/`columns` are nested group-by levels (each item: `field`, `order` `asc`/`desc`, `showTotals` — outer levels add per-group subtotals, the innermost level adds the Grand Total row/column), `values` are the aggregated measures (each item: `field`, `summarize` default `sum`, `label`), and `heatmap: true` colours the value cells by a gradient (cohort tables). `summarize` is one of: `sum`, `counta`, `count`, `countunique`, `average`, `max`, `min`, `median`, `product`, `stdev`, `stdevp`, `var`, `varp`. `pivot` is only valid on `pivot_table` widgets (which require a pivot), `values` must be non-empty, and a field can't be in both `rows` and `columns`. Row filtering is the dashboard's job — use the dashboard's `filters`.
+
+```yaml
+- name: Sales by Region and Product
+  type: table
+  sql: SELECT region, product, sales FROM orders
+  pivot:
+    rows: [ { field: region, showTotals: true } ]
+    columns: [ { field: product } ]
+    values: [ { field: sales, summarize: sum, label: Total Sales } ]
+    filters: [ { field: region, values: [North, South] } ]
 ```
 
 ## Filters

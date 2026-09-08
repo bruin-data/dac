@@ -14,12 +14,13 @@ import (
 
 // Widget type constants.
 const (
-	WidgetTypeMetric  = "metric"
-	WidgetTypeChart   = "chart"
-	WidgetTypeTable   = "table"
-	WidgetTypeText    = "text"
-	WidgetTypeDivider = "divider"
-	WidgetTypeImage   = "image"
+	WidgetTypeMetric     = "metric"
+	WidgetTypeChart      = "chart"
+	WidgetTypeTable      = "table"
+	WidgetTypePivotTable = "pivot_table"
+	WidgetTypeText       = "text"
+	WidgetTypeDivider    = "divider"
+	WidgetTypeImage      = "image"
 )
 
 // Dashboard represents a complete dashboard definition loaded from YAML.
@@ -149,6 +150,9 @@ type Widget struct {
 
 	// Table fields
 	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
+	// Pivot turns a table's flat result set into a spreadsheet-style pivot,
+	// computed and rendered client-side. Table widgets only — see PivotConfig.
+	Pivot *PivotConfig `yaml:"pivot,omitempty" json:"pivot,omitempty"`
 
 	// Text fields
 	Content string `yaml:"content,omitempty" json:"content,omitempty"`
@@ -224,6 +228,29 @@ type TableColumn struct {
 	Hidden bool          `yaml:"hidden,omitempty" json:"hidden,omitempty"` // keep the column in the result (for cross-column rules / like) but don't render it
 	Align  string        `yaml:"align,omitempty" json:"align,omitempty"`   // text alignment override: left | center | right (applies to the header and body cells)
 	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered conditional-format style layers; first match wins
+}
+
+// PivotConfig reshapes a pivot_table widget's flat result into a pivot table.
+// Heatmap, when set, colours the value cells by a gradient (cohort tables).
+type PivotConfig struct {
+	Rows    []PivotField `yaml:"rows,omitempty" json:"rows,omitempty"`
+	Columns []PivotField `yaml:"columns,omitempty" json:"columns,omitempty"`
+	Values  []PivotValue `yaml:"values,omitempty" json:"values,omitempty"`
+	Heatmap bool         `yaml:"heatmap,omitempty" json:"heatmap,omitempty"`
+}
+
+// PivotField is one nested group-by level (rows or columns axis).
+type PivotField struct {
+	Field      string `yaml:"field" json:"field"`
+	Order      string `yaml:"order,omitempty" json:"order,omitempty"` // asc | desc (default asc)
+	ShowTotals bool   `yaml:"showTotals,omitempty" json:"showTotals,omitempty"`
+}
+
+// PivotValue is an aggregated measure.
+type PivotValue struct {
+	Field     string `yaml:"field" json:"field"`
+	Summarize string `yaml:"summarize,omitempty" json:"summarize,omitempty"` // default sum; see validPivotAggregations
+	Label     string `yaml:"label,omitempty" json:"label,omitempty"`
 }
 
 // UnmarshalYAML makes a column's `format` polymorphic for backward compatibility.

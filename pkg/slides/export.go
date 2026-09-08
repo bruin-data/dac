@@ -215,7 +215,7 @@ func widgetRequests(ctx context.Context, driveSvc *driveapi.Service, slideID str
 				}
 			}
 
-		case dashboard.WidgetTypeTable:
+		case dashboard.WidgetTypeTable, dashboard.WidgetTypePivotTable:
 			reqs = append(reqs, tableReqs(prefix, slideID, &w, data, x, padY, wWidth)...)
 
 		case dashboard.WidgetTypeText:

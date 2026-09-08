@@ -7,7 +7,7 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Display name |
-| `type` | string | Yes | `metric`, `chart`, `table`, `text`, `image`, or `divider` |
+| `type` | string | Yes | `metric`, `chart`, `table`, `pivot_table`, `text`, `image`, or `divider` |
 | `col` | integer | No | Column span from 1 to 12 |
 | `description` | string | No | Optional tooltip or subtitle |
 
@@ -371,6 +371,49 @@ Table column fields:
 | `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
 | `format` | string \| object | Value display and conditional coloring, see below |
+
+### Pivot tables
+
+A `pivot_table` widget reshapes its flat result set into a spreadsheet-style
+pivot table, computed and rendered client-side (the query is unchanged — the
+pivot runs on the returned rows). **rows** are the group-by, **columns** spread
+distinct values across the grid, **values** are the aggregated measures, and
+**heatmap** colours the value cells by a gradient (cohort tables). Row filtering
+is the dashboard's job — use the dashboard's `filters`, which feed the SQL.
+
+```yaml
+- name: Sales by Region and Product
+  type: pivot_table
+  sql: SELECT region, product, sales FROM orders
+  pivot:
+    rows:
+      - { field: region, order: asc, showTotals: true }   # group-by (outer→inner); outer showTotals → subtotals, innermost → Grand Total row
+    columns:
+      - { field: product }                                # distinct products become columns (+ a Grand Total column with showTotals)
+    values:
+      - { field: sales, summarize: sum, label: Total Sales }  # aggregated measure
+    heatmap: true                                         # colour the value cells by a gradient
+```
+
+`pivot` sub-keys (all optional individually, but `values` must be non-empty for
+the pivot to do anything):
+
+| Sub-key | Item fields | Description |
+|---------|-------------|-------------|
+| `rows` | `field`, `order`, `showTotals` | Nested group-by (outer→inner). An **outer** level's `showTotals` adds a subtotal row per group (e.g. `East Total`); the **innermost** level's `showTotals` adds the overall Grand Total row. |
+| `columns` | `field`, `order`, `showTotals` | Nested; each level's distinct values become columns. An **outer** level's `showTotals` adds subtotal columns; the **innermost** level's adds the Grand Total column. |
+| `values` | `field`, `summarize`, `label` | Aggregated measures. `summarize` defaults to `sum`; `label` overrides the header. |
+| `heatmap` | `true` | Colour the leaf value cells by a red→amber→green gradient over their range (cohort tables). |
+
+For `rows`/`columns` items: `order` is `asc` or `desc` (default `asc`).
+All `field` values reference columns in the query result set, the same namespace
+`columns` uses. `pivot` is only valid on `type: pivot_table` widgets, which require
+a pivot. A field can appear only once across `rows` and `columns` — not twice on an
+axis, and not on both (that produces a near-empty diagonal).
+
+`summarize` is one of exactly these 13 aggregations: `sum`, `counta`, `count`,
+`countunique`, `average`, `max`, `min`, `median`, `product`, `stdev`, `stdevp`,
+`var`, `varp`.
 
 ## Conditional formatting
 

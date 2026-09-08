@@ -192,6 +192,16 @@ function matchLayer(layer: FormatLayer, raw: unknown, lookup: (column: string) =
   return CONDITIONS[layer.if]?.(raw, value) ?? false;
 }
 
+// Shared operator predicate for CF and pivot filter-by-condition. `operand` is a
+// scalar, or [lo, hi] for between ops; unused for arity-0 ops.
+export function matchesCondition(op: string | undefined, cell: unknown, operand: unknown): boolean {
+  if (!op) return true;
+  if (op === "is_empty") return isEmpty(cell);
+  if (op === "is_not_empty") return !isEmpty(cell);
+  if (isEmpty(cell)) return false;
+  return CONDITIONS[op]?.(cell, operand) ?? false;
+}
+
 function applyTextStyles(style: CSSProperties, s: FormatLayer): void {
   if (s.bold) style.fontWeight = 600;
   if (s.italic) style.fontStyle = "italic";
