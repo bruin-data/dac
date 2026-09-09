@@ -218,6 +218,11 @@ func widgetRequests(ctx context.Context, driveSvc *driveapi.Service, slideID str
 		case dashboard.WidgetTypeTable:
 			reqs = append(reqs, tableReqs(prefix, slideID, &w, data, x, padY, wWidth)...)
 
+		case dashboard.WidgetTypePivotTable:
+			// The pivot reshape runs client-side only; the server has just the flat
+			// query result, so rendering it here would produce an unpivoted (and
+			// misleading) table. Skip pivot_table widgets in the slide export.
+
 		case dashboard.WidgetTypeText:
 			reqs = append(reqs, textContentReqs(prefix, slideID, &w, x, padY, wWidth)...)
 		}

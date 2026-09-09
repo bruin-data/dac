@@ -198,7 +198,7 @@
           "type": "string"
         },
         "type": {
-          "enum": ["metric", "chart", "table", "text", "divider", "image"]
+          "enum": ["metric", "chart", "table", "pivot_table", "text", "divider", "image"]
         },
         "col": {
           "type": "integer",
@@ -390,6 +390,10 @@
             "$ref": "#/$defs/tableColumn"
           }
         },
+        "pivot": {
+          "$ref": "#/$defs/pivot",
+          "description": "pivot_table widgets: reshape the flat result set into a pivot table, computed client-side. rows/columns are nested group-by levels; columns' distinct values spread across the grid; values are the aggregated measures. A value with a `format` list colours its own cells (the same conditional-format layers as a table column, scaled per value; cohort tables). Row filtering is the dashboard's job."
+        },
         "content": {
           "type": "string"
         },
@@ -403,7 +407,17 @@
       "patternProperties": {
         "^x-": true
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": ["type"],
+            "properties": { "type": { "const": "pivot_table" } }
+          },
+          "then": { "required": ["pivot"] },
+          "else": { "not": { "required": ["pivot"] } }
+        }
+      ]
     },
     "dimensionRef": {
       "type": "object",
@@ -492,8 +506,81 @@
         "format": {
           "oneOf": [
             { "type": "string" },
-            { "type": "array", "items": { "$ref": "#/$defs/formatLayer" } }
+            {
+              "type": "array",
+              "items": { "allOf": [{ "$ref": "#/$defs/formatLayer" }, { "properties": { "scaleBy": false } }] }
+            }
           ]
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "pivot": {
+      "type": "object",
+      "required": ["values"],
+      "properties": {
+        "rows": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pivotField" }
+        },
+        "columns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pivotField" }
+        },
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/pivotValue" }
+        }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "pivotField": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "order": { "enum": ["asc", "desc"] },
+        "showTotals": { "type": "boolean" }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "pivotValue": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "summarize": {
+          "enum": [
+            "sum",
+            "counta",
+            "count",
+            "countunique",
+            "average",
+            "max",
+            "min",
+            "median",
+            "product",
+            "stdev",
+            "stdevp",
+            "var",
+            "varp"
+          ]
+        },
+        "label": { "type": "string" },
+        "format": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/formatLayer" },
+          "description": "conditional-format layers applied to this value's leaf cells (same as a table column, scaled per value); backgroundColor may be a single colour or a low→high gradient array"
         }
       },
       "patternProperties": {
@@ -541,7 +628,11 @@
         "bold": { "type": "boolean" },
         "italic": { "type": "boolean" },
         "underline": { "type": "boolean" },
-        "strikethrough": { "type": "boolean" }
+        "strikethrough": { "type": "boolean" },
+        "scaleBy": {
+          "enum": ["all", "row", "column"],
+          "description": "pivot only: normalise this gradient over the whole grid (all, default), each row, or each column"
+        }
       },
       "patternProperties": {
         "^x-": true

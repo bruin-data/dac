@@ -74,6 +74,12 @@ func Validate(d *Dashboard) error {
 				// Table widgets just need a query source.
 				errs = append(errs, validateQuerySource(prefix, &w, d)...)
 				validateTableColumns(prefix, &w, &errs)
+			case WidgetTypePivotTable:
+				errs = append(errs, validateQuerySource(prefix, &w, d)...)
+				validateTableColumns(prefix, &w, &errs)
+				if w.Pivot == nil {
+					errs = append(errs, fmt.Sprintf("%s: pivot_table widgets need a pivot", prefix))
+				}
 			case WidgetTypeText:
 				if w.Content == "" {
 					errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
@@ -87,7 +93,7 @@ func Validate(d *Dashboard) error {
 			case "":
 				// Already reported above.
 			default:
-				errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, text, divider, or image)", prefix, w.Type))
+				errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, pivot_table, text, divider, or image)", prefix, w.Type))
 			}
 
 			if len(w.Spec) > 0 && (w.Type != WidgetTypeChart || w.Chart != "vega-lite") {
@@ -95,6 +101,8 @@ func Validate(d *Dashboard) error {
 			}
 
 			errs = append(errs, validateInlineData(prefix, &w)...)
+
+			validatePivot(prefix, &w, &errs)
 
 			if w.Col < 0 || w.Col > 12 {
 				errs = append(errs, fmt.Sprintf("%s: col must be between 1 and 12, got %d", prefix, w.Col))
@@ -187,9 +195,9 @@ func validateInlineData(prefix string, w *Widget) []string {
 	var errs []string
 
 	switch w.Type {
-	case WidgetTypeMetric, WidgetTypeChart, WidgetTypeTable:
+	case WidgetTypeMetric, WidgetTypeChart, WidgetTypeTable, WidgetTypePivotTable:
 	default:
-		return append(errs, fmt.Sprintf("%s: data is only valid on metric, chart, or table widgets", prefix))
+		return append(errs, fmt.Sprintf("%s: data is only valid on metric, chart, table, or pivot_table widgets", prefix))
 	}
 
 	if w.SQL != "" || w.QueryRef != "" || w.IsSemantic() {
@@ -683,6 +691,69 @@ var validFormatOps = map[string]bool{
 	CondIsBetween: true, CondIsNotBetween: true,
 }
 
+// validPivotAggregations are the allowed pivot summarize functions.
+var validPivotAggregations = map[string]bool{
+	"sum": true, "counta": true, "count": true, "countunique": true,
+	"average": true, "max": true, "min": true, "median": true,
+	"product": true, "stdev": true, "stdevp": true, "var": true, "varp": true,
+}
+
+// validatePivot checks a pivot_table widget's pivot config.
+func validatePivot(prefix string, w *Widget, errs *[]string) {
+	p := w.Pivot
+	if p == nil {
+		return
+	}
+	if w.Type != WidgetTypePivotTable {
+		*errs = append(*errs, fmt.Sprintf("%s: pivot is only valid on pivot_table widgets", prefix))
+		return
+	}
+	validatePivotAxis(prefix, "rows", p.Rows, errs)
+	validatePivotAxis(prefix, "columns", p.Columns, errs)
+	// A field can't be on both axes (near-empty diagonal).
+	rowFields := map[string]bool{}
+	for _, f := range p.Rows {
+		rowFields[f.Field] = true
+	}
+	for _, f := range p.Columns {
+		if f.Field != "" && rowFields[f.Field] {
+			*errs = append(*errs, fmt.Sprintf("%s: pivot field %q can't be in both rows and columns", prefix, f.Field))
+		}
+	}
+	if len(p.Values) == 0 {
+		*errs = append(*errs, fmt.Sprintf("%s: pivot.values must list at least one value", prefix))
+	}
+	for i, v := range p.Values {
+		if v.Field == "" {
+			*errs = append(*errs, fmt.Sprintf("%s: pivot.values[%d].field is required", prefix, i))
+		}
+		if v.Summarize != "" && !validPivotAggregations[v.Summarize] {
+			*errs = append(*errs, fmt.Sprintf("%s: pivot.values[%d].summarize %q is invalid (expected one of sum, counta, count, countunique, average, max, min, median, product, stdev, stdevp, var, varp)", prefix, i, v.Summarize))
+		}
+		// A value's format uses the same layers as a table column.
+		for j, layer := range v.Format {
+			validateFormatLayer(fmt.Sprintf("%s: pivot.values[%d].format[%d]", prefix, i, j), layer, true, errs)
+		}
+	}
+}
+
+// validatePivotAxis checks one nested axis (rows or columns) of a pivot config.
+func validatePivotAxis(prefix, axis string, fields []PivotField, errs *[]string) {
+	seen := map[string]bool{}
+	for i, f := range fields {
+		if f.Field == "" {
+			*errs = append(*errs, fmt.Sprintf("%s: pivot.%s[%d].field is required", prefix, axis, i))
+		} else if seen[f.Field] {
+			*errs = append(*errs, fmt.Sprintf("%s: pivot.%s field %q is listed more than once", prefix, axis, f.Field))
+		} else {
+			seen[f.Field] = true
+		}
+		if f.Order != "" && f.Order != "asc" && f.Order != "desc" {
+			*errs = append(*errs, fmt.Sprintf("%s: pivot.%s[%d].order must be asc or desc", prefix, axis, i))
+		}
+	}
+}
+
 func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 	names := make(map[string]bool, len(w.Columns))
 	for _, c := range w.Columns {
@@ -701,14 +772,14 @@ func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 			*errs = append(*errs, fmt.Sprintf("%s.align: must be left, center, or right", cp))
 		}
 		for i, layer := range c.Format {
-			validateFormatLayer(fmt.Sprintf("%s.format[%d]", cp, i), layer, errs)
+			validateFormatLayer(fmt.Sprintf("%s.format[%d]", cp, i), layer, false, errs)
 		}
 	}
 }
 
 // validateFormatLayer checks one entry of a column's `format` list. A layer is
 // either a condition (`if` set) or a base gradient/flat fill (no `if`).
-func validateFormatLayer(prefix string, l FormatLayer, errs *[]string) {
+func validateFormatLayer(prefix string, l FormatLayer, pivot bool, errs *[]string) {
 	if l.If != "" {
 		if !validFormatOps[l.If] {
 			*errs = append(*errs, fmt.Sprintf("%s.if: unknown operator %q", prefix, l.If))
@@ -753,6 +824,17 @@ func validateFormatLayer(prefix string, l FormatLayer, errs *[]string) {
 					}
 				}
 			}
+		}
+	}
+
+	// scaleBy is a pivot gradient's normalisation domain; only pivot values read it.
+	if l.ScaleBy != "" {
+		if !pivot {
+			*errs = append(*errs, fmt.Sprintf("%s.scaleBy: only valid on pivot value formats", prefix))
+		} else if l.ScaleBy != "all" && l.ScaleBy != "row" && l.ScaleBy != "column" {
+			*errs = append(*errs, fmt.Sprintf("%s.scaleBy: unknown value %q (expected all, row, or column)", prefix, l.ScaleBy))
+		} else if !isGradient {
+			*errs = append(*errs, fmt.Sprintf("%s.scaleBy: requires a gradient (a backgroundColor list)", prefix))
 		}
 	}
 
