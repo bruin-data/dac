@@ -9,6 +9,7 @@ before:
   hooks:
     - go mod tidy
     - npm --prefix frontend ci --legacy-peer-deps
+    - npm --prefix frontend run build
 
 builds:
   - id: dac
@@ -26,9 +27,6 @@ builds:
     ignore:
       - goos: windows
         goarch: arm64
-    hooks:
-      pre:
-        - npm --prefix frontend run build
     flags:
       - -trimpath
     ldflags:
