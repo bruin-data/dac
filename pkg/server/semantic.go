@@ -159,18 +159,23 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 		return rendered, nil
 	}
 
-	rendered.Filters = make([]sem.Filter, len(query.Filters))
-	for i, filter := range query.Filters {
-		rendered.Filters[i] = filter
+	rendered.Filters = make([]sem.Filter, 0, len(query.Filters))
+	for _, filter := range query.Filters {
+		// Empty multi-select: apply no constraint instead of IN () / IN ('').
+		if filterSelectionEmpty(filter, filters) {
+			continue
+		}
+		rf := filter
 		var err error
-		rendered.Filters[i].Expression, err = renderTemplateString(filter.Expression, filters)
+		rf.Expression, err = renderTemplateString(filter.Expression, filters)
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter expression: %w", err)
 		}
-		rendered.Filters[i].Value, err = renderTemplateValue(filter.Value, filters)
+		rf.Value, err = renderTemplateValue(filter.Value, filters)
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
 		}
+		rendered.Filters = append(rendered.Filters, rf)
 	}
 
 	return rendered, nil
@@ -185,9 +190,42 @@ func renderTemplateString(value string, filters map[string]any) (string, error) 
 	return tmpl.Render(value, filters)
 }
 
+// filterSelectionEmpty reports whether the filter references an empty
+// multi-select, so it can be dropped instead of rendering an empty IN clause.
+func filterSelectionEmpty(f sem.Filter, filters map[string]any) bool {
+	text := f.Expression
+	if s, ok := f.Value.(string); ok {
+		text += " " + s
+	}
+	for name, v := range filters {
+		if isEmptyList(v) && strings.Contains(text, "filters."+name) {
+			return true
+		}
+	}
+	return false
+}
+
+// bareFilterRef returns the key of a lone `{{ filters.<key> }}` reference; the
+// caller confirms it via map lookup, so junk keys harmlessly miss.
+func bareFilterRef(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if !strings.HasPrefix(s, "{{") || !strings.HasSuffix(s, "}}") {
+		return "", false
+	}
+	inner := strings.TrimSpace(s[2 : len(s)-2])
+	return strings.TrimPrefix(inner, "filters."), strings.HasPrefix(inner, "filters.")
+}
+
 func renderTemplateValue(value any, filters map[string]any) (any, error) {
 	switch typed := value.(type) {
 	case string:
+		// Keep a lone list reference as a list; gonja would stringify it to
+		// `['a', 'b']`, which the engine then quotes into broken SQL.
+		if key, ok := bareFilterRef(typed); ok {
+			if v, ok := filters[key]; ok && isList(v) {
+				return v, nil
+			}
+		}
 		return renderTemplateString(typed, filters)
 	case []string:
 		out := make([]string, len(typed))
@@ -222,4 +260,22 @@ func renderTemplateValue(value any, filters map[string]any) (any, error) {
 	default:
 		return value, nil
 	}
+}
+
+func isList(v any) bool {
+	switch v.(type) {
+	case []string, []interface{}:
+		return true
+	}
+	return false
+}
+
+func isEmptyList(v any) bool {
+	switch typed := v.(type) {
+	case []string:
+		return len(typed) == 0
+	case []interface{}:
+		return len(typed) == 0
+	}
+	return false
 }
