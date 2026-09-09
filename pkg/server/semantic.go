@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
@@ -159,18 +160,24 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 		return rendered, nil
 	}
 
-	rendered.Filters = make([]sem.Filter, len(query.Filters))
-	for i, filter := range query.Filters {
-		rendered.Filters[i] = filter
+	rendered.Filters = make([]sem.Filter, 0, len(query.Filters))
+	for _, filter := range query.Filters {
+		rf := filter
 		var err error
-		rendered.Filters[i].Expression, err = renderTemplateString(filter.Expression, filters)
+		rf.Expression, err = renderTemplateString(filter.Expression, filters)
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter expression: %w", err)
 		}
-		rendered.Filters[i].Value, err = renderTemplateValue(filter.Value, filters)
+		rf.Value, err = renderTemplateValue(filter.Value, filters)
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
 		}
+		// An empty multi-select applies no constraint (show all) rather than
+		// emitting `IN ()`, which is a SQL error / silently matches zero rows.
+		if rf.Expression == "" && isEmptyList(rf.Value) {
+			continue
+		}
+		rendered.Filters = append(rendered.Filters, rf)
 	}
 
 	return rendered, nil
@@ -185,9 +192,23 @@ func renderTemplateString(value string, filters map[string]any) (string, error) 
 	return tmpl.Render(value, filters)
 }
 
+// bareFilterRef matches a value that is exactly a single `{{ filters.<key> }}`
+// reference — no surrounding text and no filter pipe (e.g. `| join`). Such a
+// reference must keep the native shape of the value it points at.
+var bareFilterRef = regexp.MustCompile(`^\{\{\s*filters\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$`)
+
 func renderTemplateValue(value any, filters map[string]any) (any, error) {
 	switch typed := value.(type) {
 	case string:
+		// A lone `{{ filters.x }}` reference to a multi-select value must keep its
+		// list shape: gonja would render it to `['a', 'b']`, which the engine then
+		// treats as one scalar and quotes into broken SQL. Resolve the reference
+		// directly so a list reaches formatList as a list.
+		if m := bareFilterRef.FindStringSubmatch(strings.TrimSpace(typed)); m != nil {
+			if v, ok := filters[m[1]]; ok && isList(v) {
+				return v, nil
+			}
+		}
 		return renderTemplateString(typed, filters)
 	case []string:
 		out := make([]string, len(typed))
@@ -222,4 +243,22 @@ func renderTemplateValue(value any, filters map[string]any) (any, error) {
 	default:
 		return value, nil
 	}
+}
+
+func isList(v any) bool {
+	switch v.(type) {
+	case []string, []interface{}:
+		return true
+	}
+	return false
+}
+
+func isEmptyList(v any) bool {
+	switch typed := v.(type) {
+	case []string:
+		return len(typed) == 0
+	case []interface{}:
+		return len(typed) == 0
+	}
+	return false
 }
