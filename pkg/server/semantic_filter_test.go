@@ -6,10 +6,9 @@ import (
 	sem "github.com/bruin-data/bruin/semantic-engine"
 )
 
-// TestRenderSemanticQuery_MultiSelectFilter verifies that a multi-select
-// dashboard filter (a list value referenced via `{{ filters.x }}`) keeps its
-// list shape through templating, so the engine renders `IN ('a', 'b')` instead
-// of quoting the stringified list into broken SQL.
+// TestRenderSemanticQuery_MultiSelectFilter covers multi-select filters: a
+// filled selection keeps its list shape, and an empty selection drops the
+// filter, on both the value and expression authoring paths.
 func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 	query := sem.Query{
 		Filters: []sem.Filter{{
@@ -45,6 +44,21 @@ func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 		}
 		if len(out.Filters) != 0 {
 			t.Fatalf("expected empty multi-select to drop the filter, got %d filters", len(out.Filters))
+		}
+	})
+
+	t.Run("empty selection drops an expression filter", func(t *testing.T) {
+		exprQuery := sem.Query{
+			Filters: []sem.Filter{{
+				Expression: "platform IN ('{{ filters.platform | join(\"','\") }}')",
+			}},
+		}
+		out, err := renderSemanticQuery(exprQuery, map[string]any{"platform": []interface{}{}})
+		if err != nil {
+			t.Fatalf("renderSemanticQuery: %v", err)
+		}
+		if len(out.Filters) != 0 {
+			t.Fatalf("expected empty selection to drop the expression filter, got %d", len(out.Filters))
 		}
 	})
 

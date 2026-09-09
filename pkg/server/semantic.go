@@ -162,6 +162,10 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 
 	rendered.Filters = make([]sem.Filter, 0, len(query.Filters))
 	for _, filter := range query.Filters {
+		// Empty multi-select: apply no constraint instead of IN () / IN ('').
+		if filterSelectionEmpty(filter, filters) {
+			continue
+		}
 		rf := filter
 		var err error
 		rf.Expression, err = renderTemplateString(filter.Expression, filters)
@@ -171,11 +175,6 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 		rf.Value, err = renderTemplateValue(filter.Value, filters)
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
-		}
-		// An empty multi-select applies no constraint (show all) rather than
-		// emitting `IN ()`, which is a SQL error / silently matches zero rows.
-		if rf.Expression == "" && isEmptyList(rf.Value) {
-			continue
 		}
 		rendered.Filters = append(rendered.Filters, rf)
 	}
@@ -193,17 +192,32 @@ func renderTemplateString(value string, filters map[string]any) (string, error) 
 }
 
 // bareFilterRef matches a value that is exactly a single `{{ filters.<key> }}`
-// reference — no surrounding text and no filter pipe (e.g. `| join`). Such a
-// reference must keep the native shape of the value it points at.
+// reference: no surrounding text, no pipe.
 var bareFilterRef = regexp.MustCompile(`^\{\{\s*filters\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$`)
+
+// filterRef matches any `filters.<key>` reference within a string.
+var filterRef = regexp.MustCompile(`filters\.([A-Za-z_][A-Za-z0-9_]*)`)
+
+// filterSelectionEmpty reports whether the filter references a multi-select
+// selection that is currently empty, in either its Expression or Value.
+func filterSelectionEmpty(f sem.Filter, filters map[string]any) bool {
+	refs := f.Expression
+	if s, ok := f.Value.(string); ok {
+		refs += " " + s
+	}
+	for _, m := range filterRef.FindAllStringSubmatch(refs, -1) {
+		if v, ok := filters[m[1]]; ok && isEmptyList(v) {
+			return true
+		}
+	}
+	return false
+}
 
 func renderTemplateValue(value any, filters map[string]any) (any, error) {
 	switch typed := value.(type) {
 	case string:
-		// A lone `{{ filters.x }}` reference to a multi-select value must keep its
-		// list shape: gonja would render it to `['a', 'b']`, which the engine then
-		// treats as one scalar and quotes into broken SQL. Resolve the reference
-		// directly so a list reaches formatList as a list.
+		// Keep a lone list reference as a list; gonja would stringify it to
+		// `['a', 'b']`, which the engine then quotes into broken SQL.
 		if m := bareFilterRef.FindStringSubmatch(strings.TrimSpace(typed)); m != nil {
 			if v, ok := filters[m[1]]; ok && isList(v) {
 				return v, nil
