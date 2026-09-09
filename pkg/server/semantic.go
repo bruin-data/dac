@@ -198,11 +198,32 @@ func filterSelectionEmpty(f sem.Filter, filters map[string]any) bool {
 		text += " " + s
 	}
 	for name, v := range filters {
-		if isEmptyList(v) && strings.Contains(text, "filters."+name) {
+		if isEmptyList(v) && referencesFilter(text, name) {
 			return true
 		}
 	}
 	return false
+}
+
+// referencesFilter reports whether text contains a `filters.<name>` reference as
+// a whole token, so an empty `team` doesn't match `filters.team_id`.
+func referencesFilter(text, name string) bool {
+	ref := "filters." + name
+	for i := 0; ; {
+		j := strings.Index(text[i:], ref)
+		if j < 0 {
+			return false
+		}
+		end := i + j + len(ref)
+		if end == len(text) || !isIdentByte(text[end]) {
+			return true
+		}
+		i = end
+	}
+}
+
+func isIdentByte(b byte) bool {
+	return b == '_' || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
 
 // bareFilterRef returns the key of a lone `{{ filters.<key> }}` reference; the

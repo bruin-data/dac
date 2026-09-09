@@ -47,6 +47,25 @@ func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 		}
 	})
 
+	t.Run("empty prefix name keeps a different filter's constraint", func(t *testing.T) {
+		q := sem.Query{Filters: []sem.Filter{{
+			Dimension: "team_id",
+			Operator:  "in",
+			Value:     "{{ filters.team_id }}",
+		}}}
+		// team is empty, team_id is not: team must not drop the team_id filter.
+		out, err := renderSemanticQuery(q, map[string]any{
+			"team":    []interface{}{},
+			"team_id": []interface{}{"7"},
+		})
+		if err != nil {
+			t.Fatalf("renderSemanticQuery: %v", err)
+		}
+		if len(out.Filters) != 1 {
+			t.Fatalf("expected team_id filter to survive, got %d filters", len(out.Filters))
+		}
+	})
+
 	t.Run("empty selection drops an expression filter", func(t *testing.T) {
 		exprQuery := sem.Query{
 			Filters: []sem.Filter{{
