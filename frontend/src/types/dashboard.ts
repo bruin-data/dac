@@ -53,7 +53,7 @@ export interface Row {
 export interface Widget {
   name: string;
   description?: string;
-  type: "metric" | "chart" | "table" | "text" | "divider" | "image";
+  type: "metric" | "chart" | "table" | "pivot_table" | "text" | "divider" | "image";
   col?: number;
 
   // Query source
@@ -111,6 +111,7 @@ export interface Widget {
 
   // Table
   columns?: TableColumn[];
+  pivot?: import("../components/widgets/pivot").PivotConfig;
 
   // Text
   content?: string;
@@ -211,6 +212,7 @@ export interface FormatLayer {
   italic?: boolean;
   underline?: boolean;
   strikethrough?: boolean;
+  scaleBy?: "all" | "row" | "column"; // pivot gradient domain (default whole grid)
 }
 
 /** Structured encoding for a chart axis. `y.field` may list several series columns. */

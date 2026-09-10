@@ -101,7 +101,7 @@ rows:
         col: 3
 ```
 
-Widget types are `metric`, `chart`, `table`, `text`, `divider`, and `image`.
+Widget types are `metric`, `chart`, `table`, `pivot_table`, `text`, `divider`, and `image`.
 
 A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
 
@@ -159,6 +159,23 @@ rows:
             format:                                                     # a condition wins over the gradient base below
               - { if: is_equal_to, value: 0, backgroundColor: red, bold: true }
               - { backgroundColor: [red, white, green] }                # base, last (always matches)
+```
+
+**Pivot tables.** A `pivot_table` widget reshapes its flat result set into a spreadsheet-style pivot, computed client-side. `rows`/`columns` are nested group-by levels (each item: `field`, `order` `asc`/`desc`, `showTotals` — outer levels add per-group subtotals, the innermost level adds the Grand Total row/column), `values` are the aggregated measures (each item: `field`, `summarize` default `sum`, `label`, and optional `format` — the same conditional-formatting layers as a table column, applied to this value's leaf cells and scaled per value). `summarize` is one of: `sum`, `counta`, `count`, `countunique`, `average`, `max`, `min`, `median`, `product`, `stdev`, `stdevp`, `var`, `varp`. `pivot` is only valid on `pivot_table` widgets (which require a pivot), `values` must be non-empty, and a field can't be in both `rows` and `columns`. Row filtering is the dashboard's job — use the dashboard's `filters`.
+
+```yaml
+- name: Sales by Region and Product
+  type: pivot_table
+  sql: SELECT region, product, sales FROM orders
+  pivot:
+    rows: [ { field: region, showTotals: true } ]
+    columns: [ { field: product } ]
+    values:
+      - field: sales
+        summarize: sum
+        label: Total Sales
+        format:
+          - backgroundColor: ["#FECACA", "#FEF08A", "#BBF7D0"]   # gradient over the cells
 ```
 
 ## Filters

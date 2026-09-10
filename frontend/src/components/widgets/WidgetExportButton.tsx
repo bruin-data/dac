@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Widget, WidgetData } from "../../types/dashboard";
 import { widgetDataToCSV, downloadTextFile, slugify } from "../../lib/csv";
+import { pivotData } from "./pivot";
 import { exportElementAsPDF, exportElementAsPNG } from "../../lib/renderExport";
 import { ExportMenuButton, type ExportMenuItem } from "../ExportMenuButton";
 
@@ -24,7 +25,14 @@ export function WidgetExportButton({ widget, data }: Props) {
   if (!data || data.error || !data.rows || data.rows.length === 0) return null;
 
   const exportCSV = () => {
-    const csv = widgetDataToCSV(data);
+    // Export what's shown: a pivot_table is reshaped client-side, so CSV the
+    // pivoted grid rather than the flat query result.
+    let out = data;
+    if (widget.pivot && data.columns) {
+      const p = pivotData(data.columns.map((c) => c.name), data.rows ?? [], widget.pivot);
+      if (p) out = { columns: p.columns.map((name) => ({ name })), rows: p.rows };
+    }
+    const csv = widgetDataToCSV(out);
     downloadTextFile(`${slugify(widget.name)}.csv`, csv, "text/csv;charset=utf-8");
   };
 

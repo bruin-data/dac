@@ -873,6 +873,26 @@ rows:
               - { backgroundColor: [red, white, green] }                # base, last (always matches)
 ```
 
+**Pivot tables.** A `pivot_table` widget reshapes its flat result set into a spreadsheet-style pivot table, computed client-side (the query is unchanged). `rows` are the group-by, `columns` spread distinct values across the grid, and `values` are the aggregated measures. A value with a `format` list colours its own cells (same conditional-format layers as a table column, scaled per value; cohort tables). `pivot` is only valid on `pivot_table` widgets (which require a pivot); every other sub-key is optional, but `values` must be non-empty, and a field can't be in both `rows` and `columns` (that yields a near-empty diagonal). Row filtering is the dashboard's job — use the dashboard's `filters`.
+
+- `rows` / `columns`: nested group-by levels (outer→inner). Each item takes `field` (a result column), `order` (`asc`/`desc`, default `asc`), and `showTotals` — on an **outer** level it adds a subtotal per group; on the **innermost** level it adds the overall Grand Total row/column.
+- `values`: aggregated measures. Each item takes `field`, `summarize` (default `sum`), `label`, and optional `format` — the same conditional-formatting layer list as a table column (each layer: optional `if`/`value`, `backgroundColor` single colour or low→high gradient array, `range`/`unit`, `textColor`, `bold`…), applied to this value's leaf cells and scaled per value. Each value is coloured independently. `summarize` is one of exactly these 13: `sum`, `counta`, `count`, `countunique`, `average`, `max`, `min`, `median`, `product`, `stdev`, `stdevp`, `var`, `varp`.
+
+```yaml
+- name: Retention cohort
+  type: pivot_table
+  sql: SELECT cohort, month_since, active_users FROM retention
+  pivot:
+    rows: [{ field: cohort }]
+    columns: [{ field: month_since }]     # months since signup spread across
+    values:
+      # colour the active_users cells low→high so retention decay is visible
+      - field: active_users
+        summarize: sum
+        format:
+          - backgroundColor: ["#FECACA", "#FEF08A", "#BBF7D0"]   # gradient over the cells
+```
+
 ### Text Widget
 
 Static content with markdown formatting. No query needed.

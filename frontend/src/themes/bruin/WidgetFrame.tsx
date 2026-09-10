@@ -46,12 +46,12 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
     );
   }
 
-  const isTable = widget.type === "table";
-  const isExportable = widget.type === "chart" || widget.type === "table";
+  const isTable = widget.type === "table" || widget.type === "pivot_table";
+  const isExportable = widget.type === "chart" || isTable;
   const canExport = isExportable && !isLoading;
 
   return (
-    <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? containerClass.text}`}>
+    <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? (isTable ? containerClass.table : containerClass.text)}`}>
       {widget.type !== "text" && (
         <div className={`flex items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] ${widget.description ? "mb-0.5" : "mb-1.5"} ${isTable ? "px-4" : ""}`}>
           <span>{widget.name}</span>
@@ -79,7 +79,7 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
         <>
           {widget.type === "metric" && <div className="mt-auto"><MetricWidget widget={widget} data={data} /></div>}
           {widget.type === "chart" && <ChartWidget widget={widget} data={data} />}
-          {widget.type === "table" && <TableWidget widget={widget} data={data} />}
+          {isTable && <TableWidget widget={widget} data={data} />}
         </>
       )}
       {widget.type === "text" && <TextWidget widget={widget} />}
@@ -97,7 +97,7 @@ function LoadingSkeleton({ type, chartHeight = 240 }: { type: string; chartHeigh
   if (type === "chart") {
     return <div className="skeleton w-full mt-2 rounded" style={{ height: `${chartHeight}px` }} />;
   }
-  if (type === "table") {
+  if (type === "table" || type === "pivot_table") {
     return (
       <div className="mt-2 space-y-1.5 px-4">
         <div className="skeleton h-6 w-full" />

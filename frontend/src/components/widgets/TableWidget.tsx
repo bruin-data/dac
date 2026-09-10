@@ -3,6 +3,7 @@ import { format as d3Format } from "d3-format";
 import type { FormatLayer, Widget, WidgetData } from "../../types/dashboard";
 import { useTokens } from "../../themes/TemplateProvider";
 import { cellStyle, isGradient, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
+import { pivotData } from "./pivot";
 
 interface Props {
   widget: Widget;
@@ -40,30 +41,46 @@ export function TableWidget({ widget, data }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
   const tokens = useTokens();
 
-  const columns: TableColumn[] = useMemo(() => {
-    if (!data?.columns) return [];
+  // A pivot reshapes the result client-side; the rest of the table renders the
+  // reshaped `effData` exactly as it would a plain result set.
+  const pivot = useMemo(() => {
+    if (!widget.pivot || !data?.columns) return null;
+    return pivotData(data.columns.map((c) => c.name), data.rows ?? [], widget.pivot);
+  }, [widget.pivot, data]);
+  const effData: WidgetData | undefined = useMemo(
+    () => (pivot ? { columns: pivot.columns.map((name) => ({ name })), rows: pivot.rows } : data),
+    [pivot, data],
+  );
 
-    const raw = widget.columns?.length
-      ? widget.columns.map((col) => ({
-          name: col.name,
-          label: col.label || col.name,
-          number: col.number,
-          align: col.align,
-          like: col.like,
-          hidden: col.hidden ?? false,
-          format: col.format,
-          idx: data.columns.findIndex((c) => c.name === col.name),
-        }))
-      : data.columns.map((col, idx) => ({
-          name: col.name,
-          label: col.name,
-          number: undefined as string | undefined,
-          align: undefined as TableColumn["align"],
-          like: undefined as string | undefined,
-          hidden: false,
-          format: undefined as FormatLayer[] | undefined,
-          idx,
-        }));
+  const columns: TableColumn[] = useMemo(() => {
+    if (!effData?.columns) return [];
+
+    const meta = new Map((widget.columns ?? []).map((c) => [c.name, c]));
+    const raw =
+      pivot || !widget.columns?.length
+        ? effData.columns.map((col, idx) => {
+            const m = meta.get(col.name);
+            return {
+              name: col.name,
+              label: m?.label || col.name,
+              number: m?.number,
+              align: m?.align,
+              like: m?.like,
+              hidden: m?.hidden ?? false,
+              format: m?.format,
+              idx,
+            };
+          })
+        : widget.columns.map((col) => ({
+            name: col.name,
+            label: col.label || col.name,
+            number: col.number,
+            align: col.align,
+            like: col.like,
+            hidden: col.hidden ?? false,
+            format: col.format,
+            idx: effData.columns.findIndex((c) => c.name === col.name),
+          }));
 
     // `like`: adopt the source column's coloring driven by its per-row value,
     // keeping own `number`. Followed transitively (cycle-guarded) to the terminal source.
@@ -88,26 +105,28 @@ export function TableWidget({ widget, data }: Props) {
         return { ...c, colorIdx: c.idx };
       })
       .filter((c) => !c.hidden);
-  }, [widget.columns, data?.columns]);
+  }, [widget.columns, effData?.columns]);
 
-  const rows = data?.rows ?? [];
+  const rows = effData?.rows ?? [];
 
   // All data columns by name → index, so cross-column rules can reference any
   // column (even ones not shown).
   const dataIndex = useMemo(() => {
     const m = new Map<string, number>();
-    data?.columns.forEach((c, i) => m.set(c.name, i));
+    effData?.columns.forEach((c, i) => m.set(c.name, i));
     return m;
-  }, [data?.columns]);
+  }, [effData?.columns]);
 
   const sortedRows = useMemo(() => {
-    if (!sort || rows.length === 0) return rows;
+    // A pivot keeps its own order (row order carries subtotal/total structure and
+    // per-row gradient scales); never apply a leftover sort from a prior table.
+    if (pivot || !sort || rows.length === 0) return rows;
 
     const col = columns.find((c) => c.name === sort.column);
     if (!col || col.idx < 0) return rows;
 
     return sortRows(rows, col.idx, sort.direction, col.number != null);
-  }, [columns, rows, sort]);
+  }, [pivot, columns, rows, sort]);
 
   // Resolve gradient scales per column against the full (unsorted) value range,
   // one entry per layer (null for non-gradient layers) so cell colors stay stable
@@ -145,12 +164,80 @@ export function TableWidget({ widget, data }: Props) {
     return m;
   }, [columns]);
 
+  // Per pivot value: its `format` layers plus, per gradient layer, the resolved
+  // scale(s). A layer's `scaleBy` picks the domain: 'all' (default, one scale over
+  // the whole grid), 'row' (per row), or 'column' (per leaf column).
+  const pivotValueFormats = useMemo(() => {
+    if (!pivot) return null;
+    const values = widget.pivot?.values ?? [];
+    type LayerScales =
+      | { by: "all"; scale: ResolvedScale | null }
+      | { by: "row" | "column"; m: Record<number, ResolvedScale | null> }
+      | null;
+    const out = new Map<number, { format: FormatLayer[]; layerScales: LayerScales[] }>();
+    const mapScales = (layer: FormatLayer, groups: Record<number, number[]>) => {
+      const m: Record<number, ResolvedScale | null> = {};
+      for (const k in groups) m[k] = resolveScale(layer, groups[k], tokens);
+      return m;
+    };
+    values.forEach((v, vi) => {
+      const fmt = Array.isArray(v.format) ? v.format : null;
+      if (!fmt || !fmt.length) return;
+      const all: number[] = [];
+      const byRow: Record<number, number[]> = {};
+      const byCol: Record<number, number[]> = {};
+      pivot.rows.forEach((row, r) => {
+        if (pivot.rowKinds[r] && pivot.rowKinds[r] !== "leaf") return;
+        row.forEach((cell, c) => {
+          if (pivot.columnKinds[c] !== "leaf" || pivot.columnValues[c] !== vi) return;
+          const n = toNumber(cell);
+          if (n === null) return;
+          all.push(n);
+          (byRow[r] ??= []).push(n);
+          (byCol[c] ??= []).push(n);
+        });
+      });
+      const layerScales: LayerScales[] = fmt.map((layer) => {
+        if (!isGradient(layer)) return null;
+        if (layer.scaleBy === "row") return { by: "row", m: mapScales(layer, byRow) };
+        if (layer.scaleBy === "column") return { by: "column", m: mapScales(layer, byCol) };
+        return { by: "all", scale: resolveScale(layer, all, tokens) };
+      });
+      out.set(vi, { format: fmt, layerScales });
+    });
+    return out;
+  }, [pivot, widget.pivot, tokens]);
+
   if (!rows.length) {
     return <div className="text-[var(--dac-text-muted)] text-xs py-4 text-center">No data</div>;
   }
 
   const handleHeaderClick = (columnName: string) => {
+    if (pivot) return; // pivots use their own order; sort would break rowKinds alignment
     setSort((current) => nextSortState(current, columnName));
+  };
+
+  // Structural total emphasis for pivots (never label-based, so data named
+  // "… Total" isn't mistaken for a total).
+  const colIsTotal = (idx: number) => pivot?.columnKinds[idx] === "grandtotal";
+  const rowKind = (i: number) => pivot?.rowKinds[i];
+
+  // Apply a pivot value's `format` layers (first match wins) to its leaf cells.
+  const pivotCellStyle = (rIdx: number, dataIdx: number, value: unknown): CSSProperties | undefined => {
+    if (!pivotValueFormats || !pivot) return undefined;
+    if (pivot.columnKinds[dataIdx] !== "leaf") return undefined;
+    const rk = pivot.rowKinds[rIdx];
+    if (rk && rk !== "leaf") return undefined;
+    const vi = pivot.columnValues[dataIdx];
+    const entry = vi == null ? undefined : pivotValueFormats.get(vi);
+    if (!entry) return undefined;
+    const scales = entry.layerScales.map((ls) => {
+      if (!ls) return null;
+      if (ls.by === "all") return ls.scale;
+      return ls.m[ls.by === "row" ? rIdx : dataIdx] ?? null;
+    });
+    const style = cellStyle(entry.format, scales, value, tokens, () => undefined);
+    return Object.keys(style).length ? style : undefined;
   };
 
   return (
@@ -177,7 +264,7 @@ export function TableWidget({ widget, data }: Props) {
                   <button
                     type="button"
                     onClick={() => handleHeaderClick(col.name)}
-                    className={`group w-full flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 cursor-pointer border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""}`}
+                    className={`group w-full flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                   >
                     <span>{col.label}</span>
                     <SortIndicator direction={active ? sort!.direction : null} />
@@ -188,17 +275,25 @@ export function TableWidget({ widget, data }: Props) {
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row, i) => (
+          {sortedRows.map((row, i) => {
+            const kind = rowKind(i);
+            const totalRow = kind === "grandtotal";
+            const subtotalRow = kind === "subtotal";
+            return (
             <tr
               key={i}
-              className="hover:bg-[var(--dac-surface)] transition-colors duration-75"
+              className={`transition-colors duration-75 ${totalRow ? "bg-[var(--dac-surface)]" : subtotalRow ? "bg-[var(--dac-surface)]/60" : "hover:bg-[var(--dac-surface)]"}`}
             >
               {columns.map((col) => {
                 const numeric = col.number != null;
                 const alignCls = alignClasses(col.align, numeric);
                 const raw = col.idx >= 0 ? row[col.idx] : null; // displayed value (own column)
                 const style: CSSProperties = numeric ? { fontFamily: '"Geist Mono", monospace' } : {};
-                if (col.format) {
+                if (pivot) {
+                  // Pivots colour by each value's own gradient; no per-column CF.
+                  const hm = pivotCellStyle(i, col.idx, raw);
+                  if (hm) Object.assign(style, hm);
+                } else if (col.format) {
                   const lookup = (name: string) => {
                     const idx = dataIndex.get(name);
                     return idx === undefined ? undefined : row[idx];
@@ -212,7 +307,7 @@ export function TableWidget({ widget, data }: Props) {
                     key={col.name}
                     className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
                       numeric ? "tabular-nums text-[12px]" : ""
-                    }`}
+                    } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""}`}
                     style={Object.keys(style).length ? style : undefined}
                   >
                     {formatCell(raw, col.number, numberFormatters.get(col.name))}
@@ -220,7 +315,8 @@ export function TableWidget({ widget, data }: Props) {
                 );
               })}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
