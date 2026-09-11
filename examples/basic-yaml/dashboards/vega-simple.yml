@@ -1,0 +1,50 @@
+name: Vega-Lite Simple
+description: Minimal Vega-Lite chart to test the static build (lazy vega-embed chunk)
+connection: local_duckdb
+
+rows:
+  - widgets:
+      - name: Sales by category (inline data)
+        description: A basic Vega-Lite bar chart using inline data
+        type: chart
+        chart: vega-lite
+        col: 6
+        data:
+          columns: [category, sales]
+          rows:
+            - [Electronics, 4200]
+            - [Apparel, 3100]
+            - [Home, 2600]
+            - [Toys, 1800]
+            - [Books, 1200]
+        spec:
+          data: { name: dac }
+          mark: { type: bar, cornerRadiusTopLeft: 2, cornerRadiusTopRight: 2 }
+          encoding:
+            x: { field: category, type: nominal, sort: "-y", axis: { title: null, labelAngle: 0 } }
+            y: { field: sales, type: quantitative, title: Sales ($), axis: { format: "$,.0f" } }
+            color: { field: category, type: nominal, legend: null }
+            tooltip:
+              - { field: category, type: nominal, title: Category }
+              - { field: sales, type: quantitative, title: Sales, format: "$,.0f" }
+
+      - name: Revenue by region (live query)
+        description: Same chart type, backed by a live DuckDB query
+        type: chart
+        chart: vega-lite
+        col: 6
+        sql: |
+          SELECT region, ROUND(SUM(amount), 0) AS revenue
+          FROM sales
+          GROUP BY region
+          ORDER BY revenue DESC
+        spec:
+          data: { name: dac }
+          mark: { type: bar, cornerRadiusTopLeft: 2, cornerRadiusTopRight: 2 }
+          encoding:
+            y: { field: region, type: nominal, sort: "-x", axis: { title: null } }
+            x: { field: revenue, type: quantitative, title: Revenue ($), axis: { format: "$,.0f" } }
+            color: { field: revenue, type: quantitative, scale: { scheme: blues }, legend: null }
+            tooltip:
+              - { field: region, type: nominal, title: Region }
+              - { field: revenue, type: quantitative, title: Revenue, format: "$,.0f" }

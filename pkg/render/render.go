@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -151,7 +150,9 @@ func Build(ctx context.Context, cfg Config) error {
 	scriptTag := fmt.Sprintf("<script>window.__DAC_STATIC__=%s;</script>", payloadJSON)
 	modifiedIndex := strings.Replace(string(indexBytes), "</head>", scriptTag+"</head>", 1)
 
-	// Write index.html + only the assets it references (skip lazy-loaded chunks).
+	// Write modified index.html, then copy every other frontend asset. We copy
+	// the whole tree rather than only the assets referenced in index.html so
+	// lazy-loaded chunks (e.g. the vega-embed chunk) are present too.
 	if err := os.MkdirAll(cfg.OutputDir, 0o755); err != nil {
 		return fmt.Errorf("creating output directory: %w", err)
 	}
@@ -160,33 +161,29 @@ func Build(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("writing index.html: %w", err)
 	}
 
-	for _, asset := range extractAssetPaths(string(indexBytes)) {
-		data, err := fs.ReadFile(cfg.Frontend, asset)
+	err = fs.WalkDir(cfg.Frontend, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			log.Printf("Warning: referenced asset %q not found in frontend, skipping", asset)
-			continue
+			return err
 		}
-		outPath := filepath.Join(cfg.OutputDir, asset)
+		if d.IsDir() || path == "index.html" {
+			return nil
+		}
+		data, err := fs.ReadFile(cfg.Frontend, path)
+		if err != nil {
+			return fmt.Errorf("reading asset %s: %w", path, err)
+		}
+		outPath := filepath.Join(cfg.OutputDir, path)
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
-			return fmt.Errorf("creating directory for %s: %w", asset, err)
+			return fmt.Errorf("creating directory for %s: %w", path, err)
 		}
 		if err := os.WriteFile(outPath, data, 0o644); err != nil {
-			return fmt.Errorf("writing %s: %w", asset, err)
+			return fmt.Errorf("writing %s: %w", path, err)
 		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("copying frontend assets: %w", err)
 	}
 
 	return nil
-}
-
-// extractAssetPaths parses href="..." and src="..." from HTML and returns
-// the local asset paths (strips leading /).
-func extractAssetPaths(html string) []string {
-	re := regexp.MustCompile(`(?:href|src)="(/[^"]+)"`)
-	matches := re.FindAllStringSubmatch(html, -1)
-	var paths []string
-	for _, m := range matches {
-		// Strip leading slash to get FS-relative path.
-		paths = append(paths, strings.TrimPrefix(m[1], "/"))
-	}
-	return paths
 }
