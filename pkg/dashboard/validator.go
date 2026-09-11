@@ -771,8 +771,12 @@ func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 		if c.Align != "" && c.Align != "left" && c.Align != "center" && c.Align != "right" {
 			*errs = append(*errs, fmt.Sprintf("%s.align: must be left, center, or right", cp))
 		}
-		if c.Border != "" && c.Border != "left" && c.Border != "right" && c.Border != "both" {
-			*errs = append(*errs, fmt.Sprintf("%s.border: must be left, right, or both", cp))
+		if c.Border != "" {
+			if w.Type == WidgetTypePivotTable {
+				*errs = append(*errs, cp+".border: not supported on pivot tables")
+			} else if c.Border != "left" && c.Border != "right" && c.Border != "both" {
+				*errs = append(*errs, fmt.Sprintf("%s.border: must be left, right, or both", cp))
+			}
 		}
 		for i, layer := range c.Format {
 			validateFormatLayer(fmt.Sprintf("%s.format[%d]", cp, i), layer, false, errs)

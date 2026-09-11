@@ -112,7 +112,9 @@ export function TableWidget({ widget, data }: Props) {
 
   // Per-column `border: left|right|both` group-divider classes, de-duping an
   // adjacent right+left pair into one line (border-separate would draw two).
+  // Plain tables only — pivots reject `border` (see validator).
   const borderClasses = useMemo(() => {
+    if (pivot) return columns.map(() => "");
     const want = columns.map((c) => ({
       left: c.border === "left" || c.border === "both",
       right: c.border === "right" || c.border === "both",
@@ -125,7 +127,7 @@ export function TableWidget({ widget, data }: Props) {
         .filter(Boolean)
         .join(" "),
     );
-  }, [columns]);
+  }, [columns, pivot]);
 
   const rows = effData?.rows ?? [];
 
