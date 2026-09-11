@@ -473,6 +473,27 @@ func TestValidate_PivotScaleBy(t *testing.T) {
 	assertValidationContains(t, Validate(tbl), "scaleBy: only valid on pivot value formats")
 }
 
+func TestValidate_TableColumnBorder(t *testing.T) {
+	tbl := func(border string) *Dashboard {
+		return &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+			Name: "w", Type: WidgetTypeTable, SQL: "SELECT sales FROM orders",
+			Columns: []TableColumn{{Name: "sales", Border: border}},
+		}}}}}
+	}
+	for _, v := range []string{"left", "right", "both"} {
+		assertNoErr(t, Validate(tbl(v)))
+	}
+	assertValidationContains(t, Validate(tbl("top")), "border: must be left, right, or both")
+
+	// border is table-only — rejected on pivot_table widgets.
+	pivot := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region, sales FROM orders",
+		Pivot:   &PivotConfig{Rows: []PivotField{{Field: "region"}}, Values: []PivotValue{{Field: "sales"}}},
+		Columns: []TableColumn{{Name: "sales", Border: "left"}},
+	}}}}}
+	assertValidationContains(t, Validate(pivot), "border: not supported on pivot tables")
+}
+
 func TestValidate_PivotOnlyOnTables(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",

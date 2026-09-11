@@ -22,6 +22,7 @@ interface TableColumn {
   label: string;
   number?: string; // value display (currency | number | d3-format)
   align?: "left" | "center" | "right"; // text-alignment override (header + body)
+  border?: "left" | "right" | "both"; // non-colour vertical group divider on this edge
   format?: FormatLayer[]; // effective layers (own, or the mirrored column's if `like`)
   idx: number; // own data index (drives the displayed value)
   colorIdx: number; // data index whose value drives coloring (own, or `like` source)
@@ -65,6 +66,7 @@ export function TableWidget({ widget, data }: Props) {
               label: m?.label || col.name,
               number: m?.number,
               align: m?.align,
+              border: m?.border,
               like: m?.like,
               hidden: m?.hidden ?? false,
               format: m?.format,
@@ -76,6 +78,7 @@ export function TableWidget({ widget, data }: Props) {
             label: col.label || col.name,
             number: col.number,
             align: col.align,
+            border: col.border,
             like: col.like,
             hidden: col.hidden ?? false,
             format: col.format,
@@ -106,6 +109,25 @@ export function TableWidget({ widget, data }: Props) {
       })
       .filter((c) => !c.hidden);
   }, [widget.columns, effData?.columns]);
+
+  // Per-column `border: left|right|both` group-divider classes, de-duping an
+  // adjacent right+left pair into one line (border-separate would draw two).
+  // Plain tables only — pivots reject `border` (see validator).
+  const borderClasses = useMemo(() => {
+    if (pivot) return columns.map(() => "");
+    const want = columns.map((c) => ({
+      left: c.border === "left" || c.border === "both",
+      right: c.border === "right" || c.border === "both",
+    }));
+    for (let i = 0; i < want.length - 1; i++) {
+      if (want[i].right && want[i + 1].left) want[i].right = false;
+    }
+    return want.map((w) =>
+      [w.left ? "border-l-2 border-[var(--dac-border)]" : "", w.right ? "border-r-2 border-[var(--dac-border)]" : ""]
+        .filter(Boolean)
+        .join(" "),
+    );
+  }, [columns, pivot]);
 
   const rows = effData?.rows ?? [];
 
@@ -245,7 +267,7 @@ export function TableWidget({ widget, data }: Props) {
       <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:1px_1px]">
         <thead>
           <tr className="bg-[var(--dac-surface)]">
-            {columns.map((col) => {
+            {columns.map((col, ci) => {
               const numeric = col.number != null;
               const active = sort?.column === col.name;
               const alignCls = alignClasses(col.align, numeric);
@@ -259,7 +281,7 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text}`}
+                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text} ${borderClasses[ci]}`}
                 >
                   <button
                     type="button"
@@ -284,7 +306,7 @@ export function TableWidget({ widget, data }: Props) {
               key={i}
               className={`transition-colors duration-75 ${totalRow ? "bg-[var(--dac-surface)]" : subtotalRow ? "bg-[var(--dac-surface)]/60" : "hover:bg-[var(--dac-surface)]"}`}
             >
-              {columns.map((col) => {
+              {columns.map((col, ci) => {
                 const numeric = col.number != null;
                 const alignCls = alignClasses(col.align, numeric);
                 const raw = col.idx >= 0 ? row[col.idx] : null; // displayed value (own column)
@@ -307,7 +329,7 @@ export function TableWidget({ widget, data }: Props) {
                     key={col.name}
                     className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
                       numeric ? "tabular-nums text-[12px]" : ""
-                    } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""}`}
+                    } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""} ${borderClasses[ci]}`}
                     style={Object.keys(style).length ? style : undefined}
                   >
                     {formatCell(raw, col.number, numberFormatters.get(col.name))}

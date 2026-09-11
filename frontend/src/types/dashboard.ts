@@ -147,6 +147,8 @@ export interface TableColumn {
   hidden?: boolean;
   /** Text alignment override — applies to the header and body cells. */
   align?: 'left' | 'center' | 'right';
+  /** Non-colour vertical divider on this column's edge, to separate column groups. */
+  border?: 'left' | 'right' | 'both';
   /** Ordered style layers; the first layer that matches a cell wins. */
   format?: FormatLayer[];
 }

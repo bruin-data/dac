@@ -359,7 +359,7 @@ export default (
         sql="SELECT * FROM orders"
         columns={[
           { name: "id", label: "Order ID" },
-          { name: "amount", label: "Amount", number: "currency" },
+          { name: "amount", label: "Amount", number: "currency", border: "left" },
           { name: "target", hidden: true },
         ]} />
     </Row>
@@ -378,6 +378,9 @@ export default (
 	}
 	if w.Columns[1].Number != "currency" {
 		t.Errorf("expected number %q, got %+v", "currency", w.Columns[1].Number)
+	}
+	if w.Columns[1].Border != "left" {
+		t.Errorf("expected border %q, got %+v", "left", w.Columns[1].Border)
 	}
 	if !w.Columns[2].Hidden {
 		t.Errorf("expected target column to be hidden, got %+v", w.Columns[2])

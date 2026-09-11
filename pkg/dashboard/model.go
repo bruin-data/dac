@@ -227,6 +227,7 @@ type TableColumn struct {
 	Like   string        `yaml:"like,omitempty" json:"like,omitempty"`     // mirror another column's coloring + per-row value
 	Hidden bool          `yaml:"hidden,omitempty" json:"hidden,omitempty"` // keep the column in the result (for cross-column rules / like) but don't render it
 	Align  string        `yaml:"align,omitempty" json:"align,omitempty"`   // text alignment override: left | center | right (applies to the header and body cells)
+	Border string        `yaml:"border,omitempty" json:"border,omitempty"` // non-colour vertical group divider on this column's edge: left | right | both
 	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered conditional-format style layers; first match wins
 }
 
@@ -269,12 +270,13 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 		Like   string    `yaml:"like,omitempty"`
 		Hidden bool      `yaml:"hidden,omitempty"`
 		Align  string    `yaml:"align,omitempty"`
+		Border string    `yaml:"border,omitempty"`
 		Format yaml.Node `yaml:"format,omitempty"`
 	}
 	if err := node.Decode(&tmp); err != nil {
 		return err
 	}
-	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Number: tmp.Number, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align}
+	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Number: tmp.Number, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align, Border: tmp.Border}
 
 	// Follow a YAML alias to its target, then: a scalar is the legacy value-display
 	// shorthand (folds into `number`); a list is the style layers.
