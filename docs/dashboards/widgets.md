@@ -371,6 +371,7 @@ Table column fields:
 | `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
 | `border` | string | Non-colour vertical border on this column's `left`, `right`, or `both` edge, to separate column groups (plain tables only; not `pivot_table`). |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
+| `frozen` | boolean | Freeze the column to the left so it stays visible while scrolling. Frozen columns render first, in their listed order (plain tables only; not `pivot_table`). |
 | `format` | string \| object | Value display and conditional coloring, see below |
 
 ### Pivot tables

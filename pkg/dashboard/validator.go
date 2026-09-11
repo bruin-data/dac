@@ -778,6 +778,9 @@ func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 				*errs = append(*errs, fmt.Sprintf("%s.border: must be left, right, or both", cp))
 			}
 		}
+		if c.Frozen && w.Type == WidgetTypePivotTable {
+			*errs = append(*errs, cp+".frozen: not supported on pivot tables")
+		}
 		for i, layer := range c.Format {
 			validateFormatLayer(fmt.Sprintf("%s.format[%d]", cp, i), layer, false, errs)
 		}

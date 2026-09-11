@@ -358,7 +358,7 @@ export default (
       <Table name="Orders" col={12}
         sql="SELECT * FROM orders"
         columns={[
-          { name: "id", label: "Order ID" },
+          { name: "id", label: "Order ID", frozen: true },
           { name: "amount", label: "Amount", number: "currency", border: "left" },
           { name: "target", hidden: true },
         ]} />
@@ -375,6 +375,9 @@ export default (
 	}
 	if w.Columns[0].Name != "id" || w.Columns[0].Label != "Order ID" {
 		t.Errorf("unexpected column 0: %+v", w.Columns[0])
+	}
+	if !w.Columns[0].Frozen {
+		t.Errorf("expected id column to be frozen, got %+v", w.Columns[0])
 	}
 	if w.Columns[1].Number != "currency" {
 		t.Errorf("expected number %q, got %+v", "currency", w.Columns[1].Number)

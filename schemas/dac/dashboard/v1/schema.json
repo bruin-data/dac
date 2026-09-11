@@ -506,6 +506,9 @@
         "border": {
           "enum": ["left", "right", "both"]
         },
+        "frozen": {
+          "type": "boolean"
+        },
         "format": {
           "oneOf": [
             { "type": "string" },

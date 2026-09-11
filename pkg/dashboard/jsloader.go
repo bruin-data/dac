@@ -1003,6 +1003,7 @@ func asTableColumns(v interface{}) []TableColumn {
 				Border: asString(m["border"]),
 				Like:   asString(m["like"]),
 				Hidden: asBool(m["hidden"]),
+				Frozen: asBool(m["frozen"]),
 			}
 			// `format` is polymorphic: a string is the legacy value-display
 			// shorthand (== `number`), a list is the style layers.
