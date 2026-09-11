@@ -22,7 +22,7 @@ interface TableColumn {
   label: string;
   number?: string; // value display (currency | number | d3-format)
   align?: "left" | "center" | "right"; // text-alignment override (header + body)
-  border?: "left" | "right" | "both"; // non-colour vertical group divider on this edge
+  border?: "left" | "right" | "both"; // non-colour vertical group border on this edge
   format?: FormatLayer[]; // effective layers (own, or the mirrored column's if `like`)
   idx: number; // own data index (drives the displayed value)
   colorIdx: number; // data index whose value drives coloring (own, or `like` source)
@@ -110,7 +110,7 @@ export function TableWidget({ widget, data }: Props) {
       .filter((c) => !c.hidden);
   }, [widget.columns, effData?.columns]);
 
-  // Per-column `border: left|right|both` group-divider classes, de-duping an
+  // Per-column `border: left|right|both` group-border classes, de-duping an
   // adjacent right+left pair into one line (border-separate would draw two).
   // Plain tables only — pivots reject `border` (see validator).
   const borderClasses = useMemo(() => {
