@@ -150,29 +150,42 @@ func Build(ctx context.Context, cfg Config) error {
 	scriptTag := fmt.Sprintf("<script>window.__DAC_STATIC__=%s;</script>", payloadJSON)
 	modifiedIndex := strings.Replace(string(indexBytes), "</head>", scriptTag+"</head>", 1)
 
-	// Write modified index.html, then copy every other frontend asset. We copy
-	// the whole tree rather than only the assets referenced in index.html so
-	// lazy-loaded chunks (e.g. the vega-embed chunk) are present too.
-	if err := os.MkdirAll(cfg.OutputDir, 0o755); err != nil {
-		return fmt.Errorf("creating output directory: %w", err)
+	if err := writeStaticOutput(cfg.OutputDir, cfg.Frontend, modifiedIndex); err != nil {
+		return err
 	}
 
-	if err := os.WriteFile(filepath.Join(cfg.OutputDir, "index.html"), []byte(modifiedIndex), 0o644); err != nil {
+	return nil
+}
+
+// writeStaticOutput writes the modified index.html and copies the whole frontend
+// tree into outputDir. We copy every file rather than only the assets referenced
+// in index.html so lazy-loaded chunks (e.g. the vega-embed chunk) are present
+// too. The output's assets/ directory is cleared first so stale content-hashed
+// chunks from a previous build don't accumulate across rebuilds.
+func writeStaticOutput(outputDir string, frontend fs.FS, indexHTML string) error {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("creating output directory: %w", err)
+	}
+	if err := os.RemoveAll(filepath.Join(outputDir, "assets")); err != nil {
+		return fmt.Errorf("clearing stale assets: %w", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(outputDir, "index.html"), []byte(indexHTML), 0o644); err != nil {
 		return fmt.Errorf("writing index.html: %w", err)
 	}
 
-	err = fs.WalkDir(cfg.Frontend, ".", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(frontend, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() || path == "index.html" {
 			return nil
 		}
-		data, err := fs.ReadFile(cfg.Frontend, path)
+		data, err := fs.ReadFile(frontend, path)
 		if err != nil {
 			return fmt.Errorf("reading asset %s: %w", path, err)
 		}
-		outPath := filepath.Join(cfg.OutputDir, path)
+		outPath := filepath.Join(outputDir, path)
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 			return fmt.Errorf("creating directory for %s: %w", path, err)
 		}
