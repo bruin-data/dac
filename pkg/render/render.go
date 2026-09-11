@@ -157,11 +157,9 @@ func Build(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-// writeStaticOutput writes the modified index.html and copies the whole frontend
-// tree into outputDir. We copy every file rather than only the assets referenced
-// in index.html so lazy-loaded chunks (e.g. the vega-embed chunk) are present
-// too. The output's assets/ directory is cleared first so stale content-hashed
-// chunks from a previous build don't accumulate across rebuilds.
+// writeStaticOutput copies the whole frontend tree (not just index.html's direct
+// references) so lazy chunks like vega-embed are included, clearing stale
+// content-hashed chunks from prior rebuilds first.
 func writeStaticOutput(outputDir string, frontend fs.FS, indexHTML string) error {
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return fmt.Errorf("creating output directory: %w", err)
