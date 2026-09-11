@@ -503,6 +503,9 @@
         "align": {
           "enum": ["left", "center", "right"]
         },
+        "border": {
+          "enum": ["left", "right", "both"]
+        },
         "format": {
           "oneOf": [
             { "type": "string" },

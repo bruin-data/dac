@@ -1000,6 +1000,7 @@ func asTableColumns(v interface{}) []TableColumn {
 				Label:  asString(m["label"]),
 				Number: asString(m["number"]),
 				Align:  asString(m["align"]),
+				Border: asString(m["border"]),
 				Like:   asString(m["like"]),
 				Hidden: asBool(m["hidden"]),
 			}

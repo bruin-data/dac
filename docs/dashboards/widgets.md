@@ -369,6 +369,7 @@ Table column fields:
 | `name` | string | Result column name (must match the SQL output) |
 | `label` | string | Display header (defaults to `name`) |
 | `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
+| `border` | string | Non-colour vertical divider on this column's `left`, `right`, or `both` edge, to separate column groups. |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
 | `format` | string \| object | Value display and conditional coloring, see below |
 
@@ -446,6 +447,7 @@ the condition; without `if`, the layer styles every cell.
 |-----|--------------|
 | `number` | Value display: `currency`, `number`, or a d3-format string. |
 | `align` | Text alignment: `left`, `center`, or `right` (aligns the header and body cells). |
+| `border` | Non-colour vertical divider on the column's `left`, `right`, or `both` edge, to separate column groups. |
 | `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |
 | `hidden` | Keep the column in the result (so it can drive cross-column rules or be a `like` source) but don't render it. |
 | `format` | Ordered list of style layers; first match wins. |
