@@ -149,6 +149,8 @@ export interface TableColumn {
   align?: 'left' | 'center' | 'right';
   /** Non-colour vertical border on this column's edge, to separate column groups. */
   border?: 'left' | 'right' | 'both';
+  /** Freeze the column to the left so it stays visible while scrolling. */
+  frozen?: boolean;
   /** Ordered style layers; the first layer that matches a cell wins. */
   format?: FormatLayer[];
 }

@@ -494,6 +494,23 @@ func TestValidate_TableColumnBorder(t *testing.T) {
 	assertValidationContains(t, Validate(pivot), "border: not supported on pivot tables")
 }
 
+func TestValidate_TableColumnFrozen(t *testing.T) {
+	// frozen is accepted on plain tables.
+	tbl := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypeTable, SQL: "SELECT sales FROM orders",
+		Columns: []TableColumn{{Name: "sales", Frozen: true}},
+	}}}}}
+	assertNoErr(t, Validate(tbl))
+
+	// frozen is table-only — rejected on pivot_table widgets.
+	pivot := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region, sales FROM orders",
+		Pivot:   &PivotConfig{Rows: []PivotField{{Field: "region"}}, Values: []PivotValue{{Field: "sales"}}},
+		Columns: []TableColumn{{Name: "sales", Frozen: true}},
+	}}}}}
+	assertValidationContains(t, Validate(pivot), "frozen: not supported on pivot tables")
+}
+
 func TestValidate_PivotOnlyOnTables(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",

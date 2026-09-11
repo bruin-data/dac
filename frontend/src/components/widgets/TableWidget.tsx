@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { format as d3Format } from "d3-format";
 import type { FormatLayer, Widget, WidgetData } from "../../types/dashboard";
 import { useTokens } from "../../themes/TemplateProvider";
@@ -23,6 +23,7 @@ interface TableColumn {
   number?: string; // value display (currency | number | d3-format)
   align?: "left" | "center" | "right"; // text-alignment override (header + body)
   border?: "left" | "right" | "both"; // non-colour vertical group border on this edge
+  frozen?: boolean; // freeze to the left; frozen columns render first
   format?: FormatLayer[]; // effective layers (own, or the mirrored column's if `like`)
   idx: number; // own data index (drives the displayed value)
   colorIdx: number; // data index whose value drives coloring (own, or `like` source)
@@ -69,6 +70,7 @@ export function TableWidget({ widget, data }: Props) {
               border: m?.border,
               like: m?.like,
               hidden: m?.hidden ?? false,
+              frozen: m?.frozen ?? false,
               format: m?.format,
               idx,
             };
@@ -81,6 +83,7 @@ export function TableWidget({ widget, data }: Props) {
             border: col.border,
             like: col.like,
             hidden: col.hidden ?? false,
+            frozen: col.frozen ?? false,
             format: col.format,
             idx: effData.columns.findIndex((c) => c.name === col.name),
           }));
@@ -99,7 +102,7 @@ export function TableWidget({ widget, data }: Props) {
       return src?.like ? undefined : src;
     };
 
-    return raw
+    const resolved = raw
       .map((c) => {
         const src = c.like ? likeSource(c) : undefined;
         if (src) {
@@ -108,7 +111,12 @@ export function TableWidget({ widget, data }: Props) {
         return { ...c, colorIdx: c.idx };
       })
       .filter((c) => !c.hidden);
-  }, [widget.columns, effData?.columns]);
+
+    // Frozen columns render first, in listed order; not supported on pivots.
+    if (pivot) return resolved;
+    const frozen = resolved.filter((c) => c.frozen);
+    return frozen.length ? [...frozen, ...resolved.filter((c) => !c.frozen)] : resolved;
+  }, [widget.columns, effData?.columns, pivot]);
 
   // Per-column `border: left|right|both` group-border classes, de-duping an
   // adjacent right+left pair into one line (border-separate would draw two).
@@ -130,6 +138,53 @@ export function TableWidget({ widget, data }: Props) {
   }, [columns, pivot]);
 
   const rows = effData?.rows ?? [];
+
+  // Frozen columns render first and stick to the left; 0 on pivots.
+  const frozenCount = useMemo(() => (pivot ? 0 : columns.filter((c) => c.frozen).length), [columns, pivot]);
+  const headerRowRef = useRef<HTMLTableRowElement>(null);
+  const [frozenOffsets, setFrozenOffsets] = useState<number[]>([]);
+  useLayoutEffect(() => {
+    if (!frozenCount) {
+      setFrozenOffsets([]);
+      return;
+    }
+    let cancelled = false;
+    const recompute = () => {
+      const ths = headerRowRef.current?.children;
+      if (cancelled || !ths) return;
+      const offsets: number[] = [];
+      let acc = 0;
+      for (let i = 0; i < frozenCount; i++) {
+        offsets[i] = acc;
+        acc += (ths[i] as HTMLElement)?.getBoundingClientRect().width ?? 0; // no gap, so no seam bleeds
+      }
+      setFrozenOffsets(offsets);
+    };
+    recompute();
+    // Observe each cell, not the row: a w-full table can reflow (e.g. font load)
+    // without the row's box changing.
+    const ths = headerRowRef.current?.children;
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined" && ths) {
+      ro = new ResizeObserver(recompute);
+      for (let i = 0; i < ths.length; i++) ro.observe(ths[i]);
+    }
+    document.fonts?.ready.then(recompute).catch(() => {});
+    return () => {
+      cancelled = true;
+      ro?.disconnect();
+    };
+  }, [frozenCount, columns, rows]);
+
+  // Sticky position for a frozen cell; its opaque background is class-based (below).
+  const frozenStyle = (ci: number, header: boolean): CSSProperties | undefined => {
+    if (ci >= frozenCount) return undefined;
+    return { position: "sticky", left: frozenOffsets[ci] ?? 0, zIndex: header ? 2 : 1 };
+  };
+  // Opaque background for a frozen cell that still tracks row hover; a
+  // conditional-format colour (inline) still wins.
+  const frozenBgClass = (ci: number) =>
+    ci < frozenCount ? "bg-[var(--dac-background)] group-hover:bg-[var(--dac-surface)]" : "";
 
   // All data columns by name → index, so cross-column rules can reference any
   // column (even ones not shown).
@@ -266,7 +321,7 @@ export function TableWidget({ widget, data }: Props) {
     <div className="overflow-x-auto">
       <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:1px_1px]">
         <thead>
-          <tr className="bg-[var(--dac-surface)]">
+          <tr ref={headerRowRef} className="bg-[var(--dac-surface)]">
             {columns.map((col, ci) => {
               const numeric = col.number != null;
               const active = sort?.column === col.name;
@@ -281,7 +336,8 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text} ${borderClasses[ci]}`}
+                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
+                  style={frozenStyle(ci, true)}
                 >
                   <button
                     type="button"
@@ -304,7 +360,7 @@ export function TableWidget({ widget, data }: Props) {
             return (
             <tr
               key={i}
-              className={`transition-colors duration-75 ${totalRow ? "bg-[var(--dac-surface)]" : subtotalRow ? "bg-[var(--dac-surface)]/60" : "hover:bg-[var(--dac-surface)]"}`}
+              className={`group transition-colors duration-75 ${totalRow ? "bg-[var(--dac-surface)]" : subtotalRow ? "bg-[var(--dac-surface)]/60" : "hover:bg-[var(--dac-surface)]"}`}
             >
               {columns.map((col, ci) => {
                 const numeric = col.number != null;
@@ -324,13 +380,16 @@ export function TableWidget({ widget, data }: Props) {
                   const colorRaw = col.colorIdx >= 0 ? row[col.colorIdx] : null;
                   Object.assign(style, cellStyle(col.format, scales.get(col.name) ?? [], colorRaw, tokens, lookup));
                 }
+                // Sticky position merges under conditional-format style so the cell colour wins.
+                const frozen = frozenStyle(ci, false);
+                const tdStyle = frozen ? { ...frozen, ...style } : Object.keys(style).length ? style : undefined;
                 return (
                   <td
                     key={col.name}
                     className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
                       numeric ? "tabular-nums text-[12px]" : ""
-                    } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""} ${borderClasses[ci]}`}
-                    style={Object.keys(style).length ? style : undefined}
+                    } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""} ${frozenBgClass(ci)} ${borderClasses[ci]}`}
+                    style={tdStyle}
                   >
                     {formatCell(raw, col.number, numberFormatters.get(col.name))}
                   </td>
