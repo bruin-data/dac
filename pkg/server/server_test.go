@@ -130,6 +130,43 @@ func TestListThemes(t *testing.T) {
 	}
 }
 
+func TestCORSMiddleware(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := corsMiddleware(next)
+
+	tests := []struct {
+		name       string
+		method     string
+		origin     string
+		wantStatus int
+		wantOrigin string
+	}{
+		{name: "no origin", method: http.MethodGet, wantStatus: http.StatusOK},
+		{name: "same origin", method: http.MethodPost, origin: "http://localhost:8321", wantStatus: http.StatusOK},
+		{name: "VS Code webview", method: http.MethodPost, origin: "vscode-webview://dashboard-id", wantStatus: http.StatusOK, wantOrigin: "vscode-webview://dashboard-id"},
+		{name: "VS Code preflight", method: http.MethodOptions, origin: "vscode-webview://dashboard-id", wantStatus: http.StatusNoContent, wantOrigin: "vscode-webview://dashboard-id"},
+		{name: "arbitrary website", method: http.MethodPost, origin: "https://evil.example", wantStatus: http.StatusForbidden},
+		{name: "spoofed scheme", method: http.MethodPost, origin: "vscode-webview.example://dashboard-id", wantStatus: http.StatusForbidden},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, "http://localhost:8321/api/v1/query", nil)
+			if tt.origin != "" {
+				req.Header.Set("Origin", tt.origin)
+			}
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			assertEqual(t, w.Code, tt.wantStatus)
+			assertEqual(t, w.Header().Get("Access-Control-Allow-Origin"), tt.wantOrigin)
+		})
+	}
+}
+
 func TestNew_AllowsRegularDashboardsWithInvalidSemanticModels(t *testing.T) {
 	projectDir := t.TempDir()
 

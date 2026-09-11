@@ -55,6 +55,10 @@ When `--password` is set, the server exposes admin endpoints for managing databa
 
 The server exposes a REST API used by the frontend:
 
+The local API rejects requests from arbitrary browser origins. Cross-origin
+access is limited to Bruin's VS Code webview embed; same-origin browser and
+non-browser clients continue to work normally.
+
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/v1/dashboards` | List all dashboards |
