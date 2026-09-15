@@ -111,6 +111,8 @@ interface QueryResult {
 />
 ```
 
+Add `tab="<TabName>"` to scope a filter to a single tab (it renders in that tab's own bar); omit it for the global bar. The tab must match a tab some row uses.
+
 ### Query
 
 SQL named query:

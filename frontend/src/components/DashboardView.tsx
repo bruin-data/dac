@@ -277,10 +277,8 @@ export function DashboardView() {
     setFilters((prev) => ({ ...(prev ?? activeFilters ?? {}), [filterName]: value }));
   };
 
-  // A filter may carry a `tab` (matching a row's tab): it renders in that tab's
-  // own bar, shown only while active. Filters with no tab render in the global bar
-  // at the top; a tab no row uses also falls here as a defensive fallback (the
-  // validator rejects an unmatched tab, so it shouldn't reach the renderer).
+  // Filters with no `tab` (or an unmatched one — the validator rejects those) go
+  // in the global bar; a tab-scoped filter shows only on its tab.
   const allFilters = dashboard.filters ?? [];
   const globalFilters = allFilters.filter((f) => !f.tab || !tabNames.includes(f.tab));
   const tabFilters = currentTab ? allFilters.filter((f) => f.tab === currentTab) : [];
