@@ -511,6 +511,25 @@ func TestValidate_TableColumnFrozen(t *testing.T) {
 	assertValidationContains(t, Validate(pivot), "frozen: not supported on pivot tables")
 }
 
+func TestValidate_FilterTab(t *testing.T) {
+	// A filter's tab must match a tab used by some row.
+	base := func(filterTab string) *Dashboard {
+		return &Dashboard{
+			Name: "test",
+			Rows: []Row{{Tab: "Overview", Widgets: []Widget{{
+				Name: "w", Type: WidgetTypeTable, SQL: "SELECT 1",
+			}}}},
+			Filters: []Filter{{Name: "region", Type: "text", Tab: filterTab}},
+		}
+	}
+	// Matches an existing row tab — ok.
+	assertNoErr(t, Validate(base("Overview")))
+	// No tab (global) — ok.
+	assertNoErr(t, Validate(base("")))
+	// References a tab no row uses — rejected.
+	assertValidationContains(t, Validate(base("Breakdown")), `tab "Breakdown" does not match any row tab`)
+}
+
 func TestValidate_PivotOnlyOnTables(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",

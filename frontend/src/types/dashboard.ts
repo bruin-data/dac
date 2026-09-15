@@ -23,6 +23,7 @@ export interface Filter {
   name: string;
   type: "date" | "date-range" | "number" | "select" | "text";
   multiple?: boolean;
+  tab?: string; // scope to a row tab; shown only on that tab. Empty = global bar
   default?: unknown;
   options?: {
     values?: string[];

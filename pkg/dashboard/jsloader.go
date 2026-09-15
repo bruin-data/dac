@@ -461,6 +461,7 @@ func vnodeToFilter(n *vnode) Filter {
 		Name:     asString(n.Props["name"]),
 		Type:     asString(n.Props["type"]),
 		Multiple: asBool(n.Props["multiple"]),
+		Tab:      asString(n.Props["tab"]),
 		Default:  n.Props["default"],
 	}
 

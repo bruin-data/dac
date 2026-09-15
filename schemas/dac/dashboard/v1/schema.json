@@ -66,6 +66,10 @@
         "multiple": {
           "type": "boolean"
         },
+        "tab": {
+          "type": "string",
+          "minLength": 1
+        },
         "default": true,
         "options": {
           "$ref": "#/$defs/filterOptions"

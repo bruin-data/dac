@@ -117,11 +117,22 @@ func Validate(d *Dashboard) error {
 		}
 	}
 
+	// Tabs declared on rows — a filter's `tab` must reference one.
+	rowTabs := map[string]bool{}
+	for _, r := range d.Rows {
+		if r.Tab != "" {
+			rowTabs[r.Tab] = true
+		}
+	}
+
 	// Validate filters.
 	for i, f := range d.Filters {
 		prefix := fmt.Sprintf("filter %d (%q)", i+1, f.Name)
 		if f.Name == "" {
 			errs = append(errs, fmt.Sprintf("filter %d: name is required", i+1))
+		}
+		if f.Tab != "" && !rowTabs[f.Tab] {
+			errs = append(errs, fmt.Sprintf("%s: tab %q does not match any row tab", prefix, f.Tab))
 		}
 		if f.Type == "" {
 			errs = append(errs, fmt.Sprintf("%s: type is required", prefix))

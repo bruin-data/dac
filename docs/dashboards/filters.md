@@ -95,6 +95,26 @@ A free-form text input.
     default: ""
 ```
 
+## Scoping a Filter to a Tab
+
+By default a filter renders in the bar at the top of the dashboard and applies everywhere. Set `tab` to a tab name (matching a row's `tab`, see [Layout → Tabs](/dashboards/layout)) to move that filter into that tab's own filter bar — it then shows only while that tab is active:
+
+```yaml
+filters:
+  - name: region          # global — always visible at the top
+    type: select
+    options:
+      values: ["All", "North America", "Europe", "APAC"]
+
+  - name: cohort          # only on the "Breakdown" tab
+    type: select
+    tab: Breakdown
+    options:
+      values: ["new", "returning"]
+```
+
+A filter's `tab` must match a tab some row uses — an unmatched tab is a validation error. Filter values share one namespace regardless of scope, and applying filters refreshes every widget on the dashboard.
+
 ## Available Date Presets
 
 | Preset | Description |
@@ -195,6 +215,7 @@ WHERE customer_name LIKE '%{{ filters.search }}%'
 | `name` | string | Yes | Filter identifier, used in `filters.<name>` |
 | `type` | string | Yes | `select`, `date-range`, `date`, `number`, or `text` |
 | `multiple` | bool | No | Allow multiple selections (select only) |
+| `tab` | string | No | Scope the filter to a row tab; shown only on that tab. Omit for the global bar |
 | `default` | any | No | Initial value. String preset for date-range, `YYYY-MM-DD` string for date, number for number, array for multi-select |
 | `options` | object | No | Filter options configuration |
 | `options.values` | string[] | No | Static list of options (select) |

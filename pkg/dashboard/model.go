@@ -50,6 +50,7 @@ type Filter struct {
 	Name     string         `yaml:"name" json:"name"`
 	Type     string         `yaml:"type" json:"type"`
 	Multiple bool           `yaml:"multiple,omitempty" json:"multiple,omitempty"`
+	Tab      string         `yaml:"tab,omitempty" json:"tab,omitempty"` // scope filter to a row tab; empty = global
 	Default  any            `yaml:"default,omitempty" json:"default,omitempty"`
 	Options  *FilterOptions `yaml:"options,omitempty" json:"options,omitempty"`
 }
