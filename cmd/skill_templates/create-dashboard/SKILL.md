@@ -195,6 +195,8 @@ Date range presets include `today`, `yesterday`, `last_7_days`, `last_30_days`, 
 
 Both single and multiple `select` filters show a searchable dropdown, so you can type to find an option quickly when the list is long.
 
+Set `tab: <name>` on a filter to move it into that tab's own filter bar (shown only while the tab is active) instead of the global bar at the top. Use it when a filter is only relevant to one tab's widgets. The `tab` must match a tab some row uses — an unmatched tab is a validation error.
+
 Select filters support `multiple: true` for multi-select. The value is a list — render with `join` in Jinja and guard the empty case:
 
 ```sql
