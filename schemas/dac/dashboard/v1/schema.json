@@ -411,7 +411,112 @@
         },
         "fit": {
           "enum": ["contain", "cover"]
+        },
+        "tabs": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Same-type sub-views the viewer switches between inside this one widget. Each tab inherits the widget's type/chart and supplies its own data source + encodings. A widget with tabs carries no data source of its own.",
+          "items": { "$ref": "#/$defs/widgetTab" }
         }
+      },
+      "patternProperties": {
+        "^x-": true
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "required": ["tabs"] },
+          "then": true,
+          "else": {
+            "if": {
+              "required": ["type"],
+              "properties": { "type": { "const": "pivot_table" } }
+            },
+            "then": {
+              "required": ["pivot"],
+              "properties": {
+                "columns": {
+                  "items": { "properties": { "type": { "const": "text" } } }
+                }
+              }
+            },
+            "else": { "not": { "required": ["pivot"] } }
+          }
+        }
+      ]
+    },
+    "widgetTab": {
+      "type": "object",
+      "description": "One tab of a tabbed widget. Like a widget but `type` is optional (inherited from the parent widget); carries its own data source + encodings and no nested tabs.",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "type": { "enum": ["metric", "chart", "table", "pivot_table", "text", "divider", "image"] },
+        "query": { "type": "string" },
+        "sql": { "type": "string" },
+        "data": {
+          "type": "object",
+          "required": ["columns", "rows"],
+          "properties": {
+            "columns": { "type": "array", "items": { "type": "string" } },
+            "rows": { "type": "array", "items": { "type": "array" } }
+          },
+          "additionalProperties": false
+        },
+        "metric": { "type": "string" },
+        "model": { "type": "string" },
+        "connection": { "type": "string" },
+        "dimension": { "type": "string" },
+        "granularity": { "type": "string" },
+        "dimensions": { "type": "array", "items": { "$ref": "#/$defs/dimensionRef" } },
+        "metrics": { "$ref": "#/$defs/stringList" },
+        "filters": { "type": "array", "items": { "$ref": "#/$defs/semanticFilter" } },
+        "segments": { "$ref": "#/$defs/stringList" },
+        "sort": { "type": "array", "items": { "$ref": "#/$defs/sort" } },
+        "limit": { "type": "integer", "minimum": 1 },
+        "chart": {
+          "enum": [
+            "line", "bar", "area", "pie", "scatter", "bubble", "combo", "histogram",
+            "boxplot", "funnel", "sankey", "heatmap", "calendar", "sparkline", "waterfall",
+            "xmr", "dumbbell", "gauge", "treemap", "radar", "candlestick", "forest", "vega-lite"
+          ]
+        },
+        "spec": { "type": "object" },
+        "x": { "$ref": "#/$defs/axisEncoding" },
+        "y": { "$ref": "#/$defs/axisEncoding" },
+        "y2": { "$ref": "#/$defs/axisEncoding" },
+        "label": { "type": "string" },
+        "value": { "$ref": "#/$defs/valueEncoding" },
+        "color": { "$ref": "#/$defs/colorEncoding" },
+        "stacked": { "type": "boolean" },
+        "normalized": { "type": "boolean" },
+        "horizontal": { "type": "boolean" },
+        "size": { "type": "string" },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "bins": { "type": "integer", "minimum": 1 },
+        "showValues": { "type": "boolean" },
+        "colorScale": { "$ref": "#/$defs/colorScale" },
+        "lines": { "$ref": "#/$defs/stringList" },
+        "series": { "$ref": "#/$defs/seriesStyles" },
+        "slices": { "$ref": "#/$defs/sliceStyles" },
+        "yMin": { "$ref": "#/$defs/boundEncoding" },
+        "yMax": { "$ref": "#/$defs/boundEncoding" },
+        "refLines": { "type": "array", "items": { "$ref": "#/$defs/refLine" } },
+        "refBands": { "type": "array", "items": { "$ref": "#/$defs/refBand" } },
+        "open": { "type": "string" },
+        "high": { "type": "string" },
+        "low": { "type": "string" },
+        "close": { "type": "string" },
+        "columns": { "type": "array", "items": { "$ref": "#/$defs/tableColumn" } },
+        "pivot": { "$ref": "#/$defs/pivot" },
+        "content": { "type": "string" },
+        "src": { "type": "string" },
+        "alt": { "type": "string" },
+        "title": { "type": "string" },
+        "caption": { "type": "string" },
+        "fit": { "enum": ["contain", "cover"] }
       },
       "patternProperties": {
         "^x-": true
@@ -431,7 +536,10 @@
               }
             }
           },
-          "else": { "not": { "required": ["pivot"] } }
+          "else": {
+            "if": { "required": ["type"] },
+            "then": { "not": { "required": ["pivot"] } }
+          }
         }
       ]
     },

@@ -60,55 +60,11 @@ func Validate(d *Dashboard) error {
 				errs = append(errs, fmt.Sprintf("row %d, widget %d: name is required", i+1, j+1))
 			}
 
-			if w.Type == "" {
-				errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
+			if w.HasTabs() {
+				errs = append(errs, validateWidgetTabs(prefix, &w, d)...)
+			} else {
+				errs = append(errs, validateWidgetContent(prefix, &w, d)...)
 			}
-
-			// Validate widget type.
-			switch w.Type {
-			case WidgetTypeMetric:
-				errs = append(errs, validateMetricWidget(prefix, &w, d)...)
-			case WidgetTypeChart:
-				errs = append(errs, validateChartWidget(prefix, &w, d)...)
-			case WidgetTypeTable:
-				// Table widgets just need a query source.
-				errs = append(errs, validateQuerySource(prefix, &w, d)...)
-				validateTableColumns(prefix, &w, &errs)
-			case WidgetTypePivotTable:
-				errs = append(errs, validateQuerySource(prefix, &w, d)...)
-				validateTableColumns(prefix, &w, &errs)
-				if w.Pivot == nil {
-					errs = append(errs, fmt.Sprintf("%s: pivot_table widgets need a pivot", prefix))
-				}
-			case WidgetTypeText:
-				if w.Content == "" {
-					errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
-				}
-			case WidgetTypeDivider:
-				// No required fields.
-			case WidgetTypeImage:
-				// Data-driven like a table: needs a query source, and src names the
-				// column holding the image URL.
-				errs = append(errs, validateQuerySource(prefix, &w, d)...)
-				if w.Src == "" {
-					errs = append(errs, fmt.Sprintf("%s: src (image URL column) is required for image widgets", prefix))
-				}
-				if w.Fit != "" && w.Fit != "contain" && w.Fit != "cover" {
-					errs = append(errs, fmt.Sprintf("%s: fit must be contain or cover", prefix))
-				}
-			case "":
-				// Already reported above.
-			default:
-				errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, pivot_table, text, divider, or image)", prefix, w.Type))
-			}
-
-			if len(w.Spec) > 0 && (w.Type != WidgetTypeChart || w.Chart != "vega-lite") {
-				errs = append(errs, fmt.Sprintf("%s: spec is only valid on vega-lite charts", prefix))
-			}
-
-			errs = append(errs, validateInlineData(prefix, &w)...)
-
-			validatePivot(prefix, &w, &errs)
 
 			if w.Col < 0 || w.Col > 12 {
 				errs = append(errs, fmt.Sprintf("%s: col must be between 1 and 12, got %d", prefix, w.Col))
@@ -175,6 +131,104 @@ func Validate(d *Dashboard) error {
 		return &ValidationError{Dashboard: d.Name, Errors: errs}
 	}
 	return nil
+}
+
+// validateWidgetContent validates a widget's type-specific fields, spec, inline
+// data, and pivot. Shared by top-level widgets and by each tab.
+func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
+	var errs []string
+
+	if w.Type == "" {
+		errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
+	}
+
+	// Validate widget type.
+	switch w.Type {
+	case WidgetTypeMetric:
+		errs = append(errs, validateMetricWidget(prefix, w, d)...)
+	case WidgetTypeChart:
+		errs = append(errs, validateChartWidget(prefix, w, d)...)
+	case WidgetTypeTable:
+		// Table widgets just need a query source.
+		errs = append(errs, validateQuerySource(prefix, w, d)...)
+		validateTableColumns(prefix, w, &errs)
+	case WidgetTypePivotTable:
+		errs = append(errs, validateQuerySource(prefix, w, d)...)
+		validateTableColumns(prefix, w, &errs)
+		if w.Pivot == nil {
+			errs = append(errs, fmt.Sprintf("%s: pivot_table widgets need a pivot", prefix))
+		}
+	case WidgetTypeText:
+		if w.Content == "" {
+			errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
+		}
+	case WidgetTypeDivider:
+		// No required fields.
+	case WidgetTypeImage:
+		// Data-driven like a table: needs a query source, and src names the
+		// column holding the image URL.
+		errs = append(errs, validateQuerySource(prefix, w, d)...)
+		if w.Src == "" {
+			errs = append(errs, fmt.Sprintf("%s: src (image URL column) is required for image widgets", prefix))
+		}
+		if w.Fit != "" && w.Fit != "contain" && w.Fit != "cover" {
+			errs = append(errs, fmt.Sprintf("%s: fit must be contain or cover", prefix))
+		}
+	case "":
+		// Already reported above.
+	default:
+		errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, pivot_table, text, divider, or image)", prefix, w.Type))
+	}
+
+	if len(w.Spec) > 0 && (w.Type != WidgetTypeChart || w.Chart != "vega-lite") {
+		errs = append(errs, fmt.Sprintf("%s: spec is only valid on vega-lite charts", prefix))
+	}
+
+	errs = append(errs, validateInlineData(prefix, w)...)
+
+	validatePivot(prefix, w, &errs)
+
+	return errs
+}
+
+// validateWidgetTabs validates a tabbed widget: the container carries no data
+// source, and each tab is validated as an inherited-type widget. No nesting.
+func validateWidgetTabs(prefix string, w *Widget, d *Dashboard) []string {
+	var errs []string
+
+	if w.Type == "" {
+		errs = append(errs, fmt.Sprintf("%s: type is required (tabs inherit the widget's type)", prefix))
+	}
+
+	// Data lives on the tabs, not the container.
+	if w.SQL != "" || w.QueryRef != "" || w.HasInlineData() || w.IsSemantic() {
+		errs = append(errs, fmt.Sprintf("%s: a widget with tabs must not set its own sql, query, data, or semantic fields — put the data source on each tab", prefix))
+	}
+
+	seen := make(map[string]bool, len(w.Tabs))
+	for k := range w.Tabs {
+		tabPrefix := fmt.Sprintf("%s, tab %d (%q)", prefix, k+1, w.Tabs[k].Name)
+		name := w.Tabs[k].Name
+		if name == "" {
+			errs = append(errs, fmt.Sprintf("%s, tab %d: name is required", prefix, k+1))
+		} else if seen[name] {
+			errs = append(errs, fmt.Sprintf("%s: duplicate tab name %q — tab names must be unique within a widget", prefix, name))
+		}
+		seen[name] = true
+		// Tabs are same-type sub-views: a tab may omit type (inherits the
+		// widget's) but must not switch to a different one.
+		if w.Tabs[k].Type != "" && w.Tabs[k].Type != w.Type {
+			errs = append(errs, fmt.Sprintf("%s: type %q must match the widget's type %q (tabs are same-type sub-views)", tabPrefix, w.Tabs[k].Type, w.Type))
+		}
+		if w.Tabs[k].HasTabs() {
+			errs = append(errs, fmt.Sprintf("%s: tabs cannot be nested", tabPrefix))
+			continue
+		}
+		tab := w.ResolvedTab(k)
+		errs = append(errs, validateWidgetContent(tabPrefix, &tab, d)...)
+	}
+
+	return errs
 }
 
 func ValidateAll(dashboards []*Dashboard) error {
@@ -478,7 +532,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if w.Y2.Dash != "" && !validDashes[w.Y2.Dash] {
 			errs = append(errs, fmt.Sprintf("%s: y2.dash must be solid, dotted, dashed, or long-dash", prefix))
 		}
-		if w.Stacked {
+		if boolValue(w.Stacked) {
 			errs = append(errs, fmt.Sprintf("%s: stacked cannot be combined with y2 (a second axis)", prefix))
 		}
 		// A horizontal bar plots its values on the x axis, so a right y axis has
@@ -626,22 +680,22 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 			errs = append(errs, fmt.Sprintf("%s: color with multiple y fields is not supported", prefix))
 		}
 	}
-	if w.Stacked && w.Chart != "bar" {
+	if boolValue(w.Stacked) && w.Chart != "bar" {
 		errs = append(errs, fmt.Sprintf("%s: stacked is only valid on bar charts", prefix))
 	}
-	if w.Stacked && w.Color == nil {
+	if boolValue(w.Stacked) && w.Color == nil {
 		errs = append(errs, fmt.Sprintf("%s: stacked requires color — return one row per category (long format) and set color: { field: <category column> }", prefix))
 	}
-	if w.Normalized && !w.Stacked {
+	if boolValue(w.Normalized) && !boolValue(w.Stacked) {
 		errs = append(errs, fmt.Sprintf("%s: normalized requires stacked: true", prefix))
 	}
-	if w.Normalized && w.Chart != "bar" {
+	if boolValue(w.Normalized) && w.Chart != "bar" {
 		errs = append(errs, fmt.Sprintf("%s: normalized is only valid on bar charts", prefix))
 	}
 	if w.Horizontal != nil && *w.Horizontal && w.Chart != "bar" && w.Chart != "funnel" && w.Chart != "forest" {
 		errs = append(errs, fmt.Sprintf("%s: horizontal is only valid on bar, funnel and forest charts", prefix))
 	}
-	if w.ShowValues && w.Chart != "heatmap" {
+	if boolValue(w.ShowValues) && w.Chart != "heatmap" {
 		errs = append(errs, fmt.Sprintf("%s: showValues is only valid on heatmap charts", prefix))
 	}
 	if cs := w.ColorScale; cs != nil {

@@ -257,50 +257,74 @@ func (s *Server) handleGetTheme(w http.ResponseWriter, r *http.Request) {
 func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]WidgetJob, error) {
 	var jobs []WidgetJob
 	for i, row := range d.Rows {
-		for j, widget := range row.Widgets {
-			if widget.Type == dashboard.WidgetTypeText || widget.Type == dashboard.WidgetTypeDivider {
-				continue
-			}
+		for j := range row.Widgets {
+			widget := row.Widgets[j]
 
-			if widget.HasInlineData() {
-				jobs = append(jobs, WidgetJob{ID: WidgetID(i, j), InlineData: widget.Data})
-				continue
-			}
-
-			var sql, conn string
-			var err error
-
-			if semanticJob, handled, err := d.ResolveWidgetSemanticJob(&widget); err != nil {
-				return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
-			} else if handled {
-				sql, conn, renames, err := compileSemanticJob(semanticJob, filters)
-				if err != nil {
-					return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
+			// One job per tab, keyed r{i}-w{j}-t{k}, each inheriting type/chart.
+			if widget.HasTabs() {
+				for k := range widget.Tabs {
+					tab := widget.ResolvedTab(k)
+					job, err := resolveWidgetJob(d, filters, WidgetTabID(i, j, k), &tab)
+					if err != nil {
+						return nil, err
+					}
+					if job != nil {
+						jobs = append(jobs, *job)
+					}
 				}
-				jobs = append(jobs, WidgetJob{ID: WidgetID(i, j), SQL: sql, Connection: conn, ColumnRenames: renames})
 				continue
 			}
 
-			sql, conn, err = widget.ResolvedQuery(d)
+			job, err := resolveWidgetJob(d, filters, WidgetID(i, j), &widget)
 			if err != nil {
 				return nil, err
 			}
-			if sql == "" {
-				continue
+			if job != nil {
+				jobs = append(jobs, *job)
 			}
-
-			// Always render: even with no filters, SQL may reference the
-			// `bruin` namespace (e.g. {{ bruin.user_email }}). Render()
-			// short-circuits templates with no placeholders.
-			sql, err = tmpl.Render(sql, filters)
-			if err != nil {
-				return nil, fmt.Errorf("template error: %w", err)
-			}
-			jobs = append(jobs, WidgetJob{ID: WidgetID(i, j), SQL: sql, Connection: conn})
 		}
 	}
 
 	return jobs, nil
+}
+
+// resolveWidgetJob builds the job for one widget (or tab) under the given id, or
+// nil when it carries no data (text/divider) or resolves to empty SQL.
+func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string, widget *dashboard.Widget) (*WidgetJob, error) {
+	if widget.Type == dashboard.WidgetTypeText || widget.Type == dashboard.WidgetTypeDivider {
+		return nil, nil
+	}
+
+	if widget.HasInlineData() {
+		return &WidgetJob{ID: id, InlineData: widget.Data}, nil
+	}
+
+	if semanticJob, handled, err := d.ResolveWidgetSemanticJob(widget); err != nil {
+		return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
+	} else if handled {
+		sql, conn, renames, err := compileSemanticJob(semanticJob, filters)
+		if err != nil {
+			return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
+		}
+		return &WidgetJob{ID: id, SQL: sql, Connection: conn, ColumnRenames: renames}, nil
+	}
+
+	sql, conn, err := widget.ResolvedQuery(d)
+	if err != nil {
+		return nil, err
+	}
+	if sql == "" {
+		return nil, nil
+	}
+
+	// Always render: even with no filters, SQL may reference the `bruin`
+	// namespace (e.g. {{ bruin.user_email }}). Render() short-circuits
+	// templates with no placeholders.
+	sql, err = tmpl.Render(sql, filters)
+	if err != nil {
+		return nil, fmt.Errorf("template error: %w", err)
+	}
+	return &WidgetJob{ID: id, SQL: sql, Connection: conn}, nil
 }
 
 // ExecuteWidgetQuery runs a single widget SQL query against the given backend.
@@ -348,6 +372,12 @@ func ExecuteWidgetQuery(ctx context.Context, backend query.Backend, j WidgetJob)
 // WidgetID returns the canonical widget identifier for a given row and widget index.
 func WidgetID(rowIdx, widgetIdx int) string {
 	return fmt.Sprintf("r%d-w%d", rowIdx, widgetIdx)
+}
+
+// WidgetTabID returns the id for one tab of a widget; the frontend keys per-tab
+// data by the same id.
+func WidgetTabID(rowIdx, widgetIdx, tabIdx int) string {
+	return fmt.Sprintf("r%d-w%d-t%d", rowIdx, widgetIdx, tabIdx)
 }
 
 // handleStreamQuery is the streaming variant of handleBatchQuery.

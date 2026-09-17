@@ -125,14 +125,14 @@ type Widget struct {
 	Label      string         `yaml:"label,omitempty" json:"label,omitempty"` // for pie/funnel/treemap
 	Value      *ValueEncoding `yaml:"value,omitempty" json:"value,omitempty"` // metric: the value; pie/funnel/heatmap/calendar/treemap/gauge: value column
 	Color      *ColorEncoding `yaml:"color,omitempty" json:"color,omitempty"`
-	Stacked    bool           `yaml:"stacked,omitempty" json:"stacked,omitempty"`
-	Normalized bool           `yaml:"normalized,omitempty" json:"normalized,omitempty"`
+	Stacked    *bool          `yaml:"stacked,omitempty" json:"stacked,omitempty"` // pointer so a tab's explicit false overrides an inherited true
+	Normalized *bool          `yaml:"normalized,omitempty" json:"normalized,omitempty"`
 	Horizontal *bool          `yaml:"horizontal,omitempty" json:"horizontal,omitempty"` // bar/funnel: horizontal layout; forest: defaults horizontal, set false for a vertical dot-and-whisker. Pointer so an explicit false survives JSON marshaling.
 	Size       string         `yaml:"size,omitempty" json:"size,omitempty"`
 	Source     string         `yaml:"source,omitempty" json:"source,omitempty"`         // sankey: source column
 	Target     string         `yaml:"target,omitempty" json:"target,omitempty"`         // sankey: target column, gauge: target (max) column
 	Bins       int            `yaml:"bins,omitempty" json:"bins,omitempty"`             // histogram: number of bins
-	ShowValues bool           `yaml:"showValues,omitempty" json:"showValues,omitempty"` // heatmap: print each cell's value inside the cell
+	ShowValues *bool          `yaml:"showValues,omitempty" json:"showValues,omitempty"` // heatmap: print each cell's value inside the cell
 	ColorScale *ColorScale    `yaml:"colorScale,omitempty" json:"colorScale,omitempty"` // heatmap: custom color ramp, same keys as a table gradient
 	Lines      []string       `yaml:"lines,omitempty" json:"lines,omitempty"`           // combo: which y series render as lines
 	// Series holds per-series line style overrides keyed by y-column: {column: {color, curve, dash}}.
@@ -165,6 +165,10 @@ type Widget struct {
 	Title   string `yaml:"title,omitempty" json:"title,omitempty"`     // column for the heading
 	Caption string `yaml:"caption,omitempty" json:"caption,omitempty"` // column for the markdown caption
 	Fit     string `yaml:"fit,omitempty" json:"fit,omitempty"`         // contain (default) | cover
+
+	// Tabs are same-type sub-views: each inherits Type/Chart and brings its own
+	// data source + encodings.
+	Tabs []Widget `yaml:"tabs,omitempty" json:"tabs,omitempty"`
 }
 
 // BoundEncoding is a CI bound (yMin/yMax): a single column name (scalar form) or a
@@ -526,6 +530,47 @@ func (q *Query) IsSemantic() bool {
 // HasInlineData reports whether the widget carries static inline data.
 func (w *Widget) HasInlineData() bool {
 	return w.Data != nil && len(w.Data.Columns) > 0
+}
+
+// HasTabs reports whether the widget holds internal tabs (same-type sub-views).
+func (w *Widget) HasTabs() bool {
+	return len(w.Tabs) > 0
+}
+
+// boolValue reports the pointer's value, treating nil as false.
+func boolValue(b *bool) bool { return b != nil && *b }
+
+// ResolvedTab returns tab k as a standalone widget: the parent's fields with the
+// tab's overlaid (mirrors the frontend merge {...widget, ...tab}).
+func (w *Widget) ResolvedTab(k int) Widget {
+	base := w.mergeableFields()
+	base["tabs"] = nil
+	for key, v := range w.Tabs[k].mergeableFields() {
+		base[key] = v
+	}
+
+	// Decode into a zero value so pointer/map fields get fresh allocations and
+	// can't alias (and thus mutate) the parent widget.
+	var out Widget
+	merged, err := yaml.Marshal(base)
+	if err == nil {
+		_ = yaml.Unmarshal(merged, &out)
+	}
+	return out
+}
+
+// mergeableFields renders a widget to a YAML map with zero values dropped, so an
+// unset tab field never clobbers an inherited one (type/name stripped when empty).
+func (w *Widget) mergeableFields() map[string]any {
+	data, _ := yaml.Marshal(w)
+	m := map[string]any{}
+	_ = yaml.Unmarshal(data, &m)
+	for _, key := range []string{"type", "name"} {
+		if s, ok := m[key].(string); ok && s == "" {
+			delete(m, key)
+		}
+	}
+	return m
 }
 
 func (w *Widget) IsSemantic() bool {

@@ -87,7 +87,7 @@ func TestLoadTSXFile_DataDrivenWithMockBackend(t *testing.T) {
 	if got := bar.YFields(); len(got) != 1 || got[0] != "revenue" {
 		t.Errorf("expected y = [revenue], got %v", got)
 	}
-	if !bar.Stacked {
+	if !boolValue(bar.Stacked) {
 		t.Error("expected stacked bar")
 	}
 	if bar.ColorField() != "region" {
@@ -406,7 +406,7 @@ export default (
 	assertNoErr(t, err)
 
 	w := d.Rows[0].Widgets[0]
-	if !w.Stacked {
+	if !boolValue(w.Stacked) {
 		t.Error("expected stacked=true")
 	}
 	if len(w.YFields()) != 2 {
@@ -429,7 +429,7 @@ export default (
 	d, err := evalTSX(source, "test.tsx", &tsxConfig{})
 	assertNoErr(t, err)
 
-	if !d.Rows[0].Widgets[0].ShowValues {
+	if !boolValue(d.Rows[0].Widgets[0].ShowValues) {
 		t.Error("expected showValues=true")
 	}
 }

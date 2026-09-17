@@ -91,6 +91,69 @@ function DataWidgetInner({
   return <WidgetFrame widget={widget} data={data} isLoading={isLoading || isPlaceholderData} />;
 }
 
+/**
+ * TabbedWidget renders a widget's `tabs`: same-type sub-views switched in place.
+ * The active tab is merged over the parent and rendered as a normal DataWidget
+ * under the per-tab id `${baseId}-t${activeIndex}`.
+ */
+function TabbedWidget({
+  dashboardName,
+  baseId,
+  widget,
+  filters,
+  WidgetFrame,
+}: {
+  dashboardName: string;
+  baseId: string;
+  widget: Widget;
+  filters?: Record<string, unknown>;
+  WidgetFrame: React.ComponentType<WidgetFrameProps>;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const tabs = widget.tabs ?? [];
+  const active = Math.min(activeIndex, tabs.length - 1);
+  const tab = tabs[active];
+  // Inherit type/chart from the widget: the tab serializes an empty `type`
+  // (Go field has no omitempty), which must not clobber the parent's.
+  const mergedTab: Widget = {
+    ...widget,
+    ...tab,
+    type: tab.type || widget.type,
+    chart: tab.chart || widget.chart,
+    name: widget.name,
+    tabs: undefined,
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex overflow-x-auto scrollbar-hide border-b border-[var(--dac-border)]">
+        {tabs.map((t, k) => (
+          <button
+            key={k}
+            onClick={() => setActiveIndex(k)}
+            className={`shrink-0 px-3 py-1.5 text-[13px] font-medium transition-colors duration-100 border-b-2 -mb-px ${
+              k === active
+                ? "border-[var(--dac-accent)] text-[var(--dac-text-primary)]"
+                : "border-transparent text-[var(--dac-text-muted)] hover:text-[var(--dac-text-secondary)]"
+            }`}
+          >
+            {t.name || `Tab ${k + 1}`}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 min-h-0">
+        <DataWidget
+          dashboardName={dashboardName}
+          widgetId={`${baseId}-t${active}`}
+          widget={mergedTab}
+          filters={filters}
+          WidgetFrame={WidgetFrame}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function DashboardView() {
   const { name } = useParams<{ name: string }>();
   const dashboardExportRef = useRef<HTMLDivElement>(null);
@@ -219,13 +282,24 @@ export function DashboardView() {
       if (format === "csv") {
         const widgetData = await fetchDashboardData(name || "", activeFilters ?? undefined);
         const sections: { name: string; data: WidgetData }[] = [];
+        const pushSection = (label: string, data: WidgetData | undefined) => {
+          if (data && !data.error && data.rows && data.rows.length > 0) {
+            sections.push({ name: label, data });
+          }
+        };
         dashboard.rows.forEach((row, i) => {
           row.widgets.forEach((widget, j) => {
             if (widget.type === "text" || widget.type === "divider") return;
-            const data = widgetData[`r${i}-w${j}`];
-            if (data && !data.error && data.rows && data.rows.length > 0) {
-              sections.push({ name: widget.name, data });
+            // Tabbed widgets keep their data per tab (`-t{k}`), so export one
+            // section per tab rather than a missing base id.
+            if (widget.tabs && widget.tabs.length) {
+              widget.tabs.forEach((tab, k) => {
+                const label = tab.name ? `${widget.name} — ${tab.name}` : widget.name;
+                pushSection(label, widgetData[`r${i}-w${j}-t${k}`]);
+              });
+              return;
             }
+            pushSection(widget.name, widgetData[`r${i}-w${j}`]);
           });
         });
         if (sections.length === 0) return;
@@ -326,13 +400,23 @@ export function DashboardView() {
     const col = widget.col || Math.floor(12 / totalInRow);
     return (
       <WidgetContainer key={id} col={col}>
-        <DataWidget
-          dashboardName={name || ""}
-          widgetId={id}
-          widget={widget}
-          filters={activeFilters ?? undefined}
-          WidgetFrame={WidgetFrame}
-        />
+        {widget.tabs && widget.tabs.length > 0 ? (
+          <TabbedWidget
+            dashboardName={name || ""}
+            baseId={id}
+            widget={widget}
+            filters={activeFilters ?? undefined}
+            WidgetFrame={WidgetFrame}
+          />
+        ) : (
+          <DataWidget
+            dashboardName={name || ""}
+            widgetId={id}
+            widget={widget}
+            filters={activeFilters ?? undefined}
+            WidgetFrame={WidgetFrame}
+          />
+        )}
       </WidgetContainer>
     );
   };
