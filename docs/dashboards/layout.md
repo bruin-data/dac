@@ -74,6 +74,11 @@ If `col` is omitted, widgets are auto-sized to fill the remaining space equally.
 
 ## Tabs
 
+There are two kinds of tabs: **dashboard tabs** group whole rows, and **widget
+tabs** switch same-type sub-views inside a single widget.
+
+### Dashboard tabs
+
 Group rows into tabs for multi-view dashboards:
 
 ```yaml
@@ -124,6 +129,37 @@ In TSX, use the `<Tabs>` and `<Tab>` components:
   </Tabs>
 </Dashboard>
 ```
+
+### Widget tabs
+
+Give a single widget a `tabs` list to switch between same-type sub-views in
+place. The widget's `type` and `chart` apply to every tab; each tab supplies only
+its own data source (`sql`/`query`/`data`) and encodings, and its `name` is the
+tab label. A tab inherits any field it doesn't set from the widget, so put shared
+config on the widget and only the differences on each tab. A widget with `tabs`
+has no data source of its own, and tabs cannot be nested.
+
+```yaml
+rows:
+  - widgets:
+      - name: Sales
+        type: chart
+        chart: bar        # applies to every tab
+        col: 8
+        tabs:
+          - name: Revenue
+            sql: SELECT month, revenue FROM sales GROUP BY 1 ORDER BY 1
+            x: { field: month, type: category }
+            y: { field: revenue, type: number }
+          - name: Orders
+            sql: SELECT month, orders FROM sales GROUP BY 1 ORDER BY 1
+            x: { field: month, type: category }
+            y: { field: orders, type: number }
+```
+
+Use widget tabs for "same chart, different measure/dimension"; use dashboard
+`tab:` on rows to group whole sections. See
+`examples/basic-yaml/dashboards/widget-tabs.yml` for a runnable example.
 
 ## Layout Tips
 

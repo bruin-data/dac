@@ -1,0 +1,110 @@
+name: Widget Tabs
+description: Dashboard-level tabs plus tabs inside every widget type. Uses inline data, so it renders without a connection.
+
+rows:
+  # ── Dashboard tab: Charts & Metrics ──
+  - tab: Charts & Metrics
+    widgets:
+      # metric with internal tabs
+      - name: KPIs
+        type: metric
+        col: 4
+        tabs:
+          - name: Revenue
+            data:
+              columns: [total]
+              rows:
+                - [1250000]
+            value: { field: total, type: number, format: "$,.0f" }
+          - name: Orders
+            data:
+              columns: [total]
+              rows:
+                - [425]
+            value: { field: total, type: number, format: ",.0f" }
+
+      # chart with internal tabs — chart type applies to all tabs
+      - name: Sales
+        type: chart
+        chart: bar
+        col: 8
+        tabs:
+          - name: Revenue
+            data:
+              columns: [month, revenue]
+              rows:
+                - [Jan, 400]
+                - [Feb, 520]
+                - [Mar, 610]
+            x: { field: month, type: category }
+            y: { field: revenue, type: number }
+          - name: Orders
+            data:
+              columns: [month, orders]
+              rows:
+                - [Jan, 120]
+                - [Feb, 145]
+                - [Mar, 160]
+            x: { field: month, type: category }
+            y: { field: orders, type: number }
+
+  # ── Dashboard tab: Tables & Text ──
+  - tab: Tables & Text
+    widgets:
+      - name: Records
+        type: table
+        col: 6
+        tabs:
+          - name: Orders
+            data:
+              columns: [id, customer, amount]
+              rows:
+                - [1, Acme, 320]
+                - [2, Globex, 210]
+                - [3, Initech, 540]
+          - name: Customers
+            data:
+              columns: [id, name, region]
+              rows:
+                - [1, Acme, EU]
+                - [2, Globex, US]
+                - [3, Initech, APAC]
+
+      - name: Notes
+        type: text
+        col: 6
+        tabs:
+          - name: Summary
+            content: |
+              ## Summary
+
+              Revenue is **up 18%** quarter over quarter.
+          - name: Next steps
+            content: |
+              ## Next steps
+
+              - Expand into APAC
+              - Launch referral program
+
+  # ── Dashboard tab: Images ──
+  - tab: Images
+    widgets:
+      - name: Gallery
+        type: image
+        col: 12
+        fit: cover
+        src: photo
+        caption: label
+        tabs:
+          - name: Cities
+            data:
+              columns: [photo, label]
+              rows:
+                - ["https://placehold.co/400x300?text=Lisbon", Lisbon]
+                - ["https://placehold.co/400x300?text=Berlin", Berlin]
+          - name: Nature
+            data:
+              columns: [photo, label]
+              rows:
+                - ["https://placehold.co/400x300?text=Forest", Forest]
+                - ["https://placehold.co/400x300?text=Coastline", Coastline]

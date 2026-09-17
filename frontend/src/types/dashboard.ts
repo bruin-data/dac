@@ -56,6 +56,10 @@ export interface Widget {
   type: "metric" | "chart" | "table" | "pivot_table" | "text" | "divider" | "image";
   col?: number;
 
+  // Sub-views: same-type tabs, each with its own data source + encodings.
+  // Each tab inherits this widget's type/chart.
+  tabs?: Widget[];
+
   // Query source
   query?: string;
   sql?: string;

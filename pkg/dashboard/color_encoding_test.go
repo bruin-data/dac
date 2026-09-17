@@ -115,7 +115,7 @@ func TestValidate_NormalizedRequiresStacked(t *testing.T) {
 			SQL:        "SELECT 1 AS x, 1 AS y",
 			X:          &AxisEncoding{Field: "x"},
 			Y:          &AxisEncoding{Field: "y"},
-			Normalized: true,
+			Normalized: boolPtr(true),
 		}}}},
 	}
 	err := Validate(d)
@@ -134,8 +134,8 @@ func TestValidate_NormalizedOnlyOnBar(t *testing.T) {
 			SQL:        "SELECT 1 AS x, 1 AS y",
 			X:          &AxisEncoding{Field: "x"},
 			Y:          &AxisEncoding{Field: "y"},
-			Stacked:    true,
-			Normalized: true,
+			Stacked:    boolPtr(true),
+			Normalized: boolPtr(true),
 		}}}},
 	}
 	err := Validate(d)
@@ -192,8 +192,8 @@ func TestValidate_HappyPath_BarWithColorStackedNormalizedHorizontal(t *testing.T
 			X:          &AxisEncoding{Field: "month"},
 			Y:          &AxisEncoding{Field: "revenue"},
 			Color:      &ColorEncoding{Field: "region"},
-			Stacked:    true,
-			Normalized: true,
+			Stacked:    boolPtr(true),
+			Normalized: boolPtr(true),
 			Horizontal: boolPtr(true),
 		}}}},
 	}

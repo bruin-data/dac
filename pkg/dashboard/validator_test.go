@@ -106,6 +106,103 @@ func TestValidate_Notes(t *testing.T) {
 	assertValidationContains(t, err, "note \"\" not found")
 }
 
+// ---------------------------------------------------------------------------
+// Widget-internal tabs
+// ---------------------------------------------------------------------------
+
+func tabbedChartWidget() Widget {
+	return Widget{
+		Name:  "Sales",
+		Type:  WidgetTypeChart,
+		Chart: "bar",
+		Tabs: []Widget{
+			{
+				Name: "Revenue",
+				Data: &WidgetData{Columns: []string{"month", "revenue"}, Rows: [][]any{{"Jan", 1}}},
+				X:    &AxisEncoding{Field: "month"},
+				Y:    &AxisEncoding{Field: "revenue"},
+			},
+			{
+				Name: "Orders",
+				Data: &WidgetData{Columns: []string{"month", "orders"}, Rows: [][]any{{"Jan", 1}}},
+				X:    &AxisEncoding{Field: "month"},
+				Y:    &AxisEncoding{Field: "orders"},
+			},
+		},
+	}
+}
+
+func dashboardWith(w Widget) *Dashboard {
+	return &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{w}}}}
+}
+
+func TestValidate_WidgetTabs_Valid(t *testing.T) {
+	assertNoErr(t, Validate(dashboardWith(tabbedChartWidget())))
+}
+
+func TestValidate_WidgetTabs_TabInheritsTypeError(t *testing.T) {
+	// A type-less chart tab missing y must fail — proves tabs validate by type.
+	w := tabbedChartWidget()
+	w.Tabs[1].Y = nil
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, `tab 2 ("Orders")`)
+}
+
+func TestValidate_WidgetTabs_ContainerHasDataSource(t *testing.T) {
+	w := tabbedChartWidget()
+	w.SQL = "SELECT 1"
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "a widget with tabs must not set its own sql")
+}
+
+func TestValidate_WidgetTabs_TabMissingName(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Tabs[0].Name = ""
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "tab 1: name is required")
+}
+
+func TestValidate_WidgetTabs_NestedRejected(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Tabs[0].Tabs = []Widget{{Name: "inner"}}
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "tabs cannot be nested")
+}
+
+func TestValidate_WidgetTabs_ImageInheritsSrc(t *testing.T) {
+	// src on the container must be inherited by each data-only tab.
+	w := Widget{
+		Name: "Gallery",
+		Type: WidgetTypeImage,
+		Src:  "photo",
+		Tabs: []Widget{
+			{Name: "A", Data: &WidgetData{Columns: []string{"photo"}, Rows: [][]any{{"u"}}}},
+			{Name: "B", Data: &WidgetData{Columns: []string{"photo"}, Rows: [][]any{{"u"}}}},
+		},
+	}
+	assertNoErr(t, Validate(dashboardWith(w)))
+}
+
+func TestValidate_WidgetTabs_DuplicateName(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Tabs[1].Name = w.Tabs[0].Name
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "duplicate tab name")
+}
+
+func TestValidate_WidgetTabs_TypeMustMatch(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Tabs[1].Type = WidgetTypeTable
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "must match the widget's type")
+}
+
 func TestValidate_MissingName(t *testing.T) {
 	d := &Dashboard{
 		Rows: []Row{
@@ -266,7 +363,7 @@ func TestValidate_StackedRequiresColor(t *testing.T) {
 			{Widgets: []Widget{{
 				Name: "w", Type: WidgetTypeChart, Chart: "bar", SQL: "SELECT 1",
 				X: &AxisEncoding{Field: "month"}, Y: &AxisEncoding{Field: "revenue"},
-				Stacked: true,
+				Stacked: boolPtr(true),
 			}}},
 		},
 	}
@@ -282,7 +379,7 @@ func TestValidate_StackedOnlyOnBarCharts(t *testing.T) {
 			{Widgets: []Widget{{
 				Name: "w", Type: WidgetTypeChart, Chart: "area", SQL: "SELECT 1",
 				X: &AxisEncoding{Field: "month"}, Y: &AxisEncoding{Field: "revenue"},
-				Stacked: true, Color: &ColorEncoding{Field: "region"},
+				Stacked: boolPtr(true), Color: &ColorEncoding{Field: "region"},
 			}}},
 		},
 	}
@@ -298,7 +395,7 @@ func TestValidate_StackedBarWithColor(t *testing.T) {
 			{Widgets: []Widget{{
 				Name: "w", Type: WidgetTypeChart, Chart: "bar", SQL: "SELECT 1",
 				X: &AxisEncoding{Field: "month"}, Y: &AxisEncoding{Field: "revenue"},
-				Stacked: true, Color: &ColorEncoding{Field: "region"},
+				Stacked: boolPtr(true), Color: &ColorEncoding{Field: "region"},
 			}}},
 		},
 	}
@@ -312,7 +409,7 @@ func TestValidate_ShowValuesOnlyOnHeatmap(t *testing.T) {
 			{Widgets: []Widget{{
 				Name: "w", Type: WidgetTypeChart, Chart: "bar", SQL: "SELECT 1",
 				X: &AxisEncoding{Field: "month"}, Y: &AxisEncoding{Field: "revenue"},
-				ShowValues: true,
+				ShowValues: boolPtr(true),
 			}}},
 		},
 	}
@@ -328,7 +425,7 @@ func TestValidate_ShowValuesOnHeatmap(t *testing.T) {
 			{Widgets: []Widget{{
 				Name: "w", Type: WidgetTypeChart, Chart: "heatmap", SQL: "SELECT 1",
 				X: &AxisEncoding{Field: "day"}, Y: &AxisEncoding{Field: "region"},
-				Value: &ValueEncoding{Field: "orders"}, ShowValues: true,
+				Value: &ValueEncoding{Field: "orders"}, ShowValues: boolPtr(true),
 			}}},
 		},
 	}
