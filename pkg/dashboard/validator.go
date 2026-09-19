@@ -46,6 +46,30 @@ func Validate(d *Dashboard) error {
 		errs = append(errs, "at least one row is required")
 	}
 
+	noteIDs := make(map[string]bool, len(d.Notes))
+	for i, n := range d.Notes {
+		if n.ID == "" {
+			errs = append(errs, fmt.Sprintf("note %d: id is required", i+1))
+			continue
+		}
+		if noteIDs[n.ID] {
+			errs = append(errs, fmt.Sprintf("note %q: duplicate id", n.ID))
+		}
+		noteIDs[n.ID] = true
+
+		dimensionNames := make(map[string]bool, len(n.Dimensions))
+		for j, dimension := range n.Dimensions {
+			if dimension.Name == "" {
+				errs = append(errs, fmt.Sprintf("note %q dimension %d: name is required", n.ID, j+1))
+				continue
+			}
+			if dimensionNames[dimension.Name] {
+				errs = append(errs, fmt.Sprintf("note %q: duplicate dimension %q", n.ID, dimension.Name))
+			}
+			dimensionNames[dimension.Name] = true
+		}
+	}
+
 	for i, row := range d.Rows {
 		if len(row.Widgets) == 0 {
 			errs = append(errs, fmt.Sprintf("row %d: at least one widget is required", i+1))
@@ -109,6 +133,12 @@ func Validate(d *Dashboard) error {
 			errs = append(errs, validateInlineData(prefix, &w)...)
 
 			validatePivot(prefix, &w, &errs)
+
+			for _, id := range w.Notes {
+				if !noteIDs[id] {
+					errs = append(errs, fmt.Sprintf("%s: note %q not found", prefix, id))
+				}
+			}
 
 			if w.Col < 0 || w.Col > 12 {
 				errs = append(errs, fmt.Sprintf("%s: col must be between 1 and 12, got %d", prefix, w.Col))

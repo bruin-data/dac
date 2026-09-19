@@ -26,6 +26,25 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard notes",
+			schemaID: DashboardV1ID,
+			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Notes
+notes:
+  - id: note1
+    dimensions:
+      - { name: app, optional: false }
+      - { name: country, multiselect: true }
+rows:
+  - widgets:
+      - name: One
+        type: metric
+        sql: SELECT 1 AS value
+        value: { field: value }
+        notes: [note1]
+`,
+		},
+		{
 			name:     "dashboard filter types",
 			schemaID: DashboardV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1

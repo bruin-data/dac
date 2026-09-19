@@ -20,6 +20,43 @@ func TestValidate_ValidDashboard(t *testing.T) {
 	assertNoErr(t, err)
 }
 
+func TestValidate_Notes(t *testing.T) {
+	base := func(notes []Note, refs []string) *Dashboard {
+		return &Dashboard{
+			Name:  "test",
+			Notes: notes,
+			Rows: []Row{
+				{Widgets: []Widget{{Name: "w", Type: WidgetTypeText, Content: "hi", Notes: refs}}},
+			},
+		}
+	}
+
+	// Valid: widget references an existing note.
+	required := false
+	err := Validate(base([]Note{{ID: "note1", Dimensions: []NoteDimension{
+		{Name: "app", Optional: &required},
+		{Name: "country", Multiselect: true},
+	}}}, []string{"note1"}))
+	assertNoErr(t, err)
+
+	// Missing id.
+	err = Validate(base([]Note{{Dimensions: []NoteDimension{{Name: "app"}}}}, nil))
+	assertValidationContains(t, err, "note 1: id is required")
+
+	// Duplicate id.
+	err = Validate(base([]Note{{ID: "n"}, {ID: "n"}}, nil))
+	assertValidationContains(t, err, "note \"n\": duplicate id")
+
+	// Missing and duplicate dimension names.
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "app"}, {Name: "app"}, {}}}}, nil))
+	assertValidationContains(t, err, "note \"n\": duplicate dimension \"app\"")
+	assertValidationContains(t, err, "note \"n\" dimension 3: name is required")
+
+	// Reference to unknown note.
+	err = Validate(base([]Note{{ID: "note1"}}, []string{"ghost"}))
+	assertValidationContains(t, err, "note \"ghost\" not found")
+}
+
 func TestValidate_MissingName(t *testing.T) {
 	d := &Dashboard{
 		Rows: []Row{
