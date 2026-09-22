@@ -56,6 +56,9 @@ func Validate(d *Dashboard) error {
 			errs = append(errs, fmt.Sprintf("note %q: duplicate id", n.ID))
 		}
 		noteIDs[n.ID] = true
+		if n.Dimensions == nil {
+			errs = append(errs, fmt.Sprintf("note %q: dimensions is required", n.ID))
+		}
 
 		dimensionNames := make(map[string]bool, len(n.Dimensions))
 		for j, dimension := range n.Dimensions {
@@ -134,8 +137,9 @@ func Validate(d *Dashboard) error {
 
 			validatePivot(prefix, &w, &errs)
 
+			semanticNoteIDs := semanticNoteIDsForWidget(d, &w)
 			for _, id := range w.Notes {
-				if !noteIDs[id] {
+				if id == "" || (!noteIDs[id] && !semanticNoteIDs[id]) {
 					errs = append(errs, fmt.Sprintf("%s: note %q not found", prefix, id))
 				}
 			}
@@ -205,6 +209,23 @@ func Validate(d *Dashboard) error {
 		return &ValidationError{Dashboard: d.Name, Errors: errs}
 	}
 	return nil
+}
+
+func semanticNoteIDsForWidget(d *Dashboard, w *Widget) map[string]bool {
+	ref := w.Model
+	if query, ok := d.Queries[w.QueryRef]; ok && query.Model != "" {
+		ref = query.Model
+	}
+	model, _, err := d.ResolveSemanticModel(ref)
+	if err != nil || model == nil {
+		return nil
+	}
+
+	ids := make(map[string]bool, len(model.Notes))
+	for _, note := range model.Notes {
+		ids[note.ID] = true
+	}
+	return ids
 }
 
 func ValidateAll(dashboards []*Dashboard) error {
