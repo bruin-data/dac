@@ -34,6 +34,7 @@ type Dashboard struct {
 	Filters     []Filter          `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Queries     map[string]Query  `yaml:"queries,omitempty" json:"queries,omitempty"`
 	Rows        []Row             `yaml:"rows" json:"rows"`
+	Notes       []Note            `yaml:"notes,omitempty" json:"notes,omitempty"`
 
 	// FilePath is the source file path, not serialized to JSON for API consumers.
 	FilePath string `yaml:"-" json:"-"`
@@ -59,6 +60,18 @@ type FilterOptions struct {
 	Query      string   `yaml:"query,omitempty" json:"query,omitempty"`
 	Connection string   `yaml:"connection,omitempty" json:"connection,omitempty"`
 	Presets    []string `yaml:"presets,omitempty" json:"presets,omitempty"` // date-range: which presets to show
+}
+
+// Note is a top-level annotation matched to rows/points by its dimensions.
+type Note struct {
+	ID         string          `yaml:"id" json:"id"`
+	Dimensions []NoteDimension `yaml:"dimensions" json:"dimensions"`
+}
+
+type NoteDimension struct {
+	Name        string `yaml:"name" json:"name"`
+	Required    bool   `yaml:"required,omitempty" json:"required,omitempty"`
+	Multiselect bool   `yaml:"multiselect,omitempty" json:"multiselect,omitempty"`
 }
 
 // Query represents a named query definition.
@@ -165,6 +178,9 @@ type Widget struct {
 	Title   string `yaml:"title,omitempty" json:"title,omitempty"`     // column for the heading
 	Caption string `yaml:"caption,omitempty" json:"caption,omitempty"` // column for the markdown caption
 	Fit     string `yaml:"fit,omitempty" json:"fit,omitempty"`         // contain (default) | cover
+
+	// Notes lists ids defined by the dashboard or this widget's semantic model.
+	Notes []string `yaml:"notes,omitempty" json:"notes,omitempty"`
 }
 
 // BoundEncoding is a CI bound (yMin/yMax): a single column name (scalar form) or a

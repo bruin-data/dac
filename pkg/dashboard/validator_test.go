@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	sem "github.com/bruin-data/bruin/semantic-engine"
 )
 
 // ---------------------------------------------------------------------------
@@ -18,6 +20,90 @@ func TestValidate_ValidDashboard(t *testing.T) {
 
 	err = Validate(d)
 	assertNoErr(t, err)
+
+	// A named SQL query without a model falls back to the widget model.
+	d.Rows[0].Widgets[0].QueryRef = "sql_query"
+	d.Rows[0].Widgets[0].Model = "sales"
+	d.Queries = map[string]Query{"sql_query": {SQL: "select 1"}}
+	err = Validate(d)
+	assertNoErr(t, err)
+
+	// Semantic model context never makes an empty note id valid.
+	d.Rows[0].Widgets[0].Notes = []string{""}
+	err = Validate(d)
+	assertValidationContains(t, err, "note \"\" not found")
+}
+
+func TestValidate_Notes(t *testing.T) {
+	base := func(notes []Note, refs []string) *Dashboard {
+		return &Dashboard{
+			Name:  "test",
+			Notes: notes,
+			Rows: []Row{
+				{Widgets: []Widget{{Name: "w", Type: WidgetTypeText, Content: "hi", Notes: refs}}},
+			},
+		}
+	}
+
+	// Valid: widget references an existing note.
+	err := Validate(base([]Note{{ID: "note1", Dimensions: []NoteDimension{
+		{Name: "app", Required: true},
+		{Name: "country", Multiselect: true},
+	}}}, []string{"note1"}))
+	assertNoErr(t, err)
+
+	// Missing id.
+	err = Validate(base([]Note{{Dimensions: []NoteDimension{{Name: "app"}}}}, nil))
+	assertValidationContains(t, err, "note 1: id is required")
+
+	// dimensions is required, but an empty list is valid.
+	err = Validate(base([]Note{{ID: "missing_dimensions"}}, nil))
+	assertValidationContains(t, err, `note "missing_dimensions": dimensions is required`)
+	err = Validate(base([]Note{{ID: "dashboard_context", Dimensions: []NoteDimension{}}}, nil))
+	assertNoErr(t, err)
+
+	// Duplicate id.
+	err = Validate(base([]Note{{ID: "n"}, {ID: "n"}}, nil))
+	assertValidationContains(t, err, "note \"n\": duplicate id")
+
+	// Missing and duplicate dimension names.
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "app"}, {Name: "app"}, {}}}}, nil))
+	assertValidationContains(t, err, "note \"n\": duplicate dimension \"app\"")
+	assertValidationContains(t, err, "note \"n\" dimension 3: name is required")
+
+	// Reference to unknown note.
+	err = Validate(base([]Note{{ID: "note1"}}, []string{"ghost"}))
+	assertValidationContains(t, err, "note \"ghost\" not found")
+
+	// Semantic widgets may reference notes from their model.
+	d := base(nil, []string{"semantic_note"})
+	d.Model = "sales"
+	d.SetProjectContext("", map[string]*sem.Model{
+		"sales": {
+			Name:  "sales",
+			Notes: []sem.Note{{ID: "semantic_note"}},
+		},
+	}, nil)
+	err = Validate(d)
+	assertNoErr(t, err)
+
+	// A semantic model does not make unknown note ids valid.
+	d.Rows[0].Widgets[0].Notes = []string{"ghost"}
+	err = Validate(d)
+	assertValidationContains(t, err, "note \"ghost\" not found")
+	d.Rows[0].Widgets[0].Notes = []string{"semantic_note"}
+
+	// A named SQL query without a model falls back to the widget model.
+	d.Rows[0].Widgets[0].QueryRef = "sql_query"
+	d.Rows[0].Widgets[0].Model = "sales"
+	d.Queries = map[string]Query{"sql_query": {SQL: "select 1"}}
+	err = Validate(d)
+	assertNoErr(t, err)
+
+	// Semantic model context never makes an empty note id valid.
+	d.Rows[0].Widgets[0].Notes = []string{""}
+	err = Validate(d)
+	assertValidationContains(t, err, "note \"\" not found")
 }
 
 func TestValidate_MissingName(t *testing.T) {

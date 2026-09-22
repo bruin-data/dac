@@ -26,6 +26,40 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard notes",
+			schemaID: DashboardV1ID,
+			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Notes
+notes:
+  - id: note1
+    dimensions:
+      - { name: app, required: true }
+      - { name: country, multiselect: true }
+rows:
+  - widgets:
+      - name: One
+        type: metric
+        sql: SELECT 1 AS value
+        value: { field: value }
+        notes: [note1]
+`,
+		},
+		{
+			name:     "dashboard note with no scoping dimensions",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: dashboard_context
+    dimensions: []
+rows:
+  - widgets:
+      - name: Context
+        type: text
+        content: Dashboard context
+        notes: [dashboard_context]
+`,
+		},
+		{
 			name:     "dashboard filter types",
 			schemaID: DashboardV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1
@@ -163,6 +197,19 @@ func TestSchemasRejectInvalidDocuments(t *testing.T) {
 		schemaID string
 		yaml     string
 	}{
+		{
+			name:     "dashboard note without dimensions",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: dashboard_context
+rows:
+  - widgets:
+      - name: Context
+        type: text
+        content: Dashboard context
+`,
+		},
 		{
 			name:     "dashboard wrong schema",
 			schemaID: DashboardV1ID,
