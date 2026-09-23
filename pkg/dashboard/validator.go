@@ -213,7 +213,7 @@ func Validate(d *Dashboard) error {
 
 func semanticNoteIDsForWidget(d *Dashboard, w *Widget) map[string]bool {
 	ref := w.Model
-	if query, ok := d.Queries[w.QueryRef]; ok && query.IsSemantic() {
+	if query, ok := d.Queries[w.QueryRef]; w.QueryRef != "" && ok && query.IsSemantic() {
 		ref = query.Model
 	}
 	model, _, err := d.ResolveSemanticModel(ref)

@@ -120,9 +120,10 @@ func TestValidate_Notes(t *testing.T) {
 			Notes:   []sem.Note{{ID: "sales_note", Dimensions: []sem.NoteDimension{}}},
 		},
 		"marketing": {
-			Name:   "marketing",
-			Source: sem.Source{Table: "marketing"},
-			Notes:  []sem.Note{{ID: "marketing_note", Dimensions: []sem.NoteDimension{}}},
+			Name:    "marketing",
+			Source:  sem.Source{Table: "marketing"},
+			Metrics: []sem.Metric{{Name: "revenue", Expression: "SUM(revenue)"}},
+			Notes:   []sem.Note{{ID: "marketing_note", Dimensions: []sem.NoteDimension{}}},
 		},
 	}, nil)
 	err = Validate(d)
@@ -131,6 +132,16 @@ func TestValidate_Notes(t *testing.T) {
 	d.Rows[0].Widgets[0].Notes = []string{"marketing_note"}
 	err = Validate(d)
 	assertValidationContains(t, err, `note "marketing_note" not found`)
+
+	// An empty named-query key must not capture a direct semantic widget with
+	// no query reference; its notes still resolve from the widget model.
+	d.Rows[0].Widgets[0].QueryRef = ""
+	d.Rows[0].Widgets[0].MetricRefs = []string{"revenue"}
+	d.Queries = map[string]Query{
+		"": {Metrics: []string{"revenue"}},
+	}
+	err = Validate(d)
+	assertNoErr(t, err)
 
 	// Semantic model context never makes an empty note id valid.
 	d.Rows[0].Widgets[0].Notes = []string{""}
