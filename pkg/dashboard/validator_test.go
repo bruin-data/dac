@@ -100,6 +100,49 @@ func TestValidate_Notes(t *testing.T) {
 	err = Validate(d)
 	assertNoErr(t, err)
 
+	// A named semantic query uses its own model context. When its model is
+	// omitted, both query execution and note validation fall back to the
+	// dashboard model rather than the widget model.
+	d = base(nil, []string{"sales_note"})
+	d.Model = "sales"
+	d.Rows[0].Widgets[0].Type = WidgetTypeTable
+	d.Rows[0].Widgets[0].Content = ""
+	d.Rows[0].Widgets[0].QueryRef = "semantic_query"
+	d.Rows[0].Widgets[0].Model = "marketing"
+	d.Queries = map[string]Query{
+		"semantic_query": {Metrics: []string{"revenue"}},
+	}
+	d.SetProjectContext("", map[string]*sem.Model{
+		"sales": {
+			Name:    "sales",
+			Source:  sem.Source{Table: "sales"},
+			Metrics: []sem.Metric{{Name: "revenue", Expression: "SUM(revenue)"}},
+			Notes:   []sem.Note{{ID: "sales_note", Dimensions: []sem.NoteDimension{}}},
+		},
+		"marketing": {
+			Name:    "marketing",
+			Source:  sem.Source{Table: "marketing"},
+			Metrics: []sem.Metric{{Name: "revenue", Expression: "SUM(revenue)"}},
+			Notes:   []sem.Note{{ID: "marketing_note", Dimensions: []sem.NoteDimension{}}},
+		},
+	}, nil)
+	err = Validate(d)
+	assertNoErr(t, err)
+
+	d.Rows[0].Widgets[0].Notes = []string{"marketing_note"}
+	err = Validate(d)
+	assertValidationContains(t, err, `note "marketing_note" not found`)
+
+	// An empty named-query key must not capture a direct semantic widget with
+	// no query reference; its notes still resolve from the widget model.
+	d.Rows[0].Widgets[0].QueryRef = ""
+	d.Rows[0].Widgets[0].MetricRefs = []string{"revenue"}
+	d.Queries = map[string]Query{
+		"": {Metrics: []string{"revenue"}},
+	}
+	err = Validate(d)
+	assertNoErr(t, err)
+
 	// Semantic model context never makes an empty note id valid.
 	d.Rows[0].Widgets[0].Notes = []string{""}
 	err = Validate(d)
