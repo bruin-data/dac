@@ -72,4 +72,3 @@ rows:
 The model is resolved from the named query, widget, or dashboard-level `model`,
 including aliases. Without a resolved model, only dashboard-level notebook
 definitions are available.
-
