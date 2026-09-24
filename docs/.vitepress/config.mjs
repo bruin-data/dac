@@ -33,6 +33,7 @@ export default defineConfig({
           { text: "TSX Format", link: "/dashboards/tsx" },
           { text: "Schemas", link: "/dashboards/schemas" },
           { text: "Widgets", link: "/dashboards/widgets" },
+          { text: "Notebooks", link: "/dashboards/notebooks" },
           { text: "Filters", link: "/dashboards/filters" },
           { text: "Queries & Templating", link: "/dashboards/queries" },
           { text: "Semantic Layer", link: "/dashboards/semantic-layer" },

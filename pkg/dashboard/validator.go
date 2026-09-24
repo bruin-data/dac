@@ -46,28 +46,28 @@ func Validate(d *Dashboard) error {
 		errs = append(errs, "at least one row is required")
 	}
 
-	noteIDs := make(map[string]bool, len(d.Notes))
-	for i, n := range d.Notes {
+	notebookIDs := make(map[string]bool, len(d.Notebooks))
+	for i, n := range d.Notebooks {
 		if n.ID == "" {
-			errs = append(errs, fmt.Sprintf("note %d: id is required", i+1))
+			errs = append(errs, fmt.Sprintf("notebook %d: id is required", i+1))
 			continue
 		}
-		if noteIDs[n.ID] {
-			errs = append(errs, fmt.Sprintf("note %q: duplicate id", n.ID))
+		if notebookIDs[n.ID] {
+			errs = append(errs, fmt.Sprintf("notebook %q: duplicate id", n.ID))
 		}
-		noteIDs[n.ID] = true
+		notebookIDs[n.ID] = true
 		if n.Dimensions == nil {
-			errs = append(errs, fmt.Sprintf("note %q: dimensions is required", n.ID))
+			errs = append(errs, fmt.Sprintf("notebook %q: dimensions is required", n.ID))
 		}
 
 		dimensionNames := make(map[string]bool, len(n.Dimensions))
 		for j, dimension := range n.Dimensions {
 			if dimension.Name == "" {
-				errs = append(errs, fmt.Sprintf("note %q dimension %d: name is required", n.ID, j+1))
+				errs = append(errs, fmt.Sprintf("notebook %q dimension %d: name is required", n.ID, j+1))
 				continue
 			}
 			if dimensionNames[dimension.Name] {
-				errs = append(errs, fmt.Sprintf("note %q: duplicate dimension %q", n.ID, dimension.Name))
+				errs = append(errs, fmt.Sprintf("notebook %q: duplicate dimension %q", n.ID, dimension.Name))
 			}
 			dimensionNames[dimension.Name] = true
 		}
@@ -137,10 +137,10 @@ func Validate(d *Dashboard) error {
 
 			validatePivot(prefix, &w, &errs)
 
-			semanticNoteIDs := semanticNoteIDsForWidget(d, &w)
-			for _, id := range w.Notes {
-				if id == "" || (!noteIDs[id] && !semanticNoteIDs[id]) {
-					errs = append(errs, fmt.Sprintf("%s: note %q not found", prefix, id))
+			semanticNotebookIDs := semanticNotebookIDsForWidget(d, &w)
+			for _, id := range w.Notebooks {
+				if id == "" || (!notebookIDs[id] && !semanticNotebookIDs[id]) {
+					errs = append(errs, fmt.Sprintf("%s: notebook %q not found", prefix, id))
 				}
 			}
 
@@ -211,7 +211,7 @@ func Validate(d *Dashboard) error {
 	return nil
 }
 
-func semanticNoteIDsForWidget(d *Dashboard, w *Widget) map[string]bool {
+func semanticNotebookIDsForWidget(d *Dashboard, w *Widget) map[string]bool {
 	ref := w.Model
 	if query, ok := d.Queries[w.QueryRef]; w.QueryRef != "" && ok && query.IsSemantic() {
 		ref = query.Model
@@ -221,9 +221,9 @@ func semanticNoteIDsForWidget(d *Dashboard, w *Widget) map[string]bool {
 		return nil
 	}
 
-	ids := make(map[string]bool, len(model.Notes))
-	for _, note := range model.Notes {
-		ids[note.ID] = true
+	ids := make(map[string]bool, len(model.Notebooks))
+	for _, notebook := range model.Notebooks {
+		ids[notebook.ID] = true
 	}
 	return ids
 }

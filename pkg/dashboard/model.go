@@ -34,7 +34,7 @@ type Dashboard struct {
 	Filters     []Filter          `yaml:"filters,omitempty" json:"filters,omitempty"`
 	Queries     map[string]Query  `yaml:"queries,omitempty" json:"queries,omitempty"`
 	Rows        []Row             `yaml:"rows" json:"rows"`
-	Notes       []Note            `yaml:"notes,omitempty" json:"notes,omitempty"`
+	Notebooks   []Notebook        `yaml:"notebooks,omitempty" json:"notebooks,omitempty"`
 
 	// FilePath is the source file path, not serialized to JSON for API consumers.
 	FilePath string `yaml:"-" json:"-"`
@@ -62,13 +62,13 @@ type FilterOptions struct {
 	Presets    []string `yaml:"presets,omitempty" json:"presets,omitempty"` // date-range: which presets to show
 }
 
-// Note is a top-level annotation matched to rows/points by its dimensions.
-type Note struct {
-	ID         string          `yaml:"id" json:"id"`
-	Dimensions []NoteDimension `yaml:"dimensions" json:"dimensions"`
+// Notebook is a top-level annotation matched to rows/points by its dimensions.
+type Notebook struct {
+	ID         string              `yaml:"id" json:"id"`
+	Dimensions []NotebookDimension `yaml:"dimensions" json:"dimensions"`
 }
 
-type NoteDimension struct {
+type NotebookDimension struct {
 	Name        string `yaml:"name" json:"name"`
 	Required    bool   `yaml:"required,omitempty" json:"required,omitempty"`
 	Multiselect bool   `yaml:"multiselect,omitempty" json:"multiselect,omitempty"`
@@ -179,8 +179,8 @@ type Widget struct {
 	Caption string `yaml:"caption,omitempty" json:"caption,omitempty"` // column for the markdown caption
 	Fit     string `yaml:"fit,omitempty" json:"fit,omitempty"`         // contain (default) | cover
 
-	// Notes lists ids defined by the dashboard or this widget's semantic model.
-	Notes []string `yaml:"notes,omitempty" json:"notes,omitempty"`
+	// Notebooks lists ids defined by the dashboard or this widget's semantic model.
+	Notebooks []string `yaml:"notebooks,omitempty" json:"notebooks,omitempty"`
 }
 
 // BoundEncoding is a CI bound (yMin/yMax): a single column name (scalar form) or a
