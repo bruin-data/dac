@@ -46,10 +46,10 @@
         "$ref": "#/$defs/row"
       }
     },
-    "notes": {
+    "notebooks": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/note"
+        "$ref": "#/$defs/notebook"
       }
     }
   },
@@ -418,9 +418,9 @@
         "fit": {
           "enum": ["contain", "cover"]
         },
-        "notes": {
+        "notebooks": {
           "$ref": "#/$defs/stringList",
-          "description": "Ids of top-level notes shown on this widget, matched to rows/points by their dimensions."
+          "description": "Ids of top-level notebooks shown on this widget, matched to rows/points by their dimensions."
         }
       },
       "patternProperties": {
@@ -462,7 +462,7 @@
       },
       "additionalProperties": false
     },
-    "note": {
+    "notebook": {
       "type": "object",
       "required": ["id", "dimensions"],
       "properties": {
@@ -473,7 +473,7 @@
         "dimensions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/noteDimension"
+            "$ref": "#/$defs/notebookDimension"
           }
         }
       },
@@ -482,7 +482,7 @@
       },
       "additionalProperties": false
     },
-    "noteDimension": {
+    "notebookDimension": {
       "type": "object",
       "required": ["name"],
       "properties": {
@@ -493,12 +493,12 @@
         "required": {
           "type": "boolean",
           "default": false,
-          "description": "Whether this dimension must be selected when creating a note."
+          "description": "Whether this dimension must be selected when creating a notebook."
         },
         "multiselect": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the note may target multiple values of this dimension."
+          "description": "Whether the notebook may target multiple values of this dimension."
         }
       },
       "patternProperties": {

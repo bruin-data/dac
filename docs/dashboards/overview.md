@@ -76,6 +76,7 @@ See [TSX Format](/dashboards/tsx).
 | Concept | Description |
 |---------|-------------|
 | [Widgets](/dashboards/widgets) | Metrics, charts, tables, text, images, and dividers |
+| [Notebooks](/dashboards/notebooks) | Human context scoped to dashboards, widgets, rows, and chart points |
 | [Rows](/dashboards/layout) | Horizontal containers using a 12-column grid |
 | [Filters](/dashboards/filters) | Interactive controls injected into SQL and semantic queries |
 | [Queries](/dashboards/queries) | Named SQL or semantic queries reusable across widgets |

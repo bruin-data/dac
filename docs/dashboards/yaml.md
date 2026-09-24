@@ -137,6 +137,7 @@ For a complete runnable project, see `examples/semantic-yaml`.
 | `models` | map | No | Optional aliases that map dashboard names to semantic model names |
 | `filters` | array | No | Interactive filter controls |
 | `queries` | map | No | Named SQL or semantic queries |
+| `notebooks` | array | No | Reusable notebook definitions; see [Notebooks](/dashboards/notebooks) |
 | `rows` | array | Yes | Dashboard layout rows |
 
 ## Query Sources
