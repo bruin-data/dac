@@ -14,7 +14,7 @@ function elementBackground(element: HTMLElement): string {
     return elementBg;
   }
 
-  const tokenBg = getComputedStyle(document.documentElement)
+  const tokenBg = getComputedStyle(element)
     .getPropertyValue("--dac-background")
     .trim();
   return tokenBg || "#ffffff";
