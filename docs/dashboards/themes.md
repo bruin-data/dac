@@ -62,3 +62,5 @@ dac serve --template corporate
 ## Runtime Theme Switching
 
 The dashboard viewer includes a theme toggle in the UI that switches between light and dark modes. The `--template` flag sets the initial theme.
+
+PNG and PDF exports preserve the active theme, including its background color.
