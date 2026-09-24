@@ -113,7 +113,7 @@ filters:
       values: ["new", "returning"]
 ```
 
-A filter's `tab` must match a tab some row uses — an unmatched tab is a validation error. Filter values share one namespace regardless of scope, and applying filters refreshes every widget on the dashboard.
+A filter's `tab` must match a tab some row uses — `dac validate` rejects an unmatched tab (Bruin Cloud falls back to showing it in the global bar). Filter values share one namespace regardless of scope, and a filter change refreshes every widget on the dashboard.
 
 ## Available Date Presets
 

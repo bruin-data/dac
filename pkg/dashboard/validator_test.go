@@ -717,6 +717,10 @@ func TestValidate_FilterTab(t *testing.T) {
 	assertNoErr(t, Validate(base("")))
 	// References a tab no row uses — rejected.
 	assertValidationContains(t, Validate(base("Breakdown")), `tab "Breakdown" does not match any row tab`)
+	// A dashboard with no tabbed rows can't have a tab-scoped filter.
+	untabbed := base("Overview")
+	untabbed.Rows[0].Tab = ""
+	assertValidationContains(t, Validate(untabbed), `tab "Overview" does not match any row tab`)
 }
 
 func TestValidate_PivotOnlyOnTables(t *testing.T) {

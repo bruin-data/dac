@@ -82,6 +82,28 @@ rows:
 	}
 }
 
+func TestLoadFile_KeepsFilterTab(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dashboard.yml")
+	assertNoErr(t, os.WriteFile(path, []byte(`name: Tabbed
+filters:
+  - name: region
+    type: text
+    tab: Overview
+rows:
+  - tab: Overview
+    widgets:
+      - name: Notes
+        type: text
+        content: Hello
+`), 0o644))
+
+	d, err := LoadFile(path)
+	assertNoErr(t, err)
+	if len(d.Filters) != 1 || d.Filters[0].Tab != "Overview" {
+		t.Fatalf("expected filter tab %q, got %+v", "Overview", d.Filters)
+	}
+}
+
 func TestLoadDir_ProjectRootLoadsDashboardsAndSemanticModels(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/project")
 	assertNoErr(t, err)
