@@ -26,6 +26,24 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard filter scoped to a tab",
+			schemaID: DashboardV1ID,
+			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Tabbed
+filters:
+  - name: region
+    type: text
+    tab: Overview
+rows:
+  - tab: Overview
+    widgets:
+      - name: One
+        type: metric
+        sql: SELECT 1 AS value
+        value: { field: value }
+`,
+		},
+		{
 			name:     "dashboard notes",
 			schemaID: DashboardV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1
@@ -249,6 +267,30 @@ rows:
       - name: Context
         type: text
         content: Dashboard context
+`,
+		},
+		{
+			name:     "dashboard filter with an empty tab",
+			schemaID: DashboardV1ID,
+			yaml: `name: Empty Tab
+filters:
+  - { name: region, type: text, tab: "" }
+rows:
+  - widgets:
+      - name: One
+        type: metric
+`,
+		},
+		{
+			name:     "dashboard filter with a non-string tab",
+			schemaID: DashboardV1ID,
+			yaml: `name: Numeric Tab
+filters:
+  - { name: region, type: text, tab: 3 }
+rows:
+  - widgets:
+      - name: One
+        type: metric
 `,
 		},
 		{

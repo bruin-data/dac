@@ -361,9 +361,15 @@ export function DashboardView() {
     setFilters((prev) => ({ ...(prev ?? activeFilters ?? {}), [filterName]: value }));
   };
 
-  const filterBar = dashboard.filters ? (
+  // Filters with no `tab` (or an unmatched one — the validator rejects those) go
+  // in the global bar; a tab-scoped filter shows only on its tab.
+  const allFilters = dashboard.filters ?? [];
+  const globalFilters = allFilters.filter((f) => !f.tab || !tabNames.includes(f.tab));
+  const tabFilters = currentTab ? allFilters.filter((f) => f.tab === currentTab) : [];
+
+  const filterBar = globalFilters.length ? (
     <FilterBar
-      filters={dashboard.filters}
+      filters={globalFilters}
       values={activeFilters ?? {}}
       onChange={handleFilterChange}
     />
@@ -475,6 +481,16 @@ export function DashboardView() {
                     </button>
                   ))}
                 </div>
+
+                {tabFilters.length > 0 && (
+                  <div className="mt-4">
+                    <FilterBar
+                      filters={tabFilters}
+                      values={activeFilters ?? {}}
+                      onChange={handleFilterChange}
+                    />
+                  </div>
+                )}
 
                 {dashboard.rows.map((row, rowIdx) => {
                   if (row.tab !== currentTab) return null;

@@ -11,6 +11,17 @@ import (
 // TSX loader tests
 // ---------------------------------------------------------------------------
 
+func TestVnodeToFilter_Tab(t *testing.T) {
+	f := vnodeToFilter(&vnode{Props: map[string]interface{}{
+		"name": "cohort",
+		"type": "select",
+		"tab":  "Breakdown",
+	}})
+	if f.Tab != "Breakdown" {
+		t.Errorf("expected tab %q, got %q", "Breakdown", f.Tab)
+	}
+}
+
 func TestLoadTSXFile_DataDrivenDashboard(t *testing.T) {
 	// The sample dashboard uses query() at load time. Without a backend,
 	// query() returns empty results, so the data-driven loops produce no widgets.
