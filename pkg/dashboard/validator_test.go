@@ -149,6 +149,132 @@ func TestValidate_Notes(t *testing.T) {
 	assertValidationContains(t, err, "note \"\" not found")
 }
 
+// ---------------------------------------------------------------------------
+// Widget-internal tabs
+// ---------------------------------------------------------------------------
+
+func tabbedChartWidget() Widget {
+	return Widget{
+		Name: "Sales",
+		Type: WidgetTypeTabs,
+		Tabs: []Widget{
+			{
+				Name:  "Revenue",
+				Type:  WidgetTypeChart,
+				Chart: "bar",
+				Data:  &WidgetData{Columns: []string{"month", "revenue"}, Rows: [][]any{{"Jan", 1}}},
+				X:     &AxisEncoding{Field: "month"},
+				Y:     &AxisEncoding{Field: "revenue"},
+			},
+			{
+				Name:  "Orders",
+				Type:  WidgetTypeChart,
+				Chart: "bar",
+				Data:  &WidgetData{Columns: []string{"month", "orders"}, Rows: [][]any{{"Jan", 1}}},
+				X:     &AxisEncoding{Field: "month"},
+				Y:     &AxisEncoding{Field: "orders"},
+			},
+		},
+	}
+}
+
+func dashboardWith(w Widget) *Dashboard {
+	return &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{w}}}}
+}
+
+func TestValidate_WidgetTabs_Valid(t *testing.T) {
+	assertNoErr(t, Validate(dashboardWith(tabbedChartWidget())))
+}
+
+func TestValidate_WidgetTabs_TabValidatedAsWidget(t *testing.T) {
+	// Each tab is validated as a complete widget: a chart tab missing y fails.
+	w := tabbedChartWidget()
+	w.Tabs[1].Y = nil
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, `tab 2 ("Orders")`)
+}
+
+func TestValidate_WidgetTabs_TabRequiresType(t *testing.T) {
+	// Tabs inherit nothing, so each needs its own type.
+	w := tabbedChartWidget()
+	w.Tabs[1].Type = ""
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, `tab 2 ("Orders"): type is required`)
+}
+
+func TestValidate_WidgetTabs_NoInheritance(t *testing.T) {
+	// A chart set on the container is rejected, not passed down to tabs.
+	w := tabbedChartWidget()
+	w.Chart = "line"
+	w.Tabs[1].Chart = ""
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, `"chart" is not allowed on a tabs widget`)
+}
+
+func TestValidate_WidgetTabs_ContainerHasDataSource(t *testing.T) {
+	w := tabbedChartWidget()
+	w.SQL = "SELECT 1"
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, `"sql" is not allowed on a tabs widget`)
+}
+
+func TestValidate_WidgetTabs_RequiresTypeTabs(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Type = WidgetTypeChart
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "a widget with tabs must be type: tabs")
+}
+
+func TestValidate_WidgetTabs_TabMissingName(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Tabs[0].Name = ""
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "tab 1: name is required")
+}
+
+func TestValidate_WidgetTabs_NestedRejected(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Tabs[0].Tabs = []Widget{{Name: "inner"}}
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "tabs cannot be nested")
+}
+
+func TestValidate_WidgetTabs_DuplicateName(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Tabs[1].Name = w.Tabs[0].Name
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "duplicate tab name")
+}
+
+func TestValidate_WidgetTabs_MixedTypesAllowed(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Tabs[1].Type = WidgetTypeTable
+	w.Tabs[1].Chart = ""
+	assertNoErr(t, Validate(dashboardWith(w)))
+}
+
+func TestValidate_WidgetTabs_NameOptional(t *testing.T) {
+	// The tab bar labels a tabs widget, so its own name may be omitted.
+	w := tabbedChartWidget()
+	w.Name = ""
+	assertNoErr(t, Validate(dashboardWith(w)))
+}
+
+func TestValidate_TypeTabs_RequiresTabsList(t *testing.T) {
+	w := Widget{Name: "Container", Type: WidgetTypeTabs}
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "tabs widget requires a tabs list")
+}
+
 func TestValidate_MissingName(t *testing.T) {
 	d := &Dashboard{
 		Rows: []Row{
@@ -1050,4 +1176,30 @@ func assertValidationContains(t *testing.T, err error, substr string) {
 		return
 	}
 	t.Errorf("expected error containing %q, got: %v", substr, err)
+}
+
+func TestValidate_WidgetTabs_TabNotesUseTabModel(t *testing.T) {
+	// A tab's notes resolve against the tab's own semantic model, not the
+	// dashboard default.
+	d := dashboardWith(Widget{
+		Type: WidgetTypeTabs,
+		Tabs: []Widget{{Name: "Orders", Type: WidgetTypeText, Content: "x", Model: "orders", Notes: []string{"launch"}}},
+	})
+	d.Model = "sales"
+	d.SetProjectContext("", map[string]*sem.Model{
+		"sales":  {Name: "sales"},
+		"orders": {Name: "orders", Notes: []sem.Note{{ID: "launch"}}},
+	}, nil)
+	assertNoErr(t, Validate(d))
+
+	d.Rows[0].Widgets[0].Tabs[0].Notes = []string{"ghost"}
+	assertValidationContains(t, Validate(d), `tab 1 ("Orders"): note "ghost" not found`)
+}
+
+func TestValidate_WidgetTabs_ContainerNotesRejected(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Notes = []string{"n"}
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, `"notes" is not allowed on a tabs widget`)
 }

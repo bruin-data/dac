@@ -13,7 +13,7 @@ dac query [SQL] [flags]
 | `--connection` | `-c` | string | | Connection name from `.bruin.yml` |
 | `--file` | `-f` | string | | Path to `.sql` file |
 | `--dashboard` | | string | | Dashboard name (for widget queries) |
-| `--widget` | `-w` | string | | Widget name within dashboard |
+| `--widget` | `-w` | string | | Widget name within dashboard (for tabs: `"Widget / Tab"`, a tab name, or a tab id) |
 | `--output` | `-o` | string | `table` | Output format: `table`, `json`, `csv` |
 | `--dir` | `-d` | string | `.` | Dashboard definitions directory |
 
@@ -38,6 +38,16 @@ Execute a specific widget's query with its filter defaults. If the widget uses a
 ```shell
 dac query --dashboard "Sales Analytics" --widget "Revenue Trend"
 ```
+
+For a `type: tabs` widget, pick one tab. `--widget` accepts:
+
+| Value | Picks |
+|-------|-------|
+| `"Sales / Revenue"` | The `Revenue` tab of the `Sales` widget |
+| `"Revenue"` | A widget or tab whose full label is `Revenue` (a title-less widget's tab is labelled by its tab name alone); otherwise, as a shortcut, the only tab named `Revenue` |
+| `"r0-w1::Revenue"` | The tab by its id (row 0, widget 1), always unique — use it for a title-less widget when names clash |
+
+If the value matches more than one widget or tab, the command fails and lists each match with its id. Passing the name of a tabs widget itself lists its tab names. The value is only matched against names and ids.
 
 ## Output Formats
 

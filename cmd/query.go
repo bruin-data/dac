@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -143,19 +144,9 @@ func resolveWidgetQuery(dir, dashboardName, widgetName string) (string, string, 
 		return "", "", fmt.Errorf("dashboard validation failed: %w", err)
 	}
 
-	var widgetID string
-	for i, row := range d.Rows {
-		for j, w := range row.Widgets {
-			if w.Name != widgetName {
-				continue
-			}
-			widgetID = server.WidgetID(i, j)
-			break
-		}
-	}
-
-	if widgetID == "" {
-		return "", "", fmt.Errorf("widget %q not found in dashboard %q", widgetName, dashboardName)
+	widgetID, err := matchWidget(d, widgetName)
+	if err != nil {
+		return "", "", err
 	}
 
 	jobs, err := server.ResolveWidgetJobs(d, d.DefaultFilters())
@@ -243,5 +234,62 @@ func formatCell(v any) string {
 			return s[:57] + "..."
 		}
 		return s
+	}
+}
+
+// matchWidget resolves --widget to a job id: a full label ("Widget / Tab"),
+// a unique tab name, or the id itself (r0-w1::Revenue). Ambiguity is an error.
+func matchWidget(d *dashboard.Dashboard, widgetName string) (string, error) {
+	type match struct{ id, label string }
+	var exact, shortcut []match
+	var tabsHint string
+	for i, row := range d.Rows {
+		for j, w := range row.Widgets {
+			if !w.HasTabs() {
+				id := server.WidgetID(i, j)
+				if id == widgetName {
+					return id, nil
+				}
+				if w.Name == widgetName {
+					exact = append(exact, match{id, w.Name})
+				}
+				continue
+			}
+			var names []string
+			for _, tab := range w.Tabs {
+				id, label := server.WidgetTabID(i, j, tab.Name), tabLabel(w, tab)
+				switch {
+				case id == widgetName:
+					return id, nil
+				case label == widgetName:
+					exact = append(exact, match{id, label})
+				case tab.Name == widgetName:
+					shortcut = append(shortcut, match{id, label})
+				}
+				names = append(names, tab.Name)
+			}
+			if w.Name != "" && w.Name == widgetName {
+				tabsHint = fmt.Sprintf("widget %q has tabs; pass one of its tab names: %s", widgetName, strings.Join(names, ", "))
+			}
+		}
+	}
+
+	matches := exact
+	if len(matches) == 0 {
+		matches = shortcut
+	}
+	switch {
+	case len(matches) == 1:
+		return matches[0].id, nil
+	case len(matches) > 1:
+		var options []string
+		for _, m := range matches {
+			options = append(options, fmt.Sprintf("%q (%s)", m.label, m.id))
+		}
+		return "", fmt.Errorf("widget %q matches %d widgets/tabs: %s; pass \"Widget / Tab\" or one of the ids", widgetName, len(matches), strings.Join(options, ", "))
+	case tabsHint != "":
+		return "", errors.New(tabsHint)
+	default:
+		return "", fmt.Errorf("widget %q not found in dashboard %q", widgetName, d.Name)
 	}
 }

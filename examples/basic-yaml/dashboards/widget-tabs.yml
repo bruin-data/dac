@@ -1,0 +1,128 @@
+name: Widget Tabs
+description: "Widget tabs (`type: tabs`): each tab is a complete widget with its own type. Inline data, so it renders without a connection."
+
+rows:
+  # Dashboard tabs (row-level `tab:`) group whole rows; widget tabs live inside a widget.
+  - tab: Overview
+    widgets:
+      # Titled container; tabs are different chart types plus a table.
+      - name: Sales
+        type: tabs
+        col: 7
+        tabs:
+          - name: Revenue
+            type: chart
+            chart: bar
+            data: { columns: [month, revenue], rows: [[Jan, 400], [Feb, 520], [Mar, 610]] }
+            x: { field: month, type: category }
+            y: { field: revenue, type: number }
+          - name: Trend
+            type: chart
+            chart: line
+            data: { columns: [month, revenue], rows: [[Jan, 400], [Feb, 520], [Mar, 610]] }
+            x: { field: month, type: category }
+            y: { field: revenue, type: number }
+          - name: Details
+            type: table
+            data: { columns: [month, revenue, orders], rows: [[Jan, 400, 120], [Feb, 520, 145], [Mar, 610, 160]] }
+
+      # Title-less container: the tab bar labels the widget.
+      - type: tabs
+        col: 5
+        tabs:
+          - name: Total
+            type: metric
+            data: { columns: [total], rows: [[1530]] }
+            value: { field: total, type: number, format: "$,.0f" }
+          - name: By region
+            type: chart
+            chart: pie
+            data: { columns: [region, revenue], rows: [[EU, 700], [US, 830], [APAC, 560]] }
+            label: region
+            value: { field: revenue, type: number }
+          - name: Growth
+            type: chart
+            chart: area
+            data: { columns: [month, users], rows: [[Jan, 200], [Feb, 260], [Mar, 340]] }
+            x: { field: month, type: category }
+            y: { field: users, type: number }
+
+  # Many tabs: the tab bar scrolls horizontally when they don't fit.
+  - tab: Activity
+    widgets:
+      - name: Daily active users
+        type: tabs
+        col: 12
+        tabs:
+          - name: Jan
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 33], [2, 42], [3, 39]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Feb
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 36], [2, 44], [3, 43]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Mar
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 39], [2, 46], [3, 47]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Apr
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 42], [2, 48], [3, 51]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: May
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 45], [2, 50], [3, 55]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Jun
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 48], [2, 52], [3, 59]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Jul
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 51], [2, 54], [3, 63]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Aug
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 54], [2, 56], [3, 67]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Sep
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 57], [2, 58], [3, 71]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Oct
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 60], [2, 60], [3, 75]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Nov
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 63], [2, 62], [3, 79]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }
+          - name: Dec
+            type: chart
+            chart: line
+            data: { columns: [day, users], rows: [[1, 66], [2, 64], [3, 83]] }
+            x: { field: day, type: number }
+            y: { field: users, type: number }

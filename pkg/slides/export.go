@@ -194,7 +194,18 @@ func widgetRequests(ctx context.Context, driveSvc *driveapi.Service, slideID str
 		}
 
 		wWidth := int64(colUnit * float64(cols))
+		// A tabbed widget has no data of its own; render its first tab (the
+		// default view) with that tab's resolved type and data.
 		wID := server.WidgetID(rowIdx, j)
+		if w.HasTabs() {
+			name, description := w.Name, w.Description
+			w = w.ResolvedTab(0)
+			wID = server.WidgetTabID(rowIdx, j, w.Name)
+			if name != "" {
+				w.Name = name // keep the parent's title when set; else use the tab's
+			}
+			w.Description = description // the frame's description is the container's
+		}
 		data := widgetData[wID]
 		prefix := fmt.Sprintf("r%d_w%d", rowIdx, j)
 		x := padX + xOff

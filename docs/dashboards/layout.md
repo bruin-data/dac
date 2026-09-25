@@ -74,6 +74,11 @@ If `col` is omitted, widgets are auto-sized to fill the remaining space equally.
 
 ## Tabs
 
+There are two kinds of tabs: **dashboard tabs** group whole rows, and **widget
+tabs** switch sub-views inside a single widget.
+
+### Dashboard tabs
+
 Group rows into tabs for multi-view dashboards:
 
 ```yaml
@@ -124,6 +129,56 @@ In TSX, use the `<Tabs>` and `<Tab>` components:
   </Tabs>
 </Dashboard>
 ```
+
+### Widget tabs
+
+A `type: tabs` widget switches between sub-views in place inside one widget box.
+Each entry in its `tabs` list is a complete widget — its own `type`, `chart`,
+data source (`sql`/`query`/`data`), and encodings — with `name` as the tab label.
+
+```yaml
+rows:
+  - widgets:
+      - name: Sales       # optional — the tab bar already labels the widget
+        type: tabs
+        col: 8
+        tabs:
+          - name: Revenue
+            type: chart
+            chart: bar
+            sql: SELECT month, revenue FROM sales GROUP BY 1 ORDER BY 1
+            x: { field: month, type: category }
+            y: { field: revenue, type: number }
+          - name: Trend
+            type: chart
+            chart: line
+            sql: SELECT month, revenue FROM sales GROUP BY 1 ORDER BY 1
+            x: { field: month, type: category }
+            y: { field: revenue, type: number }
+          - name: Details
+            type: table
+            sql: SELECT month, revenue, orders FROM sales ORDER BY 1
+```
+
+The container only takes `type`, `name`, `description`, `col`, `id`, and `tabs`;
+anything else (a data source, `chart`, encodings, `notes`) goes on each tab. Every
+tab needs a `name` (unique within the widget) and a `type`, and tabs cannot be
+nested. When many tabs don't fit, the tab bar scrolls horizontally.
+
+In TSX, use `<WidgetTabs>`; each child widget is one tab, named by its `name`:
+
+```tsx
+<Row>
+  <WidgetTabs name="Sales" col={8}>
+    <Chart name="Revenue" chart="bar" sql="..." x={{ field: "month" }} y={{ field: ["revenue"] }} />
+    <Table name="Details" sql="..." />
+  </WidgetTabs>
+</Row>
+```
+
+Use widget tabs to pack related views into one widget; use dashboard `tab:` on
+rows to group whole sections. See `examples/basic-yaml/dashboards/widget-tabs.yml`
+for a runnable example.
 
 ## Layout Tips
 

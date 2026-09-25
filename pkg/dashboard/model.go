@@ -21,6 +21,7 @@ const (
 	WidgetTypeText       = "text"
 	WidgetTypeDivider    = "divider"
 	WidgetTypeImage      = "image"
+	WidgetTypeTabs       = "tabs"
 )
 
 // Dashboard represents a complete dashboard definition loaded from YAML.
@@ -181,6 +182,9 @@ type Widget struct {
 
 	// Notes lists ids defined by the dashboard or this widget's semantic model.
 	Notes []string `yaml:"notes,omitempty" json:"notes,omitempty"`
+
+	// Tabs holds the sub-views of a `type: tabs` container.
+	Tabs []Widget `yaml:"tabs,omitempty" json:"tabs,omitempty"`
 }
 
 // BoundEncoding is a CI bound (yMin/yMax): a single column name (scalar form) or a
@@ -542,6 +546,18 @@ func (q *Query) IsSemantic() bool {
 // HasInlineData reports whether the widget carries static inline data.
 func (w *Widget) HasInlineData() bool {
 	return w.Data != nil && len(w.Data.Columns) > 0
+}
+
+// HasTabs reports whether the widget holds internal tabs.
+func (w *Widget) HasTabs() bool {
+	return len(w.Tabs) > 0
+}
+
+// ResolvedTab returns tab k as a standalone widget.
+func (w *Widget) ResolvedTab(k int) Widget {
+	tab := w.Tabs[k]
+	tab.Tabs = nil
+	return tab
 }
 
 func (w *Widget) IsSemantic() bool {

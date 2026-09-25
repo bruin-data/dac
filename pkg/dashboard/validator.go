@@ -2,10 +2,12 @@ package dashboard
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
+	"gopkg.in/yaml.v3"
 )
 
 // ValidationError holds all validation issues for a dashboard.
@@ -83,59 +85,16 @@ func Validate(d *Dashboard) error {
 		for j, w := range row.Widgets {
 			prefix := fmt.Sprintf("row %d, widget %d (%q)", i+1, j+1, w.Name)
 
-			if w.Name == "" {
+			// A tabbed widget's tab bar labels it, so its own name is optional.
+			if w.Name == "" && !w.HasTabs() {
 				errs = append(errs, fmt.Sprintf("row %d, widget %d: name is required", i+1, j+1))
 			}
 
-			if w.Type == "" {
-				errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
+			if w.HasTabs() {
+				errs = append(errs, validateWidgetTabs(prefix, &w, d, noteIDs)...)
+			} else {
+				errs = append(errs, validateWidgetContent(prefix, &w, d)...)
 			}
-
-			// Validate widget type.
-			switch w.Type {
-			case WidgetTypeMetric:
-				errs = append(errs, validateMetricWidget(prefix, &w, d)...)
-			case WidgetTypeChart:
-				errs = append(errs, validateChartWidget(prefix, &w, d)...)
-			case WidgetTypeTable:
-				// Table widgets just need a query source.
-				errs = append(errs, validateQuerySource(prefix, &w, d)...)
-				validateTableColumns(prefix, &w, &errs)
-			case WidgetTypePivotTable:
-				errs = append(errs, validateQuerySource(prefix, &w, d)...)
-				validateTableColumns(prefix, &w, &errs)
-				if w.Pivot == nil {
-					errs = append(errs, fmt.Sprintf("%s: pivot_table widgets need a pivot", prefix))
-				}
-			case WidgetTypeText:
-				if w.Content == "" {
-					errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
-				}
-			case WidgetTypeDivider:
-				// No required fields.
-			case WidgetTypeImage:
-				// Data-driven like a table: needs a query source, and src names the
-				// column holding the image URL.
-				errs = append(errs, validateQuerySource(prefix, &w, d)...)
-				if w.Src == "" {
-					errs = append(errs, fmt.Sprintf("%s: src (image URL column) is required for image widgets", prefix))
-				}
-				if w.Fit != "" && w.Fit != "contain" && w.Fit != "cover" {
-					errs = append(errs, fmt.Sprintf("%s: fit must be contain or cover", prefix))
-				}
-			case "":
-				// Already reported above.
-			default:
-				errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, pivot_table, text, divider, or image)", prefix, w.Type))
-			}
-
-			if len(w.Spec) > 0 && (w.Type != WidgetTypeChart || w.Chart != "vega-lite") {
-				errs = append(errs, fmt.Sprintf("%s: spec is only valid on vega-lite charts", prefix))
-			}
-
-			errs = append(errs, validateInlineData(prefix, &w)...)
-
-			validatePivot(prefix, &w, &errs)
 
 			semanticNoteIDs := semanticNoteIDsForWidget(d, &w)
 			for _, id := range w.Notes {
@@ -226,6 +185,130 @@ func semanticNoteIDsForWidget(d *Dashboard, w *Widget) map[string]bool {
 		ids[note.ID] = true
 	}
 	return ids
+}
+
+// validateWidgetContent validates a widget's type-specific fields, spec, inline
+// data, and pivot. Shared by top-level widgets and by each tab.
+func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
+	var errs []string
+
+	if w.Type == "" {
+		errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
+	}
+
+	// Validate widget type.
+	switch w.Type {
+	case WidgetTypeMetric:
+		errs = append(errs, validateMetricWidget(prefix, w, d)...)
+	case WidgetTypeChart:
+		errs = append(errs, validateChartWidget(prefix, w, d)...)
+	case WidgetTypeTable:
+		// Table widgets just need a query source.
+		errs = append(errs, validateQuerySource(prefix, w, d)...)
+		validateTableColumns(prefix, w, &errs)
+	case WidgetTypePivotTable:
+		errs = append(errs, validateQuerySource(prefix, w, d)...)
+		validateTableColumns(prefix, w, &errs)
+		if w.Pivot == nil {
+			errs = append(errs, fmt.Sprintf("%s: pivot_table widgets need a pivot", prefix))
+		}
+	case WidgetTypeText:
+		if w.Content == "" {
+			errs = append(errs, fmt.Sprintf("%s: content is required for text widgets", prefix))
+		}
+	case WidgetTypeDivider:
+		// No required fields.
+	case WidgetTypeImage:
+		// Data-driven like a table: needs a query source, and src names the
+		// column holding the image URL.
+		errs = append(errs, validateQuerySource(prefix, w, d)...)
+		if w.Src == "" {
+			errs = append(errs, fmt.Sprintf("%s: src (image URL column) is required for image widgets", prefix))
+		}
+		if w.Fit != "" && w.Fit != "contain" && w.Fit != "cover" {
+			errs = append(errs, fmt.Sprintf("%s: fit must be contain or cover", prefix))
+		}
+	case WidgetTypeTabs:
+		// A tabs container is only meaningful with a tabs list (handled by
+		// validateWidgetTabs); reaching here means the list is missing, or a tab
+		// itself is type tabs (nesting).
+		errs = append(errs, fmt.Sprintf("%s: a tabs widget requires a tabs list and cannot be nested", prefix))
+	case "":
+		// Already reported above.
+	default:
+		errs = append(errs, fmt.Sprintf("%s: unknown widget type %q (expected metric, chart, table, pivot_table, text, divider, image, or tabs)", prefix, w.Type))
+	}
+
+	if len(w.Spec) > 0 && (w.Type != WidgetTypeChart || w.Chart != "vega-lite") {
+		errs = append(errs, fmt.Sprintf("%s: spec is only valid on vega-lite charts", prefix))
+	}
+
+	errs = append(errs, validateInlineData(prefix, w)...)
+
+	validatePivot(prefix, w, &errs)
+
+	return errs
+}
+
+// tabsContainerFields are the only fields a `type: tabs` container may set;
+// everything else (data source, encodings, chart…) belongs on each tab.
+var tabsContainerFields = map[string]bool{
+	"id": true, "name": true, "description": true, "col": true, "type": true, "tabs": true,
+}
+
+// validateWidgetTabs validates a `type: tabs` container. Tabs inherit nothing:
+// each is validated as a complete widget with its own type. No nesting.
+func validateWidgetTabs(prefix string, w *Widget, d *Dashboard, noteIDs map[string]bool) []string {
+	var errs []string
+
+	if w.Type != WidgetTypeTabs {
+		errs = append(errs, fmt.Sprintf("%s: a widget with tabs must be type: tabs (got %q)", prefix, w.Type))
+	}
+
+	// The container only groups tabs; any widget field set on it would be
+	// silently ignored, so reject it and point at the tabs.
+	if raw, err := yaml.Marshal(w); err == nil {
+		fields := map[string]any{}
+		if yaml.Unmarshal(raw, &fields) == nil {
+			var extra []string
+			for key := range fields {
+				if !tabsContainerFields[key] {
+					extra = append(extra, key)
+				}
+			}
+			sort.Strings(extra)
+			for _, key := range extra {
+				errs = append(errs, fmt.Sprintf("%s: %q is not allowed on a tabs widget — set it on each tab", prefix, key))
+			}
+		}
+	}
+
+	seen := make(map[string]bool, len(w.Tabs))
+	for k := range w.Tabs {
+		tabPrefix := fmt.Sprintf("%s, tab %d (%q)", prefix, k+1, w.Tabs[k].Name)
+		name := w.Tabs[k].Name
+		if name == "" {
+			errs = append(errs, fmt.Sprintf("%s, tab %d: name is required", prefix, k+1))
+		} else if seen[name] {
+			errs = append(errs, fmt.Sprintf("%s: duplicate tab name %q — tab names must be unique within a widget", prefix, name))
+		}
+		seen[name] = true
+		if w.Tabs[k].HasTabs() {
+			errs = append(errs, fmt.Sprintf("%s: tabs cannot be nested", tabPrefix))
+			continue
+		}
+		tab := w.ResolvedTab(k)
+		errs = append(errs, validateWidgetContent(tabPrefix, &tab, d)...)
+		// Notes live on each tab and resolve against that tab's semantic model.
+		semanticNoteIDs := semanticNoteIDsForWidget(d, &tab)
+		for _, id := range tab.Notes {
+			if id == "" || (!noteIDs[id] && !semanticNoteIDs[id]) {
+				errs = append(errs, fmt.Sprintf("%s: note %q not found", tabPrefix, id))
+			}
+		}
+	}
+
+	return errs
 }
 
 func ValidateAll(dashboards []*Dashboard) error {

@@ -33,12 +33,12 @@ export function WidgetExportButton({ widget, data }: Props) {
       if (p) out = { columns: p.columns.map((name) => ({ name })), rows: p.rows };
     }
     const csv = widgetDataToCSV(out);
-    downloadTextFile(`${slugify(widget.name)}.csv`, csv, "text/csv;charset=utf-8");
+    downloadTextFile(`${slugify(widget.exportName ?? widget.name)}.csv`, csv, "text/csv;charset=utf-8");
   };
 
   const exportVisual = async (trigger: HTMLButtonElement, format: "png" | "pdf") => {
     const frame = widgetFrameFor(trigger);
-    const filename = `${slugify(widget.name)}.${format}`;
+    const filename = `${slugify(widget.exportName ?? widget.name)}.${format}`;
     setExporting(true);
     try {
       if (format === "png") {

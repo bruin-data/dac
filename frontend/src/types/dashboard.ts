@@ -53,8 +53,14 @@ export interface Row {
 export interface Widget {
   name: string;
   description?: string;
-  type: "metric" | "chart" | "table" | "pivot_table" | "text" | "divider" | "image";
+  type: "metric" | "chart" | "table" | "pivot_table" | "text" | "divider" | "image" | "tabs";
   col?: number;
+
+  // Sub-views of a `type: tabs` widget; each tab is a complete widget.
+  // Each tab is a complete widget (own type/chart).
+  tabs?: Widget[];
+  // Client-only: download file name for a tab's frame ("Widget - Tab"), set by TabbedWidget.
+  exportName?: string;
 
   // Query source
   query?: string;
