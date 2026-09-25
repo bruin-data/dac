@@ -177,7 +177,7 @@ filters:
 
 **Searchable selects:** both single and multiple `select` filters show a searchable dropdown, so you can type to find an option quickly when the list is long.
 
-**Per-tab filters:** set `tab: <name>` on a filter to move it into that tab's own filter bar (shown only while the tab is active) instead of the global bar at the top. Use it when a filter is only relevant to one tab's widgets. The `tab` must match a tab some row uses — `dac validate` rejects an unmatched tab.
+**Per-tab filters:** set `tab: <name>` on a filter to move it into that tab's own filter bar (shown only while the tab is active) instead of the global bar at the top. Use it when a filter is only relevant to one tab's widgets. The `tab` must match a tab some row uses — `dac validate` and Bruin Cloud reject an unmatched tab.
 
 **Date range presets:** `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, `all_time`. If `options.presets` is omitted, a default set is shown. Users can always pick "Custom range" for arbitrary dates.
 
