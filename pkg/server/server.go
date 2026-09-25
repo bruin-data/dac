@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
@@ -197,18 +198,45 @@ func spaHandler(fsys fs.FS) http.Handler {
 	})
 }
 
-// corsMiddleware lets the VS Code webview embed (a different origin) reach the server.
+// corsMiddleware lets VS Code webviews reach the server without exposing the
+// local API to arbitrary websites.
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if origin == "" || sameOrigin(origin, r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !isVSCodeWebviewOrigin(origin) {
+			http.Error(w, "cross-origin request denied", http.StatusForbidden)
+			return
+		}
+
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Cache-Control, Accept")
+		w.Header().Add("Vary", "Origin")
 		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func sameOrigin(origin string, r *http.Request) bool {
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	return u.Host == r.Host
+}
+
+func isVSCodeWebviewOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	return err == nil && u.Scheme == "vscode-webview" && u.Host != "" &&
+		u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == ""
 }
 
 // Start begins listening and serving.
