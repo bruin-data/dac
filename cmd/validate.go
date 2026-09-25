@@ -166,9 +166,21 @@ func widgetLabelsByID(d *dashboard.Dashboard) map[string]string {
 	for rowIdx, row := range d.Rows {
 		for widgetIdx, widget := range row.Widgets {
 			labels[server.WidgetID(rowIdx, widgetIdx)] = widget.Name
+			for _, tab := range widget.Tabs {
+				labels[server.WidgetTabID(rowIdx, widgetIdx, tab.Name)] = tabLabel(widget, tab)
+			}
 		}
 	}
 	return labels
+}
+
+// tabLabel names a tab for CLI output: "Widget / Tab", or just the tab when the
+// container has no name.
+func tabLabel(widget, tab dashboard.Widget) string {
+	if widget.Name == "" {
+		return tab.Name
+	}
+	return widget.Name + " / " + tab.Name
 }
 
 func labelForWidgetJob(job server.WidgetJob, labels map[string]string) string {

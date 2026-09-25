@@ -17,7 +17,7 @@ import (
 var jsxTags = []string{
 	"Dashboard", "Row", "Filter", "Query",
 	"Metric", "Chart", "Table", "Text", "Divider", "Image",
-	"Tabs", "Tab",
+	"Tabs", "Tab", "WidgetTabs",
 }
 
 // LoadTSXFile loads a single .dashboard.tsx file by transpiling it with esbuild
@@ -562,6 +562,13 @@ func vnodeToWidget(n *vnode) Widget {
 		Fit:     asString(n.Props["fit"]),
 	}
 
+	// <WidgetTabs> is a `type: tabs` widget; each child widget is one tab.
+	if n.Tag == "WidgetTabs" {
+		for _, child := range n.Children {
+			w.Tabs = append(w.Tabs, vnodeToWidget(child))
+		}
+	}
+
 	return w
 }
 
@@ -580,6 +587,8 @@ func widgetType(tag string) string {
 		return WidgetTypeDivider
 	case "Image":
 		return WidgetTypeImage
+	case "WidgetTabs":
+		return WidgetTypeTabs
 	default:
 		return strings.ToLower(tag)
 	}

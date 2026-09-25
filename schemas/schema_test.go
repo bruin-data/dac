@@ -135,6 +135,47 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard widget tabs",
+			schemaID: DashboardV1ID,
+			yaml: `name: Widget Tabs
+rows:
+  - widgets:
+      - name: Sales
+        type: tabs
+        tabs:
+          - name: Revenue
+            type: chart
+            chart: bar
+            data:
+              columns: [month, revenue]
+              rows: [[Jan, 1]]
+            x: { field: month, type: category }
+            y: { field: revenue, type: number }
+          - name: Details
+            type: table
+            data:
+              columns: [month, orders]
+              rows: [[Jan, 1]]
+`,
+		},
+		{
+			name:     "dashboard tabbed pivot_table",
+			schemaID: DashboardV1ID,
+			yaml: `name: Tabbed Pivot
+rows:
+  - widgets:
+      - name: Cohorts
+        type: tabs
+        tabs:
+          - name: A
+            type: pivot_table
+            sql: SELECT 1 AS r, 2 AS v
+            pivot:
+              rows: [{ field: r }]
+              values: [{ field: v }]
+`,
+		},
+		{
 			name:     "theme",
 			schemaID: ThemeV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/theme/v1
@@ -226,6 +267,23 @@ rows:
 			schemaID: ThemeV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/theme/v1
 name: corporate
+`,
+		},
+		{
+			name:     "nested widget tabs",
+			schemaID: DashboardV1ID,
+			yaml: `name: Nested Tabs
+rows:
+  - widgets:
+      - name: Sales
+        type: tabs
+        tabs:
+          - name: Revenue
+            type: table
+            sql: SELECT 1
+            tabs:
+              - name: Inner
+                sql: SELECT 2
 `,
 		},
 		{

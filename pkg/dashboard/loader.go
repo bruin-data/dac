@@ -142,31 +142,43 @@ func isYAMLFile(name string) bool {
 }
 
 func postProcessDashboard(d *Dashboard) {
-	for i, row := range d.Rows {
-		for j, w := range row.Widgets {
-			if w.Dimension != "" && len(w.MetricRefs) > 0 {
-				if x := defaultSemanticDimensionAlias(d, &w); x != "" && w.XField() == "" {
-					d.Rows[i].Widgets[j].X = newAxisField(x)
-				}
-				if len(w.YFields()) == 0 {
-					d.Rows[i].Widgets[j].Y = newAxisFields(w.MetricRefs)
-				}
+	for i := range d.Rows {
+		for j := range d.Rows[i].Widgets {
+			w := &d.Rows[i].Widgets[j]
+			// Tabs are complete widgets: derive each tab's encoding on its own.
+			for k := range w.Tabs {
+				postProcessWidget(d, &w.Tabs[k])
 			}
-
-			if w.QueryRef == "" || w.XField() != "" || len(w.YFields()) > 0 {
-				continue
-			}
-			q, ok := d.Queries[w.QueryRef]
-			if !ok || !q.IsSemantic() {
-				continue
-			}
-			if len(q.Dimensions) == 1 {
-				d.Rows[i].Widgets[j].X = newAxisField(q.Dimensions[0].Name)
-			}
-			if len(q.Metrics) > 0 {
-				d.Rows[i].Widgets[j].Y = newAxisFields(append([]string(nil), q.Metrics...))
-			}
+			postProcessWidget(d, w)
 		}
+	}
+}
+
+// postProcessWidget fills x/y for a semantic widget (or tab) that omits them.
+func postProcessWidget(d *Dashboard, w *Widget) {
+	// A named query fills x/y only if the widget came without them.
+	hasEncoding := w.XField() != "" || len(w.YFields()) > 0
+	if w.Dimension != "" && len(w.MetricRefs) > 0 {
+		if x := defaultSemanticDimensionAlias(d, w); x != "" && w.XField() == "" {
+			w.X = newAxisField(x)
+		}
+		if len(w.YFields()) == 0 {
+			w.Y = newAxisFields(w.MetricRefs)
+		}
+	}
+
+	if w.QueryRef == "" || hasEncoding {
+		return
+	}
+	q, ok := d.Queries[w.QueryRef]
+	if !ok || !q.IsSemantic() {
+		return
+	}
+	if len(q.Dimensions) == 1 {
+		w.X = newAxisField(q.Dimensions[0].Name)
+	}
+	if len(q.Metrics) > 0 {
+		w.Y = newAxisFields(append([]string(nil), q.Metrics...))
 	}
 }
 

@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -302,5 +305,99 @@ func assertNotContains(t *testing.T, s, substr string) {
 	t.Helper()
 	if strings.Contains(s, substr) {
 		t.Errorf("should not contain %q in:\n  %s", substr, s)
+	}
+}
+
+func TestResolveWidgetJobs_TabsKeyedByName(t *testing.T) {
+	d := &dashboard.Dashboard{
+		Name:       "test",
+		Connection: "test-conn",
+		Rows: []dashboard.Row{{
+			Widgets: []dashboard.Widget{{
+				Name: "Sales",
+				Type: dashboard.WidgetTypeTabs,
+				Tabs: []dashboard.Widget{
+					{Name: "Revenue / Q1", Type: "table", SQL: "SELECT 1"},
+					{Name: "Orders", Type: "table", SQL: "SELECT 2"},
+				},
+			}},
+		}},
+	}
+
+	jobs, err := ResolveWidgetJobs(d, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("expected 2 jobs, got %d", len(jobs))
+	}
+	assertEqual(t, jobs[0].ID, "r0-w0::Revenue / Q1")
+	assertEqual(t, jobs[1].ID, "r0-w0::Orders")
+}
+
+func TestWidgetQuery_TabIDInPath(t *testing.T) {
+	// A tab id carries the tab name, which may contain spaces or slashes; the
+	// frontend path-escapes it and the route must still resolve the tab.
+	dir := t.TempDir()
+	yml := `name: T
+rows:
+  - widgets:
+      - type: tabs
+        tabs:
+          - name: Revenue / Q1
+            type: table
+            data: { columns: [v], rows: [[7]] }
+`
+	if err := os.WriteFile(filepath.Join(dir, "t.yml"), []byte(yml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{backend: &mockBackend{}, loader: &dashboardLoader{dir: dir}}
+	s.mux = http.NewServeMux()
+	s.mux.HandleFunc("POST /api/v1/dashboards/{name}/widgets/{widgetId}/query", s.handleWidgetQuery)
+
+	path := "/api/v1/dashboards/T/widgets/" + url.PathEscape("r0-w0::Revenue / Q1") + "/query"
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"filters":{}}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	assertEqual(t, w.Code, http.StatusOK)
+	var res WidgetQueryResult
+	if err := json.NewDecoder(w.Body).Decode(&res); err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Rows) != 1 {
+		t.Fatalf("expected the tab's inline row, got %+v", res)
+	}
+}
+
+func TestResolveWidgetJobs_TabFiltersRendered(t *testing.T) {
+	d := &dashboard.Dashboard{
+		Name:       "test",
+		Connection: "conn",
+		Queries: map[string]dashboard.Query{
+			"orders_q": {SQL: "SELECT * FROM orders WHERE region = '{{ filters.region }}'"},
+		},
+		Rows: []dashboard.Row{{
+			Widgets: []dashboard.Widget{{
+				Type: dashboard.WidgetTypeTabs,
+				Tabs: []dashboard.Widget{
+					{Name: "Inline", Type: "table", SQL: "SELECT * FROM sales WHERE region = '{{ filters.region }}'"},
+					{Name: "Named", Type: "table", QueryRef: "orders_q"},
+				},
+			}},
+		}},
+	}
+
+	jobs, err := ResolveWidgetJobs(d, map[string]any{"region": "US"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("expected 2 jobs, got %d", len(jobs))
+	}
+	for _, j := range jobs {
+		assertContains(t, j.SQL, "region = 'US'")
+		assertNotContains(t, j.SQL, "{{")
 	}
 }

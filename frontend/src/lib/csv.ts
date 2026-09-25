@@ -68,7 +68,8 @@ export function downloadTextFile(filename: string, content: string, mimeType: st
 }
 
 /** Sanitize a name into a filename-safe slug. */
-export function slugify(name: string): string {
-  const slug = name.trim().replace(/[^\w.-]+/g, "_").replace(/_+/g, "_");
+export function slugify(name?: string): string {
+  // Name is optional (e.g. a title-less tabs widget), so tolerate undefined.
+  const slug = (name ?? "").trim().replace(/[^\w.-]+/g, "_").replace(/_+/g, "_");
   return slug || "export";
 }

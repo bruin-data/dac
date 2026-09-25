@@ -791,3 +791,33 @@ func TestLoadTSXFile_ProjectSemanticDashboard(t *testing.T) {
 		t.Fatalf("expected semantic table dimensions, got %+v", table.Dimensions)
 	}
 }
+
+func TestLoadTSXFile_WidgetTabs(t *testing.T) {
+	dashCode := `
+export default (
+  <Dashboard name="Tabs TSX" connection="db">
+    <Row>
+      <WidgetTabs name="Sales" col={8}>
+        <Chart name="Revenue" chart="bar" sql="SELECT 1 AS m, 2 AS v" x={{ field: "m" }} y={{ field: ["v"] }} />
+        <Table name="Details" sql="SELECT 1 AS m" />
+      </WidgetTabs>
+    </Row>
+  </Dashboard>
+)
+`
+	dashPath := filepath.Join(t.TempDir(), "tabs.dashboard.tsx")
+	if err := os.WriteFile(dashPath, []byte(dashCode), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := LoadTSXFile(dashPath)
+	assertNoErr(t, err)
+	w := d.Rows[0].Widgets[0]
+	if w.Type != WidgetTypeTabs || w.Name != "Sales" || w.Col != 8 || len(w.Tabs) != 2 {
+		t.Fatalf("expected a tabs widget with 2 tabs, got type=%q name=%q col=%d tabs=%d", w.Type, w.Name, w.Col, len(w.Tabs))
+	}
+	if w.Tabs[0].Name != "Revenue" || w.Tabs[0].Type != WidgetTypeChart || w.Tabs[1].Type != WidgetTypeTable {
+		t.Fatalf("unexpected tabs: %+v", w.Tabs)
+	}
+	assertNoErr(t, Validate(d))
+}

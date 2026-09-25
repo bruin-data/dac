@@ -6,10 +6,11 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Display name |
-| `type` | string | Yes | `metric`, `chart`, `table`, `pivot_table`, `text`, `image`, or `divider` |
+| `name` | string | Yes (optional on `tabs`) | Display name |
+| `type` | string | Yes | `metric`, `chart`, `table`, `pivot_table`, `text`, `image`, `divider`, or `tabs` |
 | `col` | integer | No | Column span from 1 to 12 |
 | `description` | string | No | Optional tooltip or subtitle |
+| `tabs` | list | No | Complete widgets shown as tabs of a `type: tabs` widget — see [Widget tabs](/dashboards/layout#widget-tabs) |
 
 Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), `file` (external `.sql` path), a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts), or `data` (inline static values — see [Inline data](#inline-data)). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
 

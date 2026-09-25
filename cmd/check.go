@@ -83,6 +83,17 @@ func checkCmd() *cli.Command {
 
 				for rowIdx, row := range d.Rows {
 					for widgetIdx, w := range row.Widgets {
+						// Tabs are checked one by one, like widgets.
+						if w.HasTabs() {
+							for _, tab := range w.Tabs {
+								totalWidgets++
+								widgetNames[server.WidgetTabID(rowIdx, widgetIdx, tab.Name)] = tabLabel(w, tab)
+								if tab.Type == dashboard.WidgetTypeText || tab.Type == dashboard.WidgetTypeDivider {
+									passiveWidgets = append(passiveWidgets, tabLabel(w, tab))
+								}
+							}
+							continue
+						}
 						totalWidgets++
 						widgetID := server.WidgetID(rowIdx, widgetIdx)
 						widgetNames[widgetID] = w.Name
