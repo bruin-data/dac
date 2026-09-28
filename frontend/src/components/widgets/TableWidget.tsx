@@ -40,9 +40,12 @@ function alignClasses(align: TableColumn["align"], numeric: boolean) {
   };
 }
 
+type PinOverrides = Record<string, boolean>;
+
 export function TableWidget({ widget, data }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
   const tokens = useTokens();
+  const [pinOverrides, setPinOverrides] = useState<PinOverrides>({});
 
   // A pivot reshapes the result client-side; the rest of the table renders the
   // reshaped `effData` exactly as it would a plain result set.
@@ -72,7 +75,7 @@ export function TableWidget({ widget, data }: Props) {
               border: m?.border,
               like: m?.like,
               hidden: m?.hidden ?? false,
-              frozen: m?.frozen ?? false,
+              frozen: !pivot && (pinOverrides[col.name] ?? m?.frozen ?? false),
               format: m?.format,
               idx,
             };
@@ -86,7 +89,7 @@ export function TableWidget({ widget, data }: Props) {
             border: col.border,
             like: col.like,
             hidden: col.hidden ?? false,
-            frozen: col.frozen ?? false,
+            frozen: !pivot && (pinOverrides[col.name] ?? col.frozen ?? false),
             format: col.format,
             idx: effData.columns.findIndex((c) => c.name === col.name),
           }));
@@ -119,7 +122,18 @@ export function TableWidget({ widget, data }: Props) {
     if (pivot) return resolved;
     const frozen = resolved.filter((c) => c.frozen);
     return frozen.length ? [...frozen, ...resolved.filter((c) => !c.frozen)] : resolved;
-  }, [widget.columns, effData?.columns, pivot]);
+  }, [widget.columns, effData?.columns, pivot, pinOverrides]);
+
+  const togglePin = (name: string) => {
+    const frozenByDefault = !pivot && !!widget.columns?.find((col) => col.name === name)?.frozen;
+    setPinOverrides((current) => {
+      const pinned = !(current[name] ?? frozenByDefault);
+      const next = { ...current };
+      if (pinned === frozenByDefault) delete next[name];
+      else next[name] = pinned;
+      return next;
+    });
+  };
 
   // Per-column `border: left|right|both` group-border classes, de-duping an
   // adjacent right+left pair into one line (border-separate would draw two).
@@ -339,17 +353,31 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
+                  className={`group/header relative py-0 px-0 whitespace-nowrap ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
                   style={frozenStyle(ci, true)}
                 >
                   <button
                     type="button"
                     onClick={() => handleHeaderClick(col.name)}
-                    className={`group w-full flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    className={`group w-full flex items-center gap-1 py-2 pl-4 ${pivot ? "pr-4" : "pr-8"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                   >
                     <span>{col.label}</span>
                     <SortIndicator direction={active ? sort!.direction : null} />
                   </button>
+                  {!pivot && (
+                    <button
+                      type="button"
+                      onClick={() => togglePin(col.name)}
+                      title={col.frozen ? "Unfreeze column" : "Freeze column"}
+                      className={`absolute right-2 top-1/2 -translate-y-1/2 transition-opacity focus:outline-none focus:opacity-100 ${
+                        col.frozen
+                          ? "text-[var(--dac-accent)] opacity-100"
+                          : "text-[var(--dac-text-muted)] opacity-0 group-hover/header:opacity-100 hover:text-[var(--dac-text-primary)]"
+                      }`}
+                    >
+                      <PinIcon />
+                    </button>
+                  )}
                 </th>
               );
             })}
@@ -414,6 +442,16 @@ export function TableWidget({ widget, data }: Props) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 17v5" />
+      <path d="M5 17h14" />
+      <path d="M6 3h12l-2 8 3 3H5l3-3-2-8Z" />
+    </svg>
   );
 }
 
