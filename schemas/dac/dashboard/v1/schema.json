@@ -723,7 +723,7 @@
         "width": {
           "type": "string",
           "pattern": "^(100|[0-9]{1,2})%$",
-          "description": "Column width percentage. 100% matches the longest displayed column and 0% uses the minimum width."
+          "description": "Column width percentage. 0% maps to 80px and 100% maps to the 480px maximum."
         },
         "format": {
           "oneOf": [

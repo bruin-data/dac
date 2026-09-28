@@ -12,6 +12,9 @@ interface Props {
 
 type SortDirection = "asc" | "desc";
 
+const MIN_COLUMN_WIDTH = 80;
+const MAX_COLUMN_WIDTH = 480;
+
 interface SortState {
   column: string;
   direction: SortDirection;
@@ -25,7 +28,7 @@ interface TableColumn {
   align?: "left" | "center" | "right"; // text-alignment override (header + body)
   border?: "left" | "right" | "both"; // non-colour vertical group border on this edge
   frozen?: boolean; // freeze to the left; frozen columns render first
-  width?: string; // 0%–100% relative to the longest displayed column
+  width?: string; // 0%–100%, mapped from 80px to the 480px maximum
   format?: FormatLayer[]; // effective layers (own, or the mirrored column's if `like`)
   idx: number; // own data index (drives the displayed value)
   colorIdx: number; // data index whose value drives coloring (own, or `like` source)
@@ -160,23 +163,6 @@ export function TableWidget({ widget, data }: Props) {
     return m;
   }, [columns]);
 
-  const longestColumnWidth = useMemo(() => {
-    let longest = 80;
-    for (const col of columns) {
-      longest = Math.max(longest, col.label.length * 7 + 32);
-      if (col.type === "image") {
-        longest = Math.max(longest, 152);
-        continue;
-      }
-      for (const row of rows) {
-        const value = formatCell(row[col.idx], col.number, numberFormatters.get(col.name));
-        longest = Math.max(longest, value.length * 7 + 32);
-        if (longest >= 800) return 800;
-      }
-    }
-    return Math.min(800, Math.round(longest));
-  }, [columns, rows, numberFormatters]);
-
   // Frozen columns render first and stick to the left; 0 on pivots.
   const frozenCount = useMemo(() => (pivot ? 0 : columns.filter((c) => c.frozen).length), [columns, pivot]);
   const headerRowRef = useRef<HTMLTableRowElement>(null);
@@ -224,12 +210,12 @@ export function TableWidget({ widget, data }: Props) {
   const frozenBgClass = (ci: number) =>
     ci < frozenCount ? "bg-[var(--dac-background)] group-hover:bg-[var(--dac-surface)]" : "";
 
-  // YAML stores 0–100 relative to the longest displayed column. Frozen columns
-  // without an explicit width still get a safety cap.
+  // Persisted percentages use a fixed scale so long cell values cannot expand a
+  // column beyond the UI's maximum. Frozen columns without one get a safety cap.
   const columnWidthStyle = (col: TableColumn): CSSProperties | undefined => {
     const match = col.width?.match(/^(100|[0-9]{1,2})%$/);
     if (match) {
-      const width = Math.round(80 + (longestColumnWidth - 80) * (Number(match[1]) / 100));
+      const width = Math.round(MIN_COLUMN_WIDTH + (MAX_COLUMN_WIDTH - MIN_COLUMN_WIDTH) * (Number(match[1]) / 100));
       return { width, minWidth: width, maxWidth: width, boxSizing: "border-box" };
     }
     return col.frozen ? { maxWidth: 320 } : undefined;

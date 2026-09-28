@@ -256,7 +256,7 @@ type TableColumn struct {
 	Align  string        `yaml:"align,omitempty" json:"align,omitempty"`   // text alignment override: left | center | right (applies to the header and body cells)
 	Border string        `yaml:"border,omitempty" json:"border,omitempty"` // non-colour vertical group border on this column's edge: left | right | both
 	Frozen bool          `yaml:"frozen,omitempty" json:"frozen,omitempty"` // freeze the column to the left so it stays visible while scrolling
-	Width  string        `yaml:"width,omitempty" json:"width,omitempty"`   // 0%–100% relative to the longest displayed column
+	Width  string        `yaml:"width,omitempty" json:"width,omitempty"`   // 0%–100%, mapped from 80px to the 480px maximum
 	Format []FormatLayer `yaml:"format,omitempty" json:"format,omitempty"` // ordered conditional-format style layers; first match wins
 }
 
