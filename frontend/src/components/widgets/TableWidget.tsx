@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { format as d3Format } from "d3-format";
 import type { FormatLayer, Widget, WidgetData } from "../../types/dashboard";
 import { useTokens } from "../../themes/TemplateProvider";
@@ -11,6 +11,8 @@ interface Props {
 }
 
 type SortDirection = "asc" | "desc";
+
+const MAX_COLUMN_WIDTH = 450;
 
 interface SortState {
   column: string;
@@ -42,6 +44,10 @@ function alignClasses(align: TableColumn["align"], numeric: boolean) {
 
 export function TableWidget({ widget, data }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [copiedCellKey, setCopiedCellKey] = useState<string | null>(null);
+  const resizeRef = useRef<{ name: string; startX: number; startWidth: number } | null>(null);
+  const copiedCellTimerRef = useRef<number | null>(null);
   const tokens = useTokens();
 
   // A pivot reshapes the result client-side; the rest of the table renders the
@@ -189,6 +195,66 @@ export function TableWidget({ widget, data }: Props) {
   const frozenBgClass = (ci: number) =>
     ci < frozenCount ? "bg-[var(--dac-background)] group-hover:bg-[var(--dac-surface)]" : "";
 
+  const columnWidthStyle = (col: TableColumn): CSSProperties => {
+    const width = columnWidths[col.name];
+    return width == null
+      ? { maxWidth: MAX_COLUMN_WIDTH, boxSizing: "border-box" }
+      : { width, minWidth: width, maxWidth: width, boxSizing: "border-box" };
+  };
+
+  const tableWidthStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!columns.length || columns.some((col) => columnWidths[col.name] == null)) return undefined;
+    const total = columns.reduce((sum, col) => sum + columnWidths[col.name], 0) + columns.length + 1;
+    return { width: total, minWidth: total, tableLayout: "fixed" };
+  }, [columns, columnWidths]);
+
+  const startColumnResize = (col: TableColumn, event: ReactPointerEvent<HTMLSpanElement>) => {
+    const th = event.currentTarget.closest("th");
+    if (!th) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const widths: Record<string, number> = {};
+    const ths = headerRowRef.current?.children;
+    columns.forEach((column, index) => {
+      widths[column.name] = Math.min(MAX_COLUMN_WIDTH, Math.max(80, Math.round(ths?.[index]?.getBoundingClientRect().width || 80)));
+    });
+    const startWidth = widths[col.name];
+    setColumnWidths(widths);
+    resizeRef.current = { name: col.name, startX: event.clientX, startWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const moveColumnResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const resize = resizeRef.current;
+    if (!resize) return;
+    const width = Math.min(MAX_COLUMN_WIDTH, Math.max(80, Math.round(resize.startWidth + event.clientX - resize.startX)));
+    setColumnWidths((current) => ({ ...current, [resize.name]: width }));
+  };
+
+  const finishColumnResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (!resizeRef.current) return;
+    resizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const copyCell = (value: unknown, key: string) => {
+    if (value == null) return;
+    navigator.clipboard?.writeText(String(value)).then(() => {
+      setCopiedCellKey(key);
+      if (copiedCellTimerRef.current != null) window.clearTimeout(copiedCellTimerRef.current);
+      copiedCellTimerRef.current = window.setTimeout(() => setCopiedCellKey(null), 1200);
+    }).catch(() => {});
+  };
+
+  const updateCellTooltip = (cell: HTMLDivElement, value: unknown) => {
+    if (cell.scrollWidth > cell.clientWidth && value != null) cell.title = String(value);
+    else cell.removeAttribute("title");
+  };
+
+  useEffect(() => () => {
+    if (copiedCellTimerRef.current != null) window.clearTimeout(copiedCellTimerRef.current);
+  }, []);
+
   // All data columns by name → index, so cross-column rules can reference any
   // column (even ones not shown).
   const dataIndex = useMemo(() => {
@@ -321,8 +387,11 @@ export function TableWidget({ widget, data }: Props) {
   };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:1px_1px]">
+    <div className="w-full min-w-0 max-w-full overflow-x-auto">
+      <table
+        className="inline-table min-w-max text-[13px] border-separate [border-spacing:1px_1px]"
+        style={tableWidthStyle}
+      >
         <thead>
           <tr ref={headerRowRef} className="bg-[var(--dac-surface)]">
             {columns.map((col, ci) => {
@@ -339,17 +408,32 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
-                  style={frozenStyle(ci, true)}
+                  className={`relative py-0 px-0 whitespace-nowrap overflow-hidden ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
+                  style={{ ...columnWidthStyle(col), ...frozenStyle(ci, true) }}
                 >
                   <button
                     type="button"
                     onClick={() => handleHeaderClick(col.name)}
-                    className={`group w-full flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    className={`group w-full min-w-0 flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    style={columnWidthStyle(col)}
                   >
-                    <span>{col.label}</span>
+                    <span className="truncate">{col.label}</span>
                     <SortIndicator direction={active ? sort!.direction : null} />
                   </button>
+                  {!pivot && (
+                    <span
+                      role="separator"
+                      tabIndex={0}
+                      aria-orientation="vertical"
+                      aria-label={`Resize ${col.label} column`}
+                      className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none opacity-0 hover:opacity-100 focus:opacity-100 after:absolute after:inset-y-1 after:right-0 after:w-0.5 after:rounded-full after:bg-[var(--dac-accent)]"
+                      onPointerDown={(event) => startColumnResize(col, event)}
+                      onPointerMove={moveColumnResize}
+                      onPointerUp={finishColumnResize}
+                      onPointerCancel={finishColumnResize}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  )}
                 </th>
               );
             })}
@@ -385,26 +469,49 @@ export function TableWidget({ widget, data }: Props) {
                 }
                 // Sticky position merges under conditional-format style so the cell colour wins.
                 const frozen = frozenStyle(ci, false);
-                const tdStyle = frozen ? { ...frozen, ...style } : Object.keys(style).length ? style : undefined;
+                const tdStyle = { ...columnWidthStyle(col), ...frozen, ...style };
+                const displayValue = formatCell(raw, col.number, numberFormatters.get(col.name));
                 return (
                   <td
                     key={col.name}
-                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
+                    className={`relative whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
                       numeric ? "tabular-nums text-[12px]" : ""
                     } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""} ${frozenBgClass(ci)} ${borderClasses[ci]}`}
                     style={tdStyle}
                   >
-                    {col.type === "image" && !pivot && raw ? (
-                      <img
-                        src={String(raw)}
-                        alt=""
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        className="h-10 w-auto max-w-[120px] rounded object-cover"
-                      />
-                    ) : (
-                      formatCell(raw, col.number, numberFormatters.get(col.name))
-                    )}
+                    <div
+                      className="relative py-1.5 px-4 whitespace-nowrap overflow-hidden text-ellipsis"
+                      style={columnWidthStyle(col)}
+                      onMouseEnter={(event) => col.type !== "image" && updateCellTooltip(event.currentTarget, displayValue)}
+                      onDoubleClick={
+                        col.type !== "image"
+                          ? (event) => {
+                              event.preventDefault();
+                              copyCell(displayValue, `${i}:${col.idx}`);
+                            }
+                          : undefined
+                      }
+                    >
+                      {col.type === "image" && !pivot && raw ? (
+                        <img
+                          src={String(raw)}
+                          alt=""
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          className="h-10 w-auto max-w-[120px] rounded object-cover"
+                        />
+                      ) : (
+                        displayValue
+                      )}
+                      {copiedCellKey === `${i}:${col.idx}` && (
+                        <span
+                          aria-label="Copied"
+                          className="pointer-events-none absolute right-2 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full bg-blue-50 text-[11px] font-semibold text-blue-600"
+                        >
+                          ✓
+                        </span>
+                      )}
+                    </div>
                   </td>
                 );
               })}
