@@ -548,6 +548,7 @@ export function TableWidget({ widget, data }: Props) {
                     style={tdStyle}
                   >
                     <div
+                      data-column-value={col.type !== "image" ? "" : undefined}
                       className="relative py-1.5 px-4 whitespace-nowrap overflow-hidden text-ellipsis"
                       style={columnWidthStyle(col)}
                       onMouseEnter={(event) => col.type !== "image" && updateCellTooltip(event.currentTarget, displayValue)}
@@ -569,7 +570,7 @@ export function TableWidget({ widget, data }: Props) {
                           className="h-10 w-auto max-w-[120px] rounded object-cover"
                         />
                       ) : (
-                        <span data-column-value className="inline-block">{displayValue}</span>
+                        displayValue
                       )}
                       {copiedCellKey === `${i}:${col.idx}` && (
                         <span
