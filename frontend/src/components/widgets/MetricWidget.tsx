@@ -29,6 +29,10 @@ function useAutoFit(text: string) {
 
     fit();
 
+    // Re-fit once web fonts load; a font swap changes text width without
+    // resizing the element, so the observer alone wouldn't catch it.
+    document.fonts?.ready.then(fit);
+
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(fit);
     observer.observe(el);
