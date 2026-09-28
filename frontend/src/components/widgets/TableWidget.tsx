@@ -46,6 +46,7 @@ function alignClasses(align: TableColumn["align"], numeric: boolean) {
 export function TableWidget({ widget, data }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
   const [columnMaxWidths, setColumnMaxWidths] = useState<Record<string, number>>({});
   const [copiedCellKey, setCopiedCellKey] = useState<string | null>(null);
   const resizeRef = useRef<{ name: string; startX: number; startWidth: number; maxWidth: number } | null>(null);
@@ -198,25 +199,58 @@ export function TableWidget({ widget, data }: Props) {
     ci < frozenCount ? "bg-[var(--dac-background)] group-hover:bg-[var(--dac-surface)]" : "";
 
   const columnWidthStyle = (col: TableColumn): CSSProperties => {
-    const width = columnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH;
+    const width = columnWidths[col.name] ?? autoColumnWidths[col.name];
+    if (width == null) return { maxWidth: DEFAULT_MAX_COLUMN_WIDTH, boxSizing: "border-box" };
     return { width, minWidth: width, maxWidth: width, boxSizing: "border-box" };
   };
 
   const tableWidthStyle = useMemo<CSSProperties | undefined>(() => {
-    if (!columns.length) return undefined;
-    const total = columns.reduce((sum, col) => sum + (columnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH), 0) + columns.length + 1;
+    const widths = columns.map((col) => columnWidths[col.name] ?? autoColumnWidths[col.name]);
+    if (!widths.length || widths.some((width) => width == null)) return undefined;
+    const total = widths.reduce((sum, width) => sum + (width ?? 0), 0) + columns.length + 1;
     return { width: total, minWidth: total, tableLayout: "fixed" };
-  }, [columns, columnWidths]);
+  }, [autoColumnWidths, columns, columnWidths]);
 
-  const measureColumnMaxWidth = (index: number) => {
+  useLayoutEffect(() => {
+    let measureFrame = 0;
+    const clearFrame = window.requestAnimationFrame(() => {
+      setAutoColumnWidths({});
+      setColumnMaxWidths({});
+      measureFrame = window.requestAnimationFrame(() => {
+        const ths = headerRowRef.current?.children;
+        if (!ths) return;
+        const widths: Record<string, number> = {};
+        columns.forEach((col, index) => {
+          widths[col.name] = Math.min(
+            DEFAULT_MAX_COLUMN_WIDTH,
+            Math.max(MIN_COLUMN_WIDTH, Math.round(ths[index]?.getBoundingClientRect().width || MIN_COLUMN_WIDTH)),
+          );
+        });
+        setAutoColumnWidths(widths);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(clearFrame);
+      window.cancelAnimationFrame(measureFrame);
+    };
+  }, [columns, effData?.rows]);
+
+  const measureColumnMaxWidth = (col: TableColumn, index: number) => {
+    if (columnMaxWidths[col.name] != null) return columnMaxWidths[col.name];
     let maxWidth = DEFAULT_MAX_COLUMN_WIDTH;
     const table = headerRowRef.current?.closest("table");
-    for (const body of Array.from(table?.tBodies ?? [])) {
-      for (const row of Array.from(body.rows)) {
-        const value = row.cells[index]?.querySelector<HTMLElement>("[data-column-value]");
-        if (value) maxWidth = Math.max(maxWidth, Math.ceil(value.getBoundingClientRect().width) + 32);
+    const sample = table?.tBodies[0]?.rows[0]?.cells[index]?.querySelector<HTMLElement>("[data-column-value]");
+    try {
+      const context = document.createElement("canvas").getContext("2d");
+      if (context && sample) {
+        context.font = window.getComputedStyle(sample).font;
+        for (const row of sortedRows) {
+          const raw = col.idx >= 0 ? row[col.idx] : null;
+          const value = formatCell(raw, col.number, numberFormatters.get(col.name));
+          maxWidth = Math.max(maxWidth, Math.ceil(context.measureText(String(value ?? "")).width) + 32);
+        }
       }
-    }
+    } catch { /* keep the default maximum */ }
     return maxWidth;
   };
 
@@ -226,7 +260,7 @@ export function TableWidget({ widget, data }: Props) {
     event.preventDefault();
     event.stopPropagation();
     const index = columns.findIndex((column) => column.name === col.name);
-    const maxWidth = measureColumnMaxWidth(index);
+    const maxWidth = measureColumnMaxWidth(col, index);
     setColumnMaxWidths((current) => ({ ...current, [col.name]: maxWidth }));
     const startWidth = Math.min(maxWidth, Math.max(MIN_COLUMN_WIDTH, Math.round(th.getBoundingClientRect().width)));
     setColumnWidths((current) => ({ ...current, [col.name]: startWidth }));
@@ -251,9 +285,9 @@ export function TableWidget({ widget, data }: Props) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
     event.stopPropagation();
-    const maxWidth = measureColumnMaxWidth(index);
+    const maxWidth = measureColumnMaxWidth(col, index);
     setColumnMaxWidths((current) => ({ ...current, [col.name]: maxWidth }));
-    const current = columnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH;
+    const current = columnWidths[col.name] ?? autoColumnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH;
     const width = event.key === "Home"
       ? MIN_COLUMN_WIDTH
       : event.key === "End"
@@ -458,7 +492,7 @@ export function TableWidget({ widget, data }: Props) {
                       aria-label={`Resize ${col.label} column`}
                       aria-valuemin={MIN_COLUMN_WIDTH}
                       aria-valuemax={columnMaxWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
-                      aria-valuenow={columnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
+                      aria-valuenow={columnWidths[col.name] ?? autoColumnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
                       className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none opacity-0 hover:opacity-100 focus:opacity-100 after:absolute after:inset-y-1 after:right-0 after:w-0.5 after:rounded-full after:bg-[var(--dac-accent)]"
                       onPointerDown={(event) => startColumnResize(col, event)}
                       onPointerMove={moveColumnResize}
