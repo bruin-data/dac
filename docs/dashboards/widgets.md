@@ -33,6 +33,8 @@ string for display.
 
 `field` is required; bare column names (`value: revenue`) are not valid. When
 `format` is omitted the number is rendered with an auto-compact fallback (e.g. `1.2M`).
+Metric values shrink to fit the widget; values that remain too wide at the minimum
+font size are truncated with an ellipsis.
 
 Metric widgets can also use semantic models:
 

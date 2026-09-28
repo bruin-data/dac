@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { Widget, WidgetData } from "../../types/dashboard";
 import { buildFormatter } from "../../lib/format";
 
@@ -10,28 +10,36 @@ interface Props {
 /** Pick the right font size so the value fits its container. */
 function useAutoFit(text: string) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [fontSize, setFontSize] = useState<string>("clamp(1.35rem, 2.5vw, 2rem)");
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    // Reset to max size, then shrink if needed.
-    const maxPx = 32; // 2rem
-    const minPx = 16; // 1rem — floor
-    let size = maxPx;
-    el.style.fontSize = `${size}px`;
-
-    // Shrink until text fits or we hit the floor.
-    while (el.scrollWidth > el.clientWidth && size > minPx) {
-      size -= 1;
+    const fit = () => {
+      const maxPx = 32; // 2rem
+      const minPx = 16; // 1rem — floor
+      let size = maxPx;
       el.style.fontSize = `${size}px`;
-    }
 
-    setFontSize(`${size}px`);
+      while (el.scrollWidth > el.clientWidth && size > minPx) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+
+    fit();
+
+    // Re-fit once web fonts load; a font swap changes text width without
+    // resizing the element, so the observer alone wouldn't catch it.
+    document.fonts?.ready.then(fit);
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [text]);
 
-  return { containerRef, fontSize };
+  return containerRef;
 }
 
 export function MetricWidget({ widget, data }: Props) {
@@ -43,7 +51,7 @@ export function MetricWidget({ widget, data }: Props) {
   const formatted = hasData ? buildFormatter(enc)(rawValue) : "";
 
   // Hook must be called unconditionally (Rules of Hooks).
-  const { containerRef, fontSize } = useAutoFit(formatted);
+  const containerRef = useAutoFit(formatted);
 
   if (!hasData) {
     return (
@@ -55,10 +63,11 @@ export function MetricWidget({ widget, data }: Props) {
 
   return (
     <div className="tabular-nums overflow-hidden">
-      <div ref={containerRef} className="flex items-baseline gap-1 whitespace-nowrap" style={{ fontSize, lineHeight: 1.1 }}>
-        <span className="font-semibold tracking-tight text-[var(--dac-text-primary)]">
-          {formatted}
-        </span>
+      <div
+        ref={containerRef}
+        className="truncate text-[2rem] font-semibold leading-[1.1] tracking-tight text-[var(--dac-text-primary)]"
+      >
+        {formatted}
       </div>
     </div>
   );
