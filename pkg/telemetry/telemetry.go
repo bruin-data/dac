@@ -29,7 +29,7 @@ func (silentLogger) Logf(string, ...interface{})   {}
 func (silentLogger) Errorf(string, ...interface{}) {}
 
 const (
-	url          = "https://getbruinbumlky.dataplane.rudderstack.com"
+	url          = "https://events-rs.getbruin.com"
 	startTimeKey = "telemetry_start"
 )
 
