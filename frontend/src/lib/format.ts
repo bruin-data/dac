@@ -3,6 +3,7 @@ import { timeFormat as d3TimeFormat, timeParse as d3TimeParse } from "d3-time-fo
 import type { AxisEncoding, ValueEncoding } from "../types/dashboard";
 
 const parseDateOnly = d3TimeParse("%Y-%m-%d");
+const formatDateOnly = d3TimeFormat("%Y-%m-%d");
 
 /** Resolve the column name from a value encoding. */
 export function valueField(value?: ValueEncoding): string | undefined {
@@ -25,8 +26,9 @@ export function axisFields(enc?: AxisEncoding): string[] {
 function dateForDisplay(val: unknown): Date {
   if (val instanceof Date) return val;
   if (typeof val === "string") {
+    // Reject out-of-range values (e.g. "2025-13-01") that d3 silently rolls over.
     const date = parseDateOnly(val);
-    if (date) return date;
+    if (date && formatDateOnly(date) === val) return date;
   }
   return new Date(val as string);
 }
