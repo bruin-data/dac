@@ -720,6 +720,11 @@
         "frozen": {
           "type": "boolean"
         },
+        "width": {
+          "type": "string",
+          "pattern": "^(100|[0-9]{1,2})%$",
+          "description": "Column width percentage. 100% matches the longest displayed column and 0% uses the minimum width."
+        },
         "format": {
           "oneOf": [
             { "type": "string" },

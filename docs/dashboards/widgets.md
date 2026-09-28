@@ -376,6 +376,7 @@ Table column fields:
 | `border` | string | Non-colour vertical border on this column's `left`, `right`, or `both` edge, to separate column groups (plain tables only; not `pivot_table`). |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
 | `frozen` | boolean | Freeze the column to the left so it stays visible while scrolling. Frozen columns render first, in their listed order (plain tables only; not `pivot_table`). |
+| `width` | string | Column width percentage from `0%` to `100%`. Frozen columns without an explicit width are capped at `320px`. |
 | `format` | string \| object | Value display and conditional coloring, see below |
 
 ### Pivot tables

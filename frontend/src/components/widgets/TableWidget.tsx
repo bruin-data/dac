@@ -25,6 +25,7 @@ interface TableColumn {
   align?: "left" | "center" | "right"; // text-alignment override (header + body)
   border?: "left" | "right" | "both"; // non-colour vertical group border on this edge
   frozen?: boolean; // freeze to the left; frozen columns render first
+  width?: string; // 0%–100% relative to the longest displayed column
   format?: FormatLayer[]; // effective layers (own, or the mirrored column's if `like`)
   idx: number; // own data index (drives the displayed value)
   colorIdx: number; // data index whose value drives coloring (own, or `like` source)
@@ -73,6 +74,7 @@ export function TableWidget({ widget, data }: Props) {
               like: m?.like,
               hidden: m?.hidden ?? false,
               frozen: m?.frozen ?? false,
+              width: m?.width,
               format: m?.format,
               idx,
             };
@@ -87,6 +89,7 @@ export function TableWidget({ widget, data }: Props) {
             like: col.like,
             hidden: col.hidden ?? false,
             frozen: col.frozen ?? false,
+            width: col.width,
             format: col.format,
             idx: effData.columns.findIndex((c) => c.name === col.name),
           }));
@@ -140,7 +143,39 @@ export function TableWidget({ widget, data }: Props) {
     );
   }, [columns, pivot]);
 
-  const rows = effData?.rows ?? [];
+  const rows = useMemo(() => effData?.rows ?? [], [effData?.rows]);
+  // Compile each column's d3-format spec once (currency/number are handled
+  // separately). Invalid specs are skipped so cells fall back to raw text.
+  const numberFormatters = useMemo(() => {
+    const m = new Map<string, (n: number) => string>();
+    for (const col of columns) {
+      const fmt = col.number;
+      if (!fmt || fmt === "currency" || fmt === "number") continue;
+      try {
+        m.set(col.name, d3Format(fmt));
+      } catch {
+        // Invalid d3-format spec: leave unset; formatCell renders raw text.
+      }
+    }
+    return m;
+  }, [columns]);
+
+  const longestColumnWidth = useMemo(() => {
+    let longest = 80;
+    for (const col of columns) {
+      longest = Math.max(longest, col.label.length * 7 + 32);
+      if (col.type === "image") {
+        longest = Math.max(longest, 152);
+        continue;
+      }
+      for (const row of rows) {
+        const value = formatCell(row[col.idx], col.number, numberFormatters.get(col.name));
+        longest = Math.max(longest, value.length * 7 + 32);
+        if (longest >= 800) return 800;
+      }
+    }
+    return Math.min(800, Math.round(longest));
+  }, [columns, rows, numberFormatters]);
 
   // Frozen columns render first and stick to the left; 0 on pivots.
   const frozenCount = useMemo(() => (pivot ? 0 : columns.filter((c) => c.frozen).length), [columns, pivot]);
@@ -189,6 +224,19 @@ export function TableWidget({ widget, data }: Props) {
   const frozenBgClass = (ci: number) =>
     ci < frozenCount ? "bg-[var(--dac-background)] group-hover:bg-[var(--dac-surface)]" : "";
 
+  // YAML stores 0–100 relative to the longest displayed column. Frozen columns
+  // without an explicit width still get a safety cap.
+  const columnWidthStyle = (col: TableColumn): CSSProperties | undefined => {
+    const match = col.width?.match(/^(100|[0-9]{1,2})%$/);
+    if (match) {
+      const width = Math.round(80 + (longestColumnWidth - 80) * (Number(match[1]) / 100));
+      return { width, minWidth: width, maxWidth: width, boxSizing: "border-box" };
+    }
+    return col.frozen ? { maxWidth: 320 } : undefined;
+  };
+
+  const constrainedColumn = (col: TableColumn) => /^(100|[0-9]{1,2})%$/.test(col.width ?? "") || col.frozen;
+
   // All data columns by name → index, so cross-column rules can reference any
   // column (even ones not shown).
   const dataIndex = useMemo(() => {
@@ -227,22 +275,6 @@ export function TableWidget({ widget, data }: Props) {
     }
     return map;
   }, [columns, rows, tokens]);
-
-  // Compile each column's d3-format spec once (currency/number are handled
-  // separately). Invalid specs are skipped so cells fall back to raw text.
-  const numberFormatters = useMemo(() => {
-    const m = new Map<string, (n: number) => string>();
-    for (const col of columns) {
-      const fmt = col.number;
-      if (!fmt || fmt === "currency" || fmt === "number") continue;
-      try {
-        m.set(col.name, d3Format(fmt));
-      } catch {
-        // Invalid d3-format spec: leave unset; formatCell renders raw text.
-      }
-    }
-    return m;
-  }, [columns]);
 
   // Per pivot value: its `format` layers plus, per gradient layer, the resolved
   // scale(s). A layer's `scaleBy` picks the domain: 'all' (default, one scale over
@@ -339,15 +371,15 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
-                  style={frozenStyle(ci, true)}
+                  className={`py-0 px-0 whitespace-nowrap ${constrainedColumn(col) ? "overflow-hidden" : ""} ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
+                  style={{ ...columnWidthStyle(col), ...frozenStyle(ci, true) }}
                 >
                   <button
                     type="button"
                     onClick={() => handleHeaderClick(col.name)}
-                    className={`group w-full flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    className={`group w-full min-w-0 flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                   >
-                    <span>{col.label}</span>
+                    <span className={constrainedColumn(col) ? "truncate" : ""}>{col.label}</span>
                     <SortIndicator direction={active ? sort!.direction : null} />
                   </button>
                 </th>
@@ -385,14 +417,17 @@ export function TableWidget({ widget, data }: Props) {
                 }
                 // Sticky position merges under conditional-format style so the cell colour wins.
                 const frozen = frozenStyle(ci, false);
-                const tdStyle = frozen ? { ...frozen, ...style } : Object.keys(style).length ? style : undefined;
+                const widthStyle = columnWidthStyle(col);
+                const tdStyle = { ...widthStyle, ...frozen, ...style };
+                const displayValue = formatCell(raw, col.number, numberFormatters.get(col.name));
                 return (
                   <td
                     key={col.name}
-                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
+                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${constrainedColumn(col) ? "overflow-hidden text-ellipsis" : ""} ${alignCls.text} ${
                       numeric ? "tabular-nums text-[12px]" : ""
                     } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""} ${frozenBgClass(ci)} ${borderClasses[ci]}`}
-                    style={tdStyle}
+                    style={Object.keys(tdStyle).length ? tdStyle : undefined}
+                    title={constrainedColumn(col) && col.type !== "image" ? String(displayValue ?? "") : undefined}
                   >
                     {col.type === "image" && !pivot && raw ? (
                       <img
@@ -403,7 +438,7 @@ export function TableWidget({ widget, data }: Props) {
                         className="h-10 w-auto max-w-[120px] rounded object-cover"
                       />
                     ) : (
-                      formatCell(raw, col.number, numberFormatters.get(col.name))
+                      displayValue
                     )}
                   </td>
                 );

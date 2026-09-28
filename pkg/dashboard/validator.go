@@ -3,6 +3,7 @@ package dashboard
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -931,6 +932,13 @@ func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 		}
 		if c.Frozen && w.Type == WidgetTypePivotTable {
 			*errs = append(*errs, cp+".frozen: not supported on pivot tables")
+		}
+		if c.Width != "" {
+			value := strings.TrimSuffix(c.Width, "%")
+			width, err := strconv.Atoi(value)
+			if !strings.HasSuffix(c.Width, "%") || len(value) < 1 || len(value) > 3 || (len(value) == 3 && value != "100") || err != nil || width < 0 || width > 100 {
+				*errs = append(*errs, cp+".width: must be a percentage between 0% and 100%")
+			}
 		}
 		if c.Type != "" {
 			if c.Type != "text" && c.Type != "image" {

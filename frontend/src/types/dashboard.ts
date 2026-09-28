@@ -163,6 +163,8 @@ export interface TableColumn {
   border?: 'left' | 'right' | 'both';
   /** Freeze the column to the left so it stays visible while scrolling. */
   frozen?: boolean;
+  /** Column width percentage (0%–100%) relative to the longest displayed column. */
+  width?: string;
   /** Ordered style layers; the first layer that matches a cell wins. */
   format?: FormatLayer[];
 }

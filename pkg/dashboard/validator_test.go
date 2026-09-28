@@ -766,6 +766,20 @@ func TestValidate_TableColumnFrozen(t *testing.T) {
 	assertValidationContains(t, Validate(pivot), "frozen: not supported on pivot tables")
 }
 
+func TestValidate_TableColumnWidth(t *testing.T) {
+	table := func(width string) *Dashboard {
+		return &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+			Name: "w", Type: WidgetTypeTable, SQL: "SELECT description FROM orders",
+			Columns: []TableColumn{{Name: "description", Width: width}},
+		}}}}}
+	}
+
+	assertNoErr(t, Validate(table("0%")))
+	assertNoErr(t, Validate(table("100%")))
+	assertValidationContains(t, Validate(table("-1%")), "width: must be a percentage between 0% and 100%")
+	assertValidationContains(t, Validate(table("101%")), "width: must be a percentage between 0% and 100%")
+}
+
 func TestValidate_ImageWidget(t *testing.T) {
 	// Data-driven: a query source plus src naming the image URL column.
 	ok := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
