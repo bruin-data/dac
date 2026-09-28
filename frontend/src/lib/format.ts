@@ -1,6 +1,8 @@
 import { format as d3Format } from "d3-format";
-import { timeFormat as d3TimeFormat } from "d3-time-format";
+import { timeFormat as d3TimeFormat, timeParse as d3TimeParse } from "d3-time-format";
 import type { AxisEncoding, ValueEncoding } from "../types/dashboard";
+
+const parseDateOnly = d3TimeParse("%Y-%m-%d");
 
 /** Resolve the column name from a value encoding. */
 export function valueField(value?: ValueEncoding): string | undefined {
@@ -20,6 +22,15 @@ export function axisFields(enc?: AxisEncoding): string[] {
   return enc.field ? [enc.field] : [];
 }
 
+function dateForDisplay(val: unknown): Date {
+  if (val instanceof Date) return val;
+  if (typeof val === "string") {
+    const date = parseDateOnly(val);
+    if (date) return date;
+  }
+  return new Date(val as string);
+}
+
 /**
  * Build a tick formatter from an encoding: d3-time-format for date axes,
  * d3-format otherwise. Falls back to the given formatter when no format is set.
@@ -34,7 +45,7 @@ export function buildAxisFormatter(
   if (enc?.type === "date") {
     const tf = d3TimeFormat(fmt);
     return (val) => {
-      const d = val instanceof Date ? val : new Date(val as string);
+      const d = dateForDisplay(val);
       return isNaN(d.getTime()) ? fallback(val) : tf(d);
     };
   }
