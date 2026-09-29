@@ -293,6 +293,14 @@ export function TableWidget({ widget, data }: Props) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
+  const resetColumnWidth = (name: string) => {
+    setColumnWidths((current) => {
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
+  };
+
   const resizeColumnWithKeyboard = (col: TableColumn, index: number, event: ReactKeyboardEvent<HTMLSpanElement>) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
@@ -526,6 +534,10 @@ export function TableWidget({ widget, data }: Props) {
                         onPointerMove={moveColumnResize}
                         onPointerUp={finishColumnResize}
                         onPointerCancel={finishColumnResize}
+                        onDoubleClick={(event) => {
+                          event.stopPropagation();
+                          resetColumnWidth(col.name);
+                        }}
                         onKeyDown={(event) => resizeColumnWithKeyboard(col, ci, event)}
                         onClick={(event) => event.stopPropagation()}
                       />
