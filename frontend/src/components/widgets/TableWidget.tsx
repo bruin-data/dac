@@ -293,11 +293,25 @@ export function TableWidget({ widget, data }: Props) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
-  const resetColumnWidth = (name: string) => {
+  const resetColumnWidth = (name: string, index: number) => {
     setColumnWidths((current) => {
       const next = { ...current };
       delete next[name];
       return next;
+    });
+    setAutoColumnWidths((current) => {
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
+    window.requestAnimationFrame(() => {
+      const th = headerRowRef.current?.children[index];
+      if (!th) return;
+      const width = Math.min(
+        DEFAULT_MAX_COLUMN_WIDTH,
+        Math.max(MIN_COLUMN_WIDTH, Math.round(th.getBoundingClientRect().width || MIN_COLUMN_WIDTH)),
+      );
+      setAutoColumnWidths((current) => ({ ...current, [name]: width }));
     });
   };
 
@@ -536,7 +550,7 @@ export function TableWidget({ widget, data }: Props) {
                         onPointerCancel={finishColumnResize}
                         onDoubleClick={(event) => {
                           event.stopPropagation();
-                          resetColumnWidth(col.name);
+                          resetColumnWidth(col.name, ci);
                         }}
                         onKeyDown={(event) => resizeColumnWithKeyboard(col, ci, event)}
                         onClick={(event) => event.stopPropagation()}
