@@ -59,7 +59,7 @@ function DataWidget({
 }) {
   // Static widgets (text, divider) don't need data.
   if (STATIC_WIDGET_TYPES.has(widget.type)) {
-    return <WidgetFrame widget={widget} isLoading={false} />;
+    return <WidgetFrame key={`${dashboardName}:${widgetId}`} widget={widget} isLoading={false} />;
   }
 
   return (
@@ -88,7 +88,7 @@ function DataWidgetInner({
   WidgetFrame: React.ComponentType<WidgetFrameProps>;
 }) {
   const { data, isLoading, isPlaceholderData } = useWidgetQuery(dashboardName, widgetId, filters, true);
-  return <WidgetFrame widget={widget} data={data} isLoading={isLoading || isPlaceholderData} />;
+  return <WidgetFrame key={`${dashboardName}:${widgetId}`} widget={widget} data={data} isLoading={isLoading || isPlaceholderData} />;
 }
 
 /**

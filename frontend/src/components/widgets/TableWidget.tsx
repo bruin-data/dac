@@ -52,6 +52,7 @@ export function TableWidget({ widget, data }: Props) {
   const resizeRef = useRef<{ name: string; startX: number; startWidth: number; maxWidth: number } | null>(null);
   const copiedCellTimerRef = useRef<number | null>(null);
   const tokens = useTokens();
+  const [pinOverrides, setPinOverrides] = useState(() => new Map<string, boolean>());
 
   // A pivot reshapes the result client-side; the rest of the table renders the
   // reshaped `effData` exactly as it would a plain result set.
@@ -81,7 +82,7 @@ export function TableWidget({ widget, data }: Props) {
               border: m?.border,
               like: m?.like,
               hidden: m?.hidden ?? false,
-              frozen: m?.frozen ?? false,
+              frozen: !pivot && (pinOverrides.get(col.name) ?? m?.frozen ?? false),
               format: m?.format,
               idx,
             };
@@ -95,7 +96,7 @@ export function TableWidget({ widget, data }: Props) {
             border: col.border,
             like: col.like,
             hidden: col.hidden ?? false,
-            frozen: col.frozen ?? false,
+            frozen: !pivot && (pinOverrides.get(col.name) ?? col.frozen ?? false),
             format: col.format,
             idx: effData.columns.findIndex((c) => c.name === col.name),
           }));
@@ -128,7 +129,18 @@ export function TableWidget({ widget, data }: Props) {
     if (pivot) return resolved;
     const frozen = resolved.filter((c) => c.frozen);
     return frozen.length ? [...frozen, ...resolved.filter((c) => !c.frozen)] : resolved;
-  }, [widget.columns, effData?.columns, pivot]);
+  }, [widget.columns, effData?.columns, pivot, pinOverrides]);
+
+  const togglePin = (name: string) => {
+    const frozenByDefault = !pivot && !!widget.columns?.find((col) => col.name === name)?.frozen;
+    setPinOverrides((current) => {
+      const pinned = !(current.get(name) ?? frozenByDefault);
+      const next = new Map(current);
+      if (pinned === frozenByDefault) next.delete(name);
+      else next.set(name, pinned);
+      return next;
+    });
+  };
 
   // Per-column `border: left|right|both` group-border classes, de-duping an
   // adjacent right+left pair into one line (border-separate would draw two).
@@ -457,6 +469,7 @@ export function TableWidget({ widget, data }: Props) {
               const numeric = col.number != null;
               const active = sort?.column === col.name;
               const alignCls = alignClasses(col.align, numeric);
+              const pinAction = col.frozen ? "Unfreeze" : "Freeze";
               return (
                 <th
                   key={col.name}
@@ -467,13 +480,13 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`relative py-0 px-0 whitespace-nowrap overflow-hidden ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
+                  className={`group/header relative py-0 px-0 whitespace-nowrap overflow-hidden ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
                   style={{ ...columnWidthStyle(col), ...frozenStyle(ci, true) }}
                 >
                   <button
                     type="button"
                     onClick={() => handleHeaderClick(col.name)}
-                    className={`group w-full min-w-0 flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    className={`group w-full min-w-0 flex items-center gap-1 py-2 pl-4 ${pivot ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                     style={columnWidthStyle(col)}
                   >
                     <span
@@ -485,22 +498,38 @@ export function TableWidget({ widget, data }: Props) {
                     <SortIndicator direction={active ? sort!.direction : null} />
                   </button>
                   {!pivot && (
-                    <span
-                      role="separator"
-                      tabIndex={0}
-                      aria-orientation="vertical"
-                      aria-label={`Resize ${col.label} column`}
-                      aria-valuemin={MIN_COLUMN_WIDTH}
-                      aria-valuemax={columnMaxWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
-                      aria-valuenow={columnWidths[col.name] ?? autoColumnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
-                      className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none opacity-0 hover:opacity-100 focus:opacity-100 after:absolute after:inset-y-1 after:right-0 after:w-0.5 after:rounded-full after:bg-[var(--dac-accent)]"
-                      onPointerDown={(event) => startColumnResize(col, event)}
-                      onPointerMove={moveColumnResize}
-                      onPointerUp={finishColumnResize}
-                      onPointerCancel={finishColumnResize}
-                      onKeyDown={(event) => resizeColumnWithKeyboard(col, ci, event)}
-                      onClick={(event) => event.stopPropagation()}
-                    />
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => togglePin(col.name)}
+                        title={`${pinAction} ${col.label} column`}
+                        aria-label={`${pinAction} ${col.label} column`}
+                        aria-pressed={col.frozen}
+                        className={`absolute right-3 top-1/2 z-20 -translate-y-1/2 transition-opacity focus:outline-none focus:opacity-100 ${
+                          col.frozen
+                            ? "text-[var(--dac-accent)] opacity-100"
+                            : "text-[var(--dac-text-muted)] opacity-100 [@media(hover:hover)]:opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100 hover:text-[var(--dac-text-primary)]"
+                        }`}
+                      >
+                        <PinIcon />
+                      </button>
+                      <span
+                        role="separator"
+                        tabIndex={0}
+                        aria-orientation="vertical"
+                        aria-label={`Resize ${col.label} column`}
+                        aria-valuemin={MIN_COLUMN_WIDTH}
+                        aria-valuemax={columnMaxWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
+                        aria-valuenow={columnWidths[col.name] ?? autoColumnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
+                        className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none opacity-0 hover:opacity-100 focus:opacity-100 after:absolute after:inset-y-1 after:right-0 after:w-0.5 after:rounded-full after:bg-[var(--dac-accent)]"
+                        onPointerDown={(event) => startColumnResize(col, event)}
+                        onPointerMove={moveColumnResize}
+                        onPointerUp={finishColumnResize}
+                        onPointerCancel={finishColumnResize}
+                        onKeyDown={(event) => resizeColumnWithKeyboard(col, ci, event)}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    </>
                   )}
                 </th>
               );
@@ -591,6 +620,16 @@ export function TableWidget({ widget, data }: Props) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 17v5" />
+      <path d="M5 17h14" />
+      <path d="M6 3h12l-2 8 3 3H5l3-3-2-8Z" />
+    </svg>
   );
 }
 
