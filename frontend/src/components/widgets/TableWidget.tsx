@@ -40,12 +40,10 @@ function alignClasses(align: TableColumn["align"], numeric: boolean) {
   };
 }
 
-type PinOverrides = Record<string, boolean>;
-
 export function TableWidget({ widget, data }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
   const tokens = useTokens();
-  const [pinOverrides, setPinOverrides] = useState<PinOverrides>({});
+  const [pinOverrides, setPinOverrides] = useState(() => new Map<string, boolean>());
 
   // A pivot reshapes the result client-side; the rest of the table renders the
   // reshaped `effData` exactly as it would a plain result set.
@@ -75,7 +73,7 @@ export function TableWidget({ widget, data }: Props) {
               border: m?.border,
               like: m?.like,
               hidden: m?.hidden ?? false,
-              frozen: !pivot && (pinOverrides[col.name] ?? m?.frozen ?? false),
+              frozen: !pivot && (pinOverrides.get(col.name) ?? m?.frozen ?? false),
               format: m?.format,
               idx,
             };
@@ -89,7 +87,7 @@ export function TableWidget({ widget, data }: Props) {
             border: col.border,
             like: col.like,
             hidden: col.hidden ?? false,
-            frozen: !pivot && (pinOverrides[col.name] ?? col.frozen ?? false),
+            frozen: !pivot && (pinOverrides.get(col.name) ?? col.frozen ?? false),
             format: col.format,
             idx: effData.columns.findIndex((c) => c.name === col.name),
           }));
@@ -127,10 +125,10 @@ export function TableWidget({ widget, data }: Props) {
   const togglePin = (name: string) => {
     const frozenByDefault = !pivot && !!widget.columns?.find((col) => col.name === name)?.frozen;
     setPinOverrides((current) => {
-      const pinned = !(current[name] ?? frozenByDefault);
-      const next = { ...current };
-      if (pinned === frozenByDefault) delete next[name];
-      else next[name] = pinned;
+      const pinned = !(current.get(name) ?? frozenByDefault);
+      const next = new Map(current);
+      if (pinned === frozenByDefault) next.delete(name);
+      else next.set(name, pinned);
       return next;
     });
   };
@@ -343,6 +341,7 @@ export function TableWidget({ widget, data }: Props) {
               const numeric = col.number != null;
               const active = sort?.column === col.name;
               const alignCls = alignClasses(col.align, numeric);
+              const pinAction = col.frozen ? "Unfreeze" : "Freeze";
               return (
                 <th
                   key={col.name}
@@ -368,11 +367,13 @@ export function TableWidget({ widget, data }: Props) {
                     <button
                       type="button"
                       onClick={() => togglePin(col.name)}
-                      title={col.frozen ? "Unfreeze column" : "Freeze column"}
+                      title={`${pinAction} ${col.label} column`}
+                      aria-label={`${pinAction} ${col.label} column`}
+                      aria-pressed={col.frozen}
                       className={`absolute right-2 top-1/2 -translate-y-1/2 transition-opacity focus:outline-none focus:opacity-100 ${
                         col.frozen
                           ? "text-[var(--dac-accent)] opacity-100"
-                          : "text-[var(--dac-text-muted)] opacity-0 group-hover/header:opacity-100 hover:text-[var(--dac-text-primary)]"
+                          : "text-[var(--dac-text-muted)] opacity-100 [@media(hover:hover)]:opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100 hover:text-[var(--dac-text-primary)]"
                       }`}
                     >
                       <PinIcon />
