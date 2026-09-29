@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { format as d3Format } from "d3-format";
 import type { FormatLayer, Widget, WidgetData } from "../../types/dashboard";
 import { useTokens } from "../../themes/TemplateProvider";
@@ -11,6 +11,9 @@ interface Props {
 }
 
 type SortDirection = "asc" | "desc";
+
+const MIN_COLUMN_WIDTH = 80;
+const DEFAULT_MAX_COLUMN_WIDTH = 450;
 
 interface SortState {
   column: string;
@@ -42,6 +45,12 @@ function alignClasses(align: TableColumn["align"], numeric: boolean) {
 
 export function TableWidget({ widget, data }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
+  const [columnMaxWidths, setColumnMaxWidths] = useState<Record<string, number>>({});
+  const [copiedCellKey, setCopiedCellKey] = useState<string | null>(null);
+  const resizeRef = useRef<{ name: string; startX: number; startWidth: number; maxWidth: number } | null>(null);
+  const copiedCellTimerRef = useRef<number | null>(null);
   const tokens = useTokens();
 
   // A pivot reshapes the result client-side; the rest of the table renders the
@@ -189,6 +198,122 @@ export function TableWidget({ widget, data }: Props) {
   const frozenBgClass = (ci: number) =>
     ci < frozenCount ? "bg-[var(--dac-background)] group-hover:bg-[var(--dac-surface)]" : "";
 
+  const columnWidthStyle = (col: TableColumn): CSSProperties => {
+    const width = columnWidths[col.name] ?? autoColumnWidths[col.name];
+    if (width == null) return { maxWidth: DEFAULT_MAX_COLUMN_WIDTH, boxSizing: "border-box" };
+    return { width, minWidth: width, maxWidth: width, boxSizing: "border-box" };
+  };
+
+  const tableWidthStyle = useMemo<CSSProperties | undefined>(() => {
+    const widths = columns.map((col) => columnWidths[col.name] ?? autoColumnWidths[col.name]);
+    if (!widths.length || widths.some((width) => width == null)) return undefined;
+    const total = widths.reduce((sum, width) => sum + (width ?? 0), 0) + columns.length + 1;
+    return { width: total, minWidth: total, tableLayout: "fixed" };
+  }, [autoColumnWidths, columns, columnWidths]);
+
+  useLayoutEffect(() => {
+    let measureFrame = 0;
+    const clearFrame = window.requestAnimationFrame(() => {
+      setAutoColumnWidths({});
+      setColumnMaxWidths({});
+      measureFrame = window.requestAnimationFrame(() => {
+        const ths = headerRowRef.current?.children;
+        if (!ths) return;
+        const widths: Record<string, number> = {};
+        columns.forEach((col, index) => {
+          widths[col.name] = Math.min(
+            DEFAULT_MAX_COLUMN_WIDTH,
+            Math.max(MIN_COLUMN_WIDTH, Math.round(ths[index]?.getBoundingClientRect().width || MIN_COLUMN_WIDTH)),
+          );
+        });
+        setAutoColumnWidths(widths);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(clearFrame);
+      window.cancelAnimationFrame(measureFrame);
+    };
+  }, [columns, effData?.rows]);
+
+  const measureColumnMaxWidth = (col: TableColumn, index: number) => {
+    if (columnMaxWidths[col.name] != null) return columnMaxWidths[col.name];
+    let maxWidth = DEFAULT_MAX_COLUMN_WIDTH;
+    const table = headerRowRef.current?.closest("table");
+    const sample = table?.tBodies[0]?.rows[0]?.cells[index]?.querySelector<HTMLElement>("[data-column-value]");
+    try {
+      const context = document.createElement("canvas").getContext("2d");
+      if (context && sample) {
+        context.font = window.getComputedStyle(sample).font;
+        for (const row of sortedRows) {
+          const raw = col.idx >= 0 ? row[col.idx] : null;
+          const value = formatCell(raw, col.number, numberFormatters.get(col.name));
+          maxWidth = Math.max(maxWidth, Math.ceil(context.measureText(String(value ?? "")).width) + 32);
+        }
+      }
+    } catch { /* keep the default maximum */ }
+    return maxWidth;
+  };
+
+  const startColumnResize = (col: TableColumn, event: ReactPointerEvent<HTMLSpanElement>) => {
+    const th = event.currentTarget.closest("th");
+    if (!th) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const index = columns.findIndex((column) => column.name === col.name);
+    const maxWidth = measureColumnMaxWidth(col, index);
+    setColumnMaxWidths((current) => ({ ...current, [col.name]: maxWidth }));
+    const startWidth = Math.min(maxWidth, Math.max(MIN_COLUMN_WIDTH, Math.round(th.getBoundingClientRect().width)));
+    setColumnWidths((current) => ({ ...current, [col.name]: startWidth }));
+    resizeRef.current = { name: col.name, startX: event.clientX, startWidth, maxWidth };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const moveColumnResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const resize = resizeRef.current;
+    if (!resize) return;
+    const width = Math.min(resize.maxWidth, Math.max(MIN_COLUMN_WIDTH, Math.round(resize.startWidth + event.clientX - resize.startX)));
+    setColumnWidths((current) => ({ ...current, [resize.name]: width }));
+  };
+
+  const finishColumnResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (!resizeRef.current) return;
+    resizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const resizeColumnWithKeyboard = (col: TableColumn, index: number, event: ReactKeyboardEvent<HTMLSpanElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const maxWidth = measureColumnMaxWidth(col, index);
+    setColumnMaxWidths((current) => ({ ...current, [col.name]: maxWidth }));
+    const current = columnWidths[col.name] ?? autoColumnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH;
+    const width = event.key === "Home"
+      ? MIN_COLUMN_WIDTH
+      : event.key === "End"
+        ? maxWidth
+        : Math.min(maxWidth, Math.max(MIN_COLUMN_WIDTH, current + (event.key === "ArrowRight" ? 10 : -10)));
+    setColumnWidths((widths) => ({ ...widths, [col.name]: width }));
+  };
+
+  const copyCell = (value: unknown, key: string) => {
+    if (value == null) return;
+    navigator.clipboard?.writeText(String(value)).then(() => {
+      setCopiedCellKey(key);
+      if (copiedCellTimerRef.current != null) window.clearTimeout(copiedCellTimerRef.current);
+      copiedCellTimerRef.current = window.setTimeout(() => setCopiedCellKey(null), 1200);
+    }).catch(() => {});
+  };
+
+  const updateCellTooltip = (cell: HTMLElement, value: unknown) => {
+    if (cell.scrollWidth > cell.clientWidth && value != null) cell.title = String(value);
+    else cell.removeAttribute("title");
+  };
+
+  useEffect(() => () => {
+    if (copiedCellTimerRef.current != null) window.clearTimeout(copiedCellTimerRef.current);
+  }, []);
+
   // All data columns by name → index, so cross-column rules can reference any
   // column (even ones not shown).
   const dataIndex = useMemo(() => {
@@ -321,8 +446,11 @@ export function TableWidget({ widget, data }: Props) {
   };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-[13px] min-w-[400px] border-separate [border-spacing:1px_1px]">
+    <div className="w-full min-w-0 max-w-full overflow-x-auto">
+      <table
+        className="inline-table min-w-max text-[13px] border-separate [border-spacing:1px_1px]"
+        style={tableWidthStyle}
+      >
         <thead>
           <tr ref={headerRowRef} className="bg-[var(--dac-surface)]">
             {columns.map((col, ci) => {
@@ -339,17 +467,41 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`py-0 px-0 whitespace-nowrap ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
-                  style={frozenStyle(ci, true)}
+                  className={`relative py-0 px-0 whitespace-nowrap overflow-hidden ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
+                  style={{ ...columnWidthStyle(col), ...frozenStyle(ci, true) }}
                 >
                   <button
                     type="button"
                     onClick={() => handleHeaderClick(col.name)}
-                    className={`group w-full flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    className={`group w-full min-w-0 flex items-center gap-1 py-2 px-4 text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    style={columnWidthStyle(col)}
                   >
-                    <span>{col.label}</span>
+                    <span
+                      className="truncate"
+                      onMouseEnter={(event) => updateCellTooltip(event.currentTarget, col.label)}
+                    >
+                      {col.label}
+                    </span>
                     <SortIndicator direction={active ? sort!.direction : null} />
                   </button>
+                  {!pivot && (
+                    <span
+                      role="separator"
+                      tabIndex={0}
+                      aria-orientation="vertical"
+                      aria-label={`Resize ${col.label} column`}
+                      aria-valuemin={MIN_COLUMN_WIDTH}
+                      aria-valuemax={columnMaxWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
+                      aria-valuenow={columnWidths[col.name] ?? autoColumnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
+                      className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none opacity-0 hover:opacity-100 focus:opacity-100 after:absolute after:inset-y-1 after:right-0 after:w-0.5 after:rounded-full after:bg-[var(--dac-accent)]"
+                      onPointerDown={(event) => startColumnResize(col, event)}
+                      onPointerMove={moveColumnResize}
+                      onPointerUp={finishColumnResize}
+                      onPointerCancel={finishColumnResize}
+                      onKeyDown={(event) => resizeColumnWithKeyboard(col, ci, event)}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  )}
                 </th>
               );
             })}
@@ -385,26 +537,51 @@ export function TableWidget({ widget, data }: Props) {
                 }
                 // Sticky position merges under conditional-format style so the cell colour wins.
                 const frozen = frozenStyle(ci, false);
-                const tdStyle = frozen ? { ...frozen, ...style } : Object.keys(style).length ? style : undefined;
+                const tdStyle = { ...columnWidthStyle(col), ...frozen, ...style };
+                const displayValue = formatCell(raw, col.number, numberFormatters.get(col.name));
                 return (
                   <td
                     key={col.name}
-                    className={`py-1.5 px-4 whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
+                    className={`relative whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
                       numeric ? "tabular-nums text-[12px]" : ""
                     } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""} ${frozenBgClass(ci)} ${borderClasses[ci]}`}
                     style={tdStyle}
                   >
-                    {col.type === "image" && !pivot && raw ? (
-                      <img
-                        src={String(raw)}
-                        alt=""
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        className="h-10 w-auto max-w-[120px] rounded object-cover"
-                      />
-                    ) : (
-                      formatCell(raw, col.number, numberFormatters.get(col.name))
-                    )}
+                    <div
+                      data-column-value={col.type !== "image" ? "" : undefined}
+                      className="relative py-1.5 px-4 whitespace-nowrap overflow-hidden text-ellipsis"
+                      style={columnWidthStyle(col)}
+                      onMouseEnter={(event) => col.type !== "image" && updateCellTooltip(event.currentTarget, displayValue)}
+                      onDoubleClick={
+                        col.type !== "image"
+                          ? (event) => {
+                              event.preventDefault();
+                              copyCell(displayValue, `${i}:${col.idx}`);
+                            }
+                          : undefined
+                      }
+                    >
+                      {col.type === "image" && !pivot && raw ? (
+                        <img
+                          src={String(raw)}
+                          alt=""
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          className="h-10 w-auto max-w-[120px] rounded object-cover"
+                        />
+                      ) : (
+                        displayValue
+                      )}
+                      {copiedCellKey === `${i}:${col.idx}` && (
+                        <span
+                          aria-label="Copied"
+                          data-dac-export-control
+                          className="pointer-events-none absolute right-2 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full bg-blue-50 text-[11px] font-semibold text-blue-600"
+                        >
+                          ✓
+                        </span>
+                      )}
+                    </div>
                   </td>
                 );
               })}
