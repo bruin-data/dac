@@ -1,7 +1,8 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { View } from "vega";
+import type { Loader, View } from "vega";
 import type { VisualizationSpec } from "vega-embed";
 import type { Widget, WidgetData } from "../../types/dashboard";
+import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { DAC_EXPORT_PENDING_ATTRIBUTE } from "../../lib/renderExport";
 import { RowHeightContext } from "../../themes/RowContext";
 import { useTokens } from "../../themes/TemplateProvider";
@@ -50,6 +51,20 @@ function mergeConfig(defaults: JSONObject, override: unknown): JSONObject {
     }
   }
   return merged;
+}
+
+// Image marks load URLs from query data, so they follow the same rule as image
+// widgets and table image columns. Links and other contexts keep Vega's default.
+function dashboardLoader(createLoader: () => Loader): Loader {
+  const base = createLoader();
+  const sanitize = base.sanitize.bind(base);
+  base.sanitize = async (uri, options) => {
+    if (options?.context !== "image") return sanitize(uri, options);
+    const href = dashboardImageSrc(uri);
+    if (!href) throw new Error(`Vega-Lite image URL is not allowed: ${String(uri)}`);
+    return { href };
+  };
+  return base;
 }
 
 // Vega Tooltip appends its element to document.body, outside TemplateProvider's
@@ -177,12 +192,13 @@ export function VegaLiteChart({ widget, data }: Props) {
     container.replaceChildren();
     syncTooltipTheme(tokens);
 
-    void import("vega-embed")
-      .then(({ default: vegaEmbed }) => vegaEmbed(
+    void Promise.all([import("vega-embed"), import("vega")])
+      .then(([{ default: vegaEmbed }, { loader }]) => vegaEmbed(
         container,
         resolvedSpec as VisualizationSpec,
         {
           mode: "vega-lite",
+          loader: dashboardLoader(loader),
           renderer: "svg",
           actions: false,
           defaultStyle: false,

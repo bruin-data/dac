@@ -348,7 +348,7 @@ rows:
 
 ## Widget Types
 
-Every widget (except `text`, `divider`, and `image`) needs a query source. **Priority order:**
+Every widget except `text` and `divider` needs a query source. **Priority order:**
 1. `query: <name>` — reference a named query from the `queries:` map
 2. `sql: |` — inline SQL
 
@@ -793,7 +793,7 @@ Use `chart: vega-lite` with a `spec` object for layered, faceted, concatenated, 
           y: { field: revenue, type: quantitative }
 ```
 
-`spec.data` is optional and defaults to `{ name: dac }`. If provided, it must use that name. `data.url` and `datasets.dac` are invalid: load primary data through DAC `sql`, `query`, semantic fields, or illustrative inline `data`. DAC supplies theme and responsive sizing defaults; explicit Vega-Lite `config`, `width`, `height`, and `autosize` values override them.
+`spec.data` is optional and defaults to `{ name: dac }`. If provided, it must use that name. `data.url` and `datasets.dac` are invalid: load primary data through DAC `sql`, `query`, semantic fields, or illustrative inline `data`. DAC supplies theme and responsive sizing defaults; explicit Vega-Lite `config`, `width`, `height`, and `autosize` values override them. Image marks (`mark: image`) draw only absolute `https://` URLs on another origin without embedded credentials; other image URLs are skipped.
 
 ### Table Widget
 
@@ -819,7 +819,7 @@ Data table with optional column configuration.
 
 If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
-**Column rendering and conditional formatting.** A `table` column takes `name`, `label`, `type` (`text` default, `image`, or `sparkline`), `number` (value format: `number`, `currency`, or a d3-format string), sparkline-only `x`/`y` encodings, `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, `frozen`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
+**Column rendering and conditional formatting.** A `table` column takes `name`, `label`, `type` (`text` default, `image`, or `sparkline`), `number` (value format: `number`, `currency`, or a d3-format string), sparkline-only `x`/`y` encodings, `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, `frozen`, and `format`. Image columns render only absolute `https://` URLs on another origin without embedded credentials; other values stay as text. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
 
 **Sparkline table columns.** Use `type: sparkline` with required `x.field` and `y.field`. Cells accept named point objects or pairs in `[x, y]` order, either as native arrays or as a JSON array string (up to 256 KB; for warehouses that return aggregated JSON as text). Points use array order, cells share a Y domain, and at most 100 points are drawn. Sparkline columns are not sortable and reject `format` layers/`like`; other columns cannot target them with `like` or `{ column: ... }` (a series has no single value). Not supported on `pivot_table`.
 
@@ -971,13 +971,18 @@ Use dividers to visually separate sections within a dashboard.
 
 ### Image Widget
 
-Displays an image from a URL. No query needed.
+Image widgets are data-driven like tables: a query (or inline `data`) returns one row per image and
+`src`, `title`, `caption`, and `alt` name the result columns. Only absolute
+`https://` image URLs on another origin, without embedded credentials, render. The same rule applies
+to images in caption markdown; relative paths, `http://`, and `data:` URLs are
+blocked.
 
 ```yaml
 - name: Company Logo
   type: image
-  src: https://example.com/logo.png    # REQUIRED: image URL
-  alt: Company logo                     # Optional: alt text
+  sql: SELECT logo_url, company_name FROM companies
+  src: logo_url                          # REQUIRED: image URL column
+  alt: company_name                      # Optional: alt-text column
   col: 4
 ```
 
@@ -1085,7 +1090,7 @@ Every YAML widget type has a corresponding JSX tag. Props map directly to YAML f
 | `<Table>` | `table` | `name`, `col`, `sql`, `query`, `columns` |
 | `<Text>` | `text` | `name`, `col`, `content` |
 | `<Divider>` | `divider` | `name`, `col` |
-| `<Image>` | `image` | `name`, `col`, `src`, `alt` |
+| `<Image>` | `image` | `name`, `col`, `sql`, `query`, `src`, `title`, `caption`, `alt`, `fit` (`src`/`title`/`caption`/`alt` are column names) |
 
 ### Custom Components
 
@@ -1636,7 +1641,7 @@ rows:
 | `table` | — | SQL | Data table with optional column config |
 | `text` | `content` | None | Markdown/text content |
 | `divider` | — | None | Horizontal separator line |
-| `image` | `src` | None | Image from URL |
+| `image` | `src` | SQL | One image per query result row |
 
 ### Chart Types
 

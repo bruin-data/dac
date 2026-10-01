@@ -312,7 +312,7 @@ DAC executes the widget's `sql`, named `query`, semantic query, or inline `data`
           y: { field: revenue, type: quantitative }
 ```
 
-`spec.data` may be omitted; DAC inserts `{ name: dac }` automatically. If present, it must use that name. `data.url` and `datasets.dac` are rejected: load primary chart data through DAC so filters, validation, CSV export, and static builds continue to work consistently. Other inline named datasets may be included for small supporting values.
+`spec.data` may be omitted; DAC inserts `{ name: dac }` automatically. If present, it must use that name. `data.url` and `datasets.dac` are rejected: load primary chart data through DAC so filters, validation, CSV export, and static builds continue to work consistently. Other inline named datasets may be included for small supporting values. Image marks (`mark: image`) follow the same URL rule as image widgets: only absolute `https://` URLs on another origin, without embedded credentials, are drawn; other image URLs are skipped.
 
 For a single or layered view, DAC supplies responsive width, row-derived height, and fit autosizing when the spec does not set them. Explicit `width`, `height`, `autosize`, and `config` values win. DAC also supplies theme-aware axes, legends, tooltips, typography, and the `chart-1` through `chart-8` categorical palette; values in `spec.config` override those defaults.
 
@@ -371,7 +371,7 @@ Table column fields:
 |-------|------|-------------|
 | `name` | string | Result column name (must match the query output). |
 | `label` | string | Display header (defaults to `name`) |
-| `type` | string | Cell rendering: `text` (default), `image`, or `sparkline`. `image` renders a URL as a thumbnail; `sparkline` renders structured numeric series data with point tooltips (plain tables only; not `pivot_table`). |
+| `type` | string | Cell rendering: `text` (default), `image`, or `sparkline`. `image` renders an absolute `https://` URL on another origin, without embedded credentials, as a thumbnail and leaves any other value as text; `sparkline` renders structured numeric series data with point tooltips (plain tables only; not `pivot_table`). |
 | `number` | string | Value formatting for numbers: `currency`, `number`, or a d3-format string. For a sparkline it is a backwards-compatible fallback for `y.format`. |
 | `x` | object | Sparkline point-key and tooltip encoding. Supports `field`, `type` (`date`, `number`, or `category`), and `format`. |
 | `y` | object | Sparkline point-key, tooltip, and scale encoding. Supports `field`, `type: number`, `format`, and `beginAtZero`. |
@@ -728,8 +728,9 @@ warehouse is connected. The encoding fields (`x`, `y`, `value`, `label`,
 | `columns` | list of strings | Column names; referenced by the encoding fields |
 | `rows` | list of lists | One list per row, positional — each must have one value per column |
 
-`data` is mutually exclusive with `sql` and `query`. It is not valid on `text`,
-`image`, or `divider` widgets.
+`data` is mutually exclusive with `sql` and `query`. It is valid on `metric`,
+`chart`, `table`, `pivot_table`, and `image` widgets, and not on `text` or
+`divider` widgets.
 
 ## Text
 
@@ -758,6 +759,9 @@ Supported markdown:
 Image widgets are data-driven like a table: the widget runs a query and renders one
 image per result row (scrolling horizontally when there are several). `src`/`title`/
 `caption`/`alt` name the columns to read; `fit` is a literal applied to every image.
+Image sources must be absolute `https://` URLs on another origin. Other schemes,
+relative paths, URLs pointing at the dashboard server itself, and credential-bearing
+URLs are not rendered, including images in caption markdown.
 
 ```yaml
 - name: Property Gallery
@@ -774,7 +778,7 @@ Image-specific fields:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `src` | string | Yes | Name of the column holding the image URL (rendered per row). URLs must be reachable by the viewer's browser (http(s) URL, `data:` URI, or an app-served path). |
+| `src` | string | Yes | Name of the column holding the image URL (rendered per row). Values must be absolute `https://` URLs on another origin, without embedded credentials. |
 | `title` | string | No | Column whose value is the heading shown above each image |
 | `caption` | string | No | Column whose value is the Markdown caption shown below each image |
 | `alt` | string | No | Column whose value is the alt text for accessibility |
