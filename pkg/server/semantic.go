@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -11,6 +12,9 @@ import (
 )
 
 func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (string, string, map[string]string, error) {
+	if err := tmpl.ValidateSQLValue(filters); err != nil {
+		return "", "", nil, err
+	}
 	model, err := renderSemanticModel(job.Model, filters)
 	if err != nil {
 		return "", "", nil, err
@@ -176,10 +180,70 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
 		}
+		// The engine escapes author-written literals (e.g. "Kids' Toys"); only
+		// values changed by templating, which may embed request data, must
+		// also satisfy the SQL value rules.
+		if !reflect.DeepEqual(rf.Value, filter.Value) {
+			if err := tmpl.ValidateSQLValue(rf.Value); err != nil {
+				return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
+			}
+			if err := checkSemanticValueShape(rf.Operator, rf.Value); err != nil {
+				return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
+			}
+		}
 		rendered.Filters = append(rendered.Filters, rf)
 	}
 
 	return rendered, nil
+}
+
+// checkSemanticValueShape rejects templated values the engine would format
+// with %v (unquoted), such as a list passed to `equals` or a nested list.
+func checkSemanticValueShape(operator string, value any) error {
+	scalar := func(v any) bool {
+		switch v.(type) {
+		case string, int, int64, float64, bool:
+			return true
+		}
+		return false
+	}
+	scalars := func(items []any) bool {
+		for _, item := range items {
+			if !scalar(item) {
+				return false
+			}
+		}
+		return true
+	}
+	ok := false
+	switch operator {
+	case "is_null", "is_not_null":
+		ok = true
+	case "in", "not_in":
+		switch v := value.(type) {
+		case []string:
+			ok = true
+		case []any:
+			ok = scalars(v)
+		default:
+			ok = scalar(v)
+		}
+	case "between":
+		switch v := value.(type) {
+		case []string:
+			ok = len(v) == 2
+		case []any:
+			ok = len(v) == 2 && scalars(v)
+		case map[string]any:
+			ok = scalar(v["start"]) && scalar(v["end"])
+		}
+	default:
+		ok = scalar(value)
+	}
+	if !ok {
+		return fmt.Errorf("value shape is not supported by operator %q", operator)
+	}
+	return nil
 }
 
 func renderTemplateString(value string, filters map[string]any) (string, error) {
@@ -187,8 +251,8 @@ func renderTemplateString(value string, filters map[string]any) (string, error) 
 		return value, nil
 	}
 	// Render even with no filters: SQL may reference the `bruin` namespace
-	// (e.g. {{ bruin.user_email }}). Render() short-circuits plain strings.
-	return tmpl.Render(value, filters)
+	// (e.g. {{ bruin.user_email }}). RenderSQL() short-circuits plain strings.
+	return tmpl.RenderSQL(value, filters)
 }
 
 // filterRef matches a whole `filters.<name>` token (\b treats `_` as a word
@@ -231,11 +295,11 @@ func renderTemplateValue(value any, filters map[string]any) (any, error) {
 				return v, nil
 			}
 		}
-		return renderTemplateString(typed, filters)
+		return tmpl.Render(typed, filters)
 	case []string:
 		out := make([]string, len(typed))
 		for i, item := range typed {
-			rendered, err := renderTemplateString(item, filters)
+			rendered, err := tmpl.Render(item, filters)
 			if err != nil {
 				return nil, err
 			}

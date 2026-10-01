@@ -88,7 +88,7 @@ rows:
         filters:
           - dimension: region
             operator: equals
-            value: { field: "{{ filters.region }}" }
+            value: "{{ filters.region }}"
           - dimension: created_at
             operator: between
             value:
