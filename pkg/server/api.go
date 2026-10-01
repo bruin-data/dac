@@ -255,6 +255,13 @@ func (s *Server) handleGetTheme(w http.ResponseWriter, r *http.Request) {
 // in a dashboard, including semantic metric and dimensional widgets that
 // reference a semantic model.
 func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]WidgetJob, error) {
+	filters = d.NormalizeFilterValues(filters)
+	if err := d.ValidateFilterValues(filters); err != nil {
+		return nil, err
+	}
+	if err := tmpl.ValidateSQLValue(filters); err != nil {
+		return nil, err
+	}
 	var jobs []WidgetJob
 	for i, row := range d.Rows {
 		for j := range row.Widgets {
@@ -318,9 +325,9 @@ func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string,
 	}
 
 	// Always render: even with no filters, SQL may reference the `bruin`
-	// namespace (e.g. {{ bruin.user_email }}). Render() short-circuits
+	// namespace (e.g. {{ bruin.user_email }}). RenderSQL() short-circuits
 	// templates with no placeholders.
-	sql, err = tmpl.Render(sql, filters)
+	sql, err = tmpl.RenderSQL(sql, filters)
 	if err != nil {
 		return nil, fmt.Errorf("template error: %w", err)
 	}

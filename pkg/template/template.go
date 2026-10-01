@@ -11,6 +11,7 @@ import (
 )
 
 // Render processes a Jinja template string with the given filter values.
+// It is for non-SQL values; use RenderSQL for SQL text or expressions.
 func Render(templateStr string, filters map[string]any) (string, error) {
 	if !strings.Contains(templateStr, "{{") && !strings.Contains(templateStr, "{%") {
 		return templateStr, nil
@@ -21,7 +22,18 @@ func Render(templateStr string, filters map[string]any) (string, error) {
 		return "", fmt.Errorf("parsing template: %w", err)
 	}
 
-	ctx := exec.NewContext(map[string]interface{}{
+	ctx := renderContext(filters)
+
+	var buf bytes.Buffer
+	if err := tpl.Execute(&buf, ctx); err != nil {
+		return "", fmt.Errorf("executing template: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
+func renderContext(filters map[string]any) *exec.Context {
+	return exec.NewContext(map[string]interface{}{
 		"filters": filters,
 		"bruin": map[string]any{
 			// In Bruin Cloud this is the signed-in viewer's email, injected
@@ -31,11 +43,4 @@ func Render(templateStr string, filters map[string]any) (string, error) {
 			"user_email": os.Getenv("BRUIN_USER_EMAIL"),
 		},
 	})
-
-	var buf bytes.Buffer
-	if err := tpl.Execute(&buf, ctx); err != nil {
-		return "", fmt.Errorf("executing template: %w", err)
-	}
-
-	return buf.String(), nil
 }

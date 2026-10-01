@@ -150,7 +150,7 @@ A few behaviors worth noting:
 
 ## Using Filters in Queries
 
-Filter values are injected into SQL via [Jinja templating](/dashboards/queries). Access them with `filters.<filter_name>`:
+Filter values are validated on the server and rendered into SQL via [Jinja templating](/dashboards/queries). Access them with `filters.<filter_name>`:
 
 ### Select Filters
 
@@ -222,3 +222,13 @@ WHERE customer_name LIKE '%{{ filters.search }}%'
 | `options.query` | string | No | SQL to populate options (select) |
 | `options.connection` | string | No | Connection for the options query |
 | `options.presets` | string[] | No | Which date presets to show (date-range) |
+
+## Server Validation and SQL Safety
+
+Batch, streaming, and individual widget queries validate request values and resolved defaults before executing widget SQL. CLI queries and exports use the same validation. Invalid values return HTTP 400. Unknown filter names, wrong JSON types, invalid calendar dates, reversed date ranges, and selections outside a static `options.values` list are rejected. Number filters require finite JSON numbers, not numeric strings. An empty string or `null` for a single-value filter means the input was cleared and is passed through as empty, so guard optional filters with `{% if filters.<name> %}`. Multi-selects require arrays of strings; date ranges require exactly `start` and `end`. Query-driven selects accept strings; their query results are not used as a server-side allowlist.
+
+Text, date, and select values must be interpolated inside ordinary single-quoted SQL literals, as shown above. Only numeric outputs can appear unquoted. Filters cannot supply table names, column names, comments, or arbitrary SQL fragments. Jinja conditionals and loops still work, as does the documented multi-select `join("','")` pattern.
+
+The current query backend accepts SQL text rather than bound parameters. DAC therefore fails closed on filter strings containing single quotes, backslashes, or control characters, including within lists and date ranges. These characters are rejected rather than escaped using potentially incorrect dialect rules. This also means a text search such as `O'Reilly` is currently rejected. SQL template outputs containing these characters are rejected after Jinja transformations too. Interpolation into quoted identifiers, comments, or dollar-quoted strings is unsupported, and a dollar-quoted string containing quotes cannot appear before a template output (MySQL and BigQuery read its body as code). A backslash inside a string literal is allowed only after the last template output, since dialects disagree on whether it escapes the closing quote. Jinja `{% filter %}` blocks are not supported in SQL templates. Some syntax means different things in different databases (for example `#` is a comment in MySQL but an operator in Postgres, and `//` is a comment in Snowflake but division in DuckDB). If such syntax appears before a template output and contains quotes, DAC cannot be sure where string literals start and end, so it rejects the query. Values placed inside square brackets that do not start with a letter (such as `[2024 '...']`) cannot contain `]`, because SQL Server reads the brackets as one identifier.
+
+These rules apply to inline and named SQL, widget tabs, and templated semantic SQL expressions. Structured semantic filter values retain their value/list shape and, when templated, are checked before SQL compilation: scalar operators need a single string, number, or boolean, `in`/`not_in` need a flat list, and `between` needs two values or a `start`/`end` map; literal values written in the dashboard (such as `Kids' Toys`) are escaped by the semantic engine. Omitted filters still use dashboard defaults; date expressions (such as `TODAY-1`), date-range presets, and unquoted YAML dates in defaults are resolved before validation, including when a client sends the raw default back. Numeric select and text values (such as an unquoted `default: 94107`) are converted to strings.
