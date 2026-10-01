@@ -119,7 +119,7 @@ Examples:
 
 ## Jinja Templating
 
-SQL queries are processed through Jinja before execution. Semantic filter values are also templated before the backend compiles them to SQL.
+SQL queries are processed through Jinja before execution. Semantic filter values are also templated before the backend compiles them to SQL. Server-side SQL rendering confines template outputs to numeric values or ordinary single-quoted string literals; dynamic identifiers and SQL fragments are rejected. SQL templates cannot load additional templates through Jinja `include`, `import`, or `extends`; use the dashboard query `file` field for external SQL files. See [filter validation and SQL safety](/dashboards/filters#server-validation-and-sql-safety) for supported values and migration restrictions.
 
 ### Variable Interpolation
 

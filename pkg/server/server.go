@@ -142,32 +142,36 @@ func New(cfg Config) (*Server, error) {
 }
 
 func (s *Server) setupRoutes() {
+	// Keep authentication outside the router so new endpoints and static files
+	// cannot accidentally bypass it.
+	routes := http.NewServeMux()
+	s.mux.Handle("/", s.requirePassword(routes))
 	// API routes.
-	s.mux.HandleFunc("GET /api/v1/dashboards", s.handleListDashboards)
-	s.mux.HandleFunc("GET /api/v1/dashboards/{name}", s.handleGetDashboard)
-	s.mux.HandleFunc("GET /api/v1/dashboards/{name}/raw", s.handleGetDashboardRaw)
-	s.mux.HandleFunc("POST /api/v1/dashboards/{name}/data", s.handleBatchQuery)
-	s.mux.HandleFunc("POST /api/v1/dashboards/{name}/stream", s.handleStreamQuery)
-	s.mux.HandleFunc("POST /api/v1/dashboards/{name}/widgets/{widgetId}/query", s.handleWidgetQuery)
-	s.mux.HandleFunc("POST /api/v1/query", s.handleSingleQuery)
-	s.mux.HandleFunc("GET /api/v1/themes", s.handleListThemes)
-	s.mux.HandleFunc("GET /api/v1/themes/{name}", s.handleGetTheme)
-	s.mux.HandleFunc("GET /api/v1/config", s.handleConfig)
-	s.mux.HandleFunc("GET /api/v1/events", s.handleSSE)
+	routes.HandleFunc("GET /api/v1/dashboards", s.handleListDashboards)
+	routes.HandleFunc("GET /api/v1/dashboards/{name}", s.handleGetDashboard)
+	routes.HandleFunc("GET /api/v1/dashboards/{name}/raw", s.handleGetDashboardRaw)
+	routes.HandleFunc("POST /api/v1/dashboards/{name}/data", s.handleBatchQuery)
+	routes.HandleFunc("POST /api/v1/dashboards/{name}/stream", s.handleStreamQuery)
+	routes.HandleFunc("POST /api/v1/dashboards/{name}/widgets/{widgetId}/query", s.handleWidgetQuery)
+	routes.HandleFunc("POST /api/v1/query", s.requireAdmin(s.handleSingleQuery))
+	routes.HandleFunc("GET /api/v1/themes", s.handleListThemes)
+	routes.HandleFunc("GET /api/v1/themes/{name}", s.handleGetTheme)
+	routes.HandleFunc("GET /api/v1/config", s.handleConfig)
+	routes.HandleFunc("GET /api/v1/events", s.handleSSE)
 
 	// Admin routes — only registered when a password is configured.
 	if s.config.AdminPassword != "" {
-		s.mux.HandleFunc("POST /api/v1/admin/login", s.handleAdminLogin)
-		s.mux.HandleFunc("GET /api/v1/admin/connections", s.requireAdmin(s.handleAdminListConnections))
-		s.mux.HandleFunc("POST /api/v1/admin/connections", s.requireAdmin(s.handleAdminCreateConnection))
-		s.mux.HandleFunc("PUT /api/v1/admin/connections/{type}/{name}", s.requireAdmin(s.handleAdminUpdateConnection))
-		s.mux.HandleFunc("DELETE /api/v1/admin/connections/{type}/{name}", s.requireAdmin(s.handleAdminDeleteConnection))
-		s.mux.HandleFunc("POST /api/v1/admin/connections/{type}/{name}/test", s.requireAdmin(s.handleAdminTestConnection))
+		routes.HandleFunc("POST /api/v1/admin/login", s.handleAdminLogin)
+		routes.HandleFunc("GET /api/v1/admin/connections", s.requireAdmin(s.handleAdminListConnections))
+		routes.HandleFunc("POST /api/v1/admin/connections", s.requireAdmin(s.handleAdminCreateConnection))
+		routes.HandleFunc("PUT /api/v1/admin/connections/{type}/{name}", s.requireAdmin(s.handleAdminUpdateConnection))
+		routes.HandleFunc("DELETE /api/v1/admin/connections/{type}/{name}", s.requireAdmin(s.handleAdminDeleteConnection))
+		routes.HandleFunc("POST /api/v1/admin/connections/{type}/{name}/test", s.requireAdmin(s.handleAdminTestConnection))
 	}
 
 	// Frontend static files with SPA fallback for client-side routing.
 	if s.config.Frontend != nil {
-		s.mux.Handle("/", spaHandler(s.config.Frontend))
+		routes.Handle("/", spaHandler(s.config.Frontend))
 	}
 }
 

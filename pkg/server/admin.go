@@ -18,8 +18,10 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if token == "" || token != s.config.AdminPassword {
+		// Require an explicit token for mutations and arbitrary SQL. Browser
+		// Basic credentials are ambient and must not authorize cross-site writes.
+		scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+		if !ok || !strings.EqualFold(scheme, "Bearer") || !passwordEqual(token, s.config.AdminPassword) {
 			writeError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
@@ -43,7 +45,7 @@ func (s *Server) handleAdminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Password != s.config.AdminPassword {
+	if !passwordEqual(req.Password, s.config.AdminPassword) {
 		writeError(w, http.StatusUnauthorized, "invalid password")
 		return
 	}

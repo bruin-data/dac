@@ -39,7 +39,7 @@ func serveCmd() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "password",
-				Usage: "Admin password for management API (admin endpoints disabled if not set)",
+				Usage: "Require a password for dashboard viewing and all APIs; also enables admin endpoints",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

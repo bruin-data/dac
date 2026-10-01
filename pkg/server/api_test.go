@@ -149,6 +149,7 @@ func TestResolveWidgetJobs_InlineDataNoBackend(t *testing.T) {
 
 func TestResolveWidgetJobs_JinjaFiltersRendered(t *testing.T) {
 	d := &dashboard.Dashboard{
+		Filters:    []dashboard.Filter{{Name: "region", Type: "text"}},
 		Name:       "test",
 		Connection: "conn",
 		Rows: []dashboard.Row{{
@@ -373,6 +374,7 @@ rows:
 
 func TestResolveWidgetJobs_TabFiltersRendered(t *testing.T) {
 	d := &dashboard.Dashboard{
+		Filters:    []dashboard.Filter{{Name: "region", Type: "text"}},
 		Name:       "test",
 		Connection: "conn",
 		Queries: map[string]dashboard.Query{
