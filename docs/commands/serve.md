@@ -57,6 +57,8 @@ Browsers show an HTTP Basic login prompt: enter any username and the configured 
 curl -H "Authorization: Bearer $DAC_PASSWORD" http://localhost:8321/api/v1/dashboards
 ```
 
+Embedded frontends on another origin, such as the Bruin VS Code webview, cannot send these credentials, so run the server they connect to without `--password`.
+
 Without `--password`, dashboard viewing and dashboard queries remain public. Use HTTPS when exposing a password-protected server beyond localhost. Dashboard connections should use dedicated read-only database credentials.
 
 ### Admin API

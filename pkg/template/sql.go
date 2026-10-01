@@ -301,6 +301,9 @@ func substituteSQLValues(sql, prefix string, values []sqlOutput) (string, error)
 				out.WriteString(delimiter)
 				i += 3
 				continue
+			case c == '$' && (i+1 < len(sql) && sql[i+1] >= '0' && sql[i+1] <= '9' || out.Len() > 0 && identifierByte(out.String()[out.Len()-1])):
+				// Positional references ($1) and '$' inside identifiers (a$b)
+				// never open a dollar-quoted string.
 			case c == '$':
 				if match := dollarQuote.FindString(sql[i:]); match != "" {
 					state = "dollar"
@@ -330,6 +333,10 @@ func substituteSQLValues(sql, prefix string, values []sqlOutput) (string, error)
 		return "", fmt.Errorf("SQL template outputs cannot be nested or transformed by blocks")
 	}
 	return out.String(), nil
+}
+
+func identifierByte(c byte) bool {
+	return c == '_' || c == '$' || c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= 0x80
 }
 
 func lineEnd(sql string, i int) int {

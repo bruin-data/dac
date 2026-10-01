@@ -54,9 +54,10 @@ func TestNormalizeFilterValues(t *testing.T) {
 		{Name: "date", Type: "date", Default: "TODAY-1"},
 		{Name: "year", Type: "select", Default: 2024, Options: &FilterOptions{Values: []string{"2023", "2024"}}},
 		{Name: "years", Type: "select", Multiple: true, Options: &FilterOptions{Values: []string{"2023", "2024"}}},
+		{Name: "range", Type: "date-range", Default: "last_7_days"},
 	}}
 	// The frontend echoes YAML defaults back verbatim.
-	values := d.NormalizeFilterValues(map[string]any{"date": "TODAY-1", "year": float64(2024), "years": []any{2023}})
+	values := d.NormalizeFilterValues(map[string]any{"date": "TODAY-1", "year": float64(2024), "years": []any{2023}, "range": "last_7_days"})
 	if err := d.ValidateFilterValues(values); err != nil {
 		t.Fatal(err)
 	}

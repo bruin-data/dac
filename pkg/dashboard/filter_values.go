@@ -9,7 +9,8 @@ import (
 )
 
 // NormalizeFilterValues returns a copy of values with client-sent defaults
-// put in canonical form: date expressions such as TODAY-1 are resolved and
+// put in canonical form: date expressions such as TODAY-1 and date-range
+// presets such as last_7_days are resolved, and
 // scalar select values (YAML `default: 2024`) become strings. Unknown keys and
 // other shapes are left for ValidateFilterValues to reject.
 func (d *Dashboard) NormalizeFilterValues(values map[string]any) map[string]any {
@@ -29,6 +30,12 @@ func (d *Dashboard) NormalizeFilterValues(values map[string]any) map[string]any 
 
 func normalizeFilterValue(f Filter, value any) any {
 	switch f.Type {
+	case "date-range":
+		if preset, ok := value.(string); ok {
+			if resolved := ResolveDatePreset(preset); resolved != nil {
+				return resolved
+			}
+		}
 	case "date":
 		if t, ok := value.(time.Time); ok {
 			return t.Format("2006-01-02")
