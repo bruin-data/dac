@@ -2,12 +2,10 @@ import { useMemo, useState, type CSSProperties, type PointerEvent as ReactPointe
 import { createPortal } from "react-dom";
 import { Curve } from "recharts";
 import { useTokens } from "../../themes/TemplateProvider";
-import { parseSparklineSeries } from "./sparkline";
+import type { SparklinePoint } from "./sparkline";
 
 interface Props {
-  value: unknown;
-  xField?: string;
-  yField?: string;
+  points: SparklinePoint[];
   yDomain?: readonly [number, number];
   beginAtZero?: boolean;
   formatX?: (value: string | number) => string;
@@ -23,17 +21,17 @@ interface HoverPoint {
 const WIDTH = 132;
 const HEIGHT = 30;
 const PADDING = 2;
+// Half the tooltip's max width (max-w-64 plus padding), used to keep it on screen.
+const TOOLTIP_HALF_WIDTH = 136;
+const TOOLTIP_HEIGHT = 48;
 
 export function SparklineCell({
-  value,
-  xField,
-  yField,
+  points,
   yDomain,
   beginAtZero = false,
   formatX = String,
   formatY = String,
 }: Props) {
-  const points = useMemo(() => parseSparklineSeries(value, xField, yField), [value, xField, yField]);
   const [hover, setHover] = useState<HoverPoint | null>(null);
   const tokens = useTokens();
   // The tooltip portals to document.body, outside TemplateProvider's token
@@ -125,8 +123,17 @@ export function SparklineCell({
       {hover && activePoint && typeof document !== "undefined" && createPortal(
         <div
           role="tooltip"
-          className="pointer-events-none fixed z-[100] -translate-x-1/2 -translate-y-full rounded border border-[var(--dac-border)] bg-[var(--dac-background)] px-2 py-1 text-left text-[11px] leading-4 shadow-lg"
-          style={{ ...tooltipTheme, left: hover.clientX, top: hover.clientY - 8 }}
+          className={`pointer-events-none fixed z-[100] -translate-x-1/2 rounded border border-[var(--dac-border)] bg-[var(--dac-background)] px-2 py-1 text-left text-[11px] leading-4 shadow-lg ${
+            hover.clientY < TOOLTIP_HEIGHT ? "" : "-translate-y-full"
+          }`}
+          style={{
+            ...tooltipTheme,
+            left: Math.min(
+              Math.max(hover.clientX, TOOLTIP_HALF_WIDTH),
+              Math.max(TOOLTIP_HALF_WIDTH, window.innerWidth - TOOLTIP_HALF_WIDTH),
+            ),
+            top: hover.clientY < TOOLTIP_HEIGHT ? hover.clientY + 16 : hover.clientY - 8,
+          }}
         >
           <div className="max-w-64 truncate text-[var(--dac-text-secondary)]">{formatX(activePoint.x)}</div>
           <div className="font-mono tabular-nums text-[var(--dac-text-primary)]">{formatY(activePoint.y)}</div>

@@ -387,13 +387,16 @@ func tableReqs(prefix, slideID string, w *dashboard.Widget, data *server.WidgetQ
 	}
 
 	// Sparkline columns hold point arrays; export their latest y value.
-	sparklineY := make(map[int]string)
+	sparklineFields := make(map[int][2]string)
 	for c, col := range data.Columns {
 		for _, wc := range w.Columns {
-			if fields := wc.Y.FieldList(); wc.Name == col.Name && wc.Type == "sparkline" && len(fields) == 1 {
-				sparklineY[c] = fields[0]
-				break
+			if wc.Name != col.Name || wc.Type != "sparkline" {
+				continue
 			}
+			if xs, ys := wc.X.FieldList(), wc.Y.FieldList(); len(xs) == 1 && len(ys) == 1 {
+				sparklineFields[c] = [2]string{xs[0], ys[0]}
+			}
+			break
 		}
 	}
 
@@ -401,8 +404,8 @@ func tableReqs(prefix, slideID string, w *dashboard.Widget, data *server.WidgetQ
 	for r := 0; r < maxRows; r++ {
 		for c := range data.Columns {
 			text := fmt.Sprint(data.Rows[r][c])
-			if yField, ok := sparklineY[c]; ok {
-				text = sparklineLatest(data.Rows[r][c], yField)
+			if fields, ok := sparklineFields[c]; ok {
+				text = sparklineLatest(data.Rows[r][c], fields[0], fields[1])
 			}
 			reqs = append(reqs, &slidesapi.Request{
 				InsertText: &slidesapi.InsertTextRequest{
@@ -417,14 +420,17 @@ func tableReqs(prefix, slideID string, w *dashboard.Widget, data *server.WidgetQ
 	return reqs
 }
 
-// maxSparklineJSON caps JSON-string sparkline cells, matching the browser.
-const maxSparklineJSON = 256 * 1024
+// maxSparklineJSON and maxSparklinePoints match the browser's limits.
+const (
+	maxSparklineJSON   = 256 * 1024
+	maxSparklinePoints = 100
+)
 
-// sparklineLatest returns the y value of the last point in a sparkline cell
-// (point objects keyed by yField, or [x, y] pairs, natively or as a JSON array
-// string), or "—" when there is none (matching the browser, and Slides rejects
-// empty insertText).
-func sparklineLatest(value any, yField string) string {
+// sparklineLatest returns the y value of the last point the browser would draw
+// in a sparkline cell (point objects keyed by xField/yField, or [x, y] pairs,
+// natively or as a JSON array string), or "—" when there is none (matching the
+// browser, and Slides rejects empty insertText).
+func sparklineLatest(value any, xField, yField string) string {
 	if s, ok := value.(string); ok && len(s) <= maxSparklineJSON {
 		if text := strings.Trim(s, " \t\r\n\uFEFF"); strings.HasPrefix(text, "[") {
 			// UseNumber keeps large values like 1500000 out of exponent form
@@ -438,22 +444,49 @@ func sparklineLatest(value any, yField string) string {
 		}
 	}
 	points, _ := value.([]any)
-	for i := len(points) - 1; i >= 0; i-- {
-		var y any
-		switch p := points[i].(type) {
+	// Walk the same downsampled indices as the browser, newest first.
+	count := min(len(points), maxSparklinePoints)
+	for i := count - 1; i >= 0; i-- {
+		index := i
+		if len(points) != count {
+			index = int(math.Round(float64(i*(len(points)-1)) / float64(count-1)))
+		}
+		var x, y any
+		switch p := points[index].(type) {
 		case map[string]any:
-			y = p[yField]
+			x, y = p[xField], p[yField]
 		case []any:
 			if len(p) == 2 {
-				y = p[1]
+				x, y = p[0], p[1]
 			}
 		}
-		// Skip non-numeric y values like the browser does.
+		// Skip points the browser drops (missing x or non-numeric y).
+		if !sparklineValidX(x) {
+			continue
+		}
 		if text, ok := sparklineNumber(y); ok {
 			return text
 		}
 	}
 	return "—"
+}
+
+// sparklineValidX reports whether x is a string or finite number.
+func sparklineValidX(x any) bool {
+	switch v := x.(type) {
+	case string:
+		return true
+	case json.Number:
+		f, err := v.Float64()
+		return err == nil && !math.IsInf(f, 0) && !math.IsNaN(f)
+	case float64:
+		return !math.IsInf(v, 0) && !math.IsNaN(v)
+	case float32:
+		return !math.IsInf(float64(v), 0) && !math.IsNaN(float64(v))
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return true
+	}
+	return false
 }
 
 // sparklineNumber formats y if it is a finite number or numeric string.

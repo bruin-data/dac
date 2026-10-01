@@ -6,7 +6,7 @@ import { useTokens } from "../../themes/TemplateProvider";
 import { cellStyle, isGradient, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
 import { pivotData } from "./pivot";
 import { SparklineCell } from "./SparklineCell";
-import { parseSparklineSeries } from "./sparkline";
+import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
 
 interface Props {
   widget: Widget;
@@ -171,23 +171,27 @@ export function TableWidget({ widget, data }: Props) {
   }, [columns, pivot]);
 
   const rows = useMemo(() => effData?.rows ?? [], [effData?.rows]);
-  const sparklineDomains = useMemo(() => {
-    const domains = new Map<string, readonly [number, number]>();
+  // Parse each sparkline cell once; rendering reuses the points by row.
+  const sparklineSeries = useMemo(() => {
+    const series = new Map<string, { points: Map<unknown[], SparklinePoint[]>; domain?: readonly [number, number] }>();
     for (const col of columns) {
       if (col.type !== "sparkline") continue;
       const xField = axisField(col.x);
       const yField = axisField(col.y);
+      const points = new Map<unknown[], SparklinePoint[]>();
       let min = Infinity;
       let max = -Infinity;
       for (const row of rows) {
-        for (const point of parseSparklineSeries(row[col.idx], xField, yField)) {
+        const rowPoints = parseSparklineSeries(row[col.idx], xField, yField);
+        points.set(row, rowPoints);
+        for (const point of rowPoints) {
           min = Math.min(min, point.y);
           max = Math.max(max, point.y);
         }
       }
-      if (Number.isFinite(min) && Number.isFinite(max)) domains.set(col.name, [min, max]);
+      series.set(col.name, { points, domain: Number.isFinite(min) && Number.isFinite(max) ? [min, max] : undefined });
     }
-    return domains;
+    return series;
   }, [columns, rows]);
 
   // Frozen columns render first and stick to the left; 0 on pivots.
@@ -654,10 +658,8 @@ export function TableWidget({ widget, data }: Props) {
                         />
                       ) : col.type === "sparkline" && !pivot ? (
                         <SparklineCell
-                          value={raw}
-                          xField={axisField(col.x)}
-                          yField={axisField(col.y)}
-                          yDomain={sparklineDomains.get(col.name)}
+                          points={sparklineSeries.get(col.name)?.points.get(row) ?? []}
+                          yDomain={sparklineSeries.get(col.name)?.domain}
                           beginAtZero={col.y?.beginAtZero}
                           formatX={buildAxisFormatter(col.x, String)}
                           formatY={buildAxisFormatter(

@@ -407,6 +407,9 @@ Sparkline columns are not sortable and do not accept `format` layers or `like`. 
 columns cannot point `like` or a `{ column: ... }` rule value at one either,
 since a series has no single value.
 
+Slides export writes the latest drawn Y value of each sparkline cell, or `—`
+when the series has no drawable points.
+
 
 ```yaml
 - name: Account Trends
