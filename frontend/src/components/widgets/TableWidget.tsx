@@ -6,6 +6,7 @@ import { useTokens } from "../../themes/TemplateProvider";
 import { cellStyle, isGradient, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
 import { pivotData } from "./pivot";
 import { SparklineCell } from "./SparklineCell";
+import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
 
 interface Props {
@@ -724,13 +725,7 @@ export function TableWidget({ widget, data }: Props) {
                       }
                     >
                       {col.type === "image" && !pivot && raw ? (
-                        <img
-                          src={String(raw)}
-                          alt=""
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                          className="h-10 w-auto max-w-[120px] rounded object-cover"
-                        />
+                        <TableImage key={String(raw)} value={raw} fallback={displayValue} />
                       ) : col.type === "sparkline" && !pivot ? (
                         <SparklineCell
                           points={sparklineSeries.get(col.name)?.points.get(row) ?? []}
@@ -764,6 +759,24 @@ export function TableWidget({ widget, data }: Props) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function TableImage({ value, fallback }: { value: unknown; fallback: string }) {
+  const [failed, setFailed] = useState(false);
+  const src = dashboardImageSrc(value);
+
+  if (!src || failed) return fallback;
+
+  return (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      className="h-10 w-auto max-w-[120px] rounded object-cover"
+      onError={() => setFailed(true)}
+    />
   );
 }
 

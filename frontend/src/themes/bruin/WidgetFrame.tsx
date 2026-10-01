@@ -1,10 +1,11 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import Markdown from "react-markdown";
 import type { WidgetFrameProps } from "../../types/template";
 import { useTemplate } from "../TemplateProvider";
 import { RowHeightContext } from "../RowContext";
 import { QueryInfo } from "../../components/widgets/QueryInfo";
 import { WidgetExportButton } from "../../components/widgets/WidgetExportButton";
+import { dashboardImageSrc } from "../../lib/dashboardImage";
 
 const containerClass: Record<string, string> = {
   metric: "py-3 px-4 h-full dac-metric-border flex flex-col",
@@ -42,7 +43,13 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
       si < 0
         ? []
         : (data?.rows ?? [])
-            .map((r) => ({ src: r[si], title: ti < 0 ? "" : r[ti], caption: ci < 0 ? "" : r[ci], alt: ai < 0 ? undefined : r[ai] }))
+            .map((r) => ({
+              src: r[si],
+              safeSrc: dashboardImageSrc(r[si]),
+              title: ti < 0 ? "" : r[ti],
+              caption: ci < 0 ? "" : r[ci],
+              alt: ai < 0 ? undefined : r[ai],
+            }))
             .filter((im) => im.src != null && im.src !== "");
     const single = images.length === 1;
     return (
@@ -63,20 +70,31 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
           <div className="flex-1 min-h-0 overflow-x-auto">
             <div className="flex gap-3 h-full">
               {images.map((img, i) => (
-                <div key={i} className={`flex flex-col h-full ${single ? "flex-1 min-w-0" : "shrink-0 w-56"}`}>
+                <div key={`${i}:${String(img.src)}`} className={`flex flex-col h-full ${single ? "flex-1 min-w-0" : "shrink-0 w-56"}`}>
                   {img.title != null && img.title !== "" && (
                     <div className="text-[15px] font-semibold text-[var(--dac-text-primary)] mb-2 truncate">{String(img.title)}</div>
                   )}
                   <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
-                    <img
-                      src={String(img.src)}
+                    <DashboardImage
+                      src={img.safeSrc}
                       alt={String(img.alt ?? widget.name ?? "")}
                       className={`rounded max-h-[320px] ${widget.fit === "cover" ? "w-full h-full object-cover" : "max-w-full object-contain"}`}
                     />
                   </div>
                   {img.caption != null && img.caption !== "" && (
                     <div className="dac-prose text-[13px] text-[var(--dac-text-secondary)] mt-2">
-                      <Markdown>{String(img.caption)}</Markdown>
+                      <Markdown
+                        components={{
+                          img: ({ src, alt, title }) => {
+                            const safeSrc = dashboardImageSrc(src);
+                            return safeSrc ? (
+                              <img src={safeSrc} alt={alt ?? ""} title={title} loading="lazy" referrerPolicy="no-referrer" />
+                            ) : null;
+                          },
+                        }}
+                      >
+                        {String(img.caption)}
+                      </Markdown>
                     </div>
                   )}
                 </div>
@@ -129,6 +147,29 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
         <div className={`text-xs text-[var(--dac-text-muted)] ${isTable ? "px-4" : ""}`}>No data</div>
       )}
     </div>
+  );
+}
+
+function DashboardImage({ src, alt, className }: { src: string; alt: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <span className="text-xs text-[var(--dac-text-muted)]">
+        {src ? "Image failed to load" : "Unsupported image URL"}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      className={className}
+      onError={() => setFailed(true)}
+    />
   );
 }
 

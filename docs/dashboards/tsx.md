@@ -194,7 +194,7 @@ All widget components accept the same props as their YAML equivalents.
 <Table name="Orders" col={12} sql="..." />
 <Text name="Note" col={6} content="**Important:** This data updates daily." />
 <Divider name="sep" col={12} />
-<Image name="logo" col={3} src="https://example.com/logo.png" alt="Logo" />
+<Image name="logo" col={3} sql="SELECT logo_url, company_name FROM companies" src="logo_url" alt="company_name" />
 ```
 
 For `chart="vega-lite"`, the `spec` prop is the Vega-Lite specification and DAC injects the widget result as the named `dac` dataset. The same data-source and remote-URL rules documented for YAML Vega-Lite charts apply.

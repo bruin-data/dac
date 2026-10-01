@@ -368,3 +368,28 @@ rows:
                 color:
                   condition: { test: "datum.intensity >= 0.55", value: white }
                   value: "#172033"
+
+  - height: 260
+    widgets:
+      - name: Image marks
+        description: Only cross-origin https image URLs are drawn; the relative and http rows are skipped
+        type: chart
+        chart: vega-lite
+        col: 12
+        data:
+          columns: [label, x, url]
+          rows:
+            - [https, 1, "https://vega.github.io/images/idl-logo.png"]
+            - [relative, 2, "/api/v1/dashboards"]
+            - [http, 3, "http://vega.github.io/images/idl-logo.png"]
+        spec:
+          data: { name: dac }
+          layer:
+            - mark: { type: image, width: 64, height: 64 }
+              encoding:
+                x: { field: x, type: ordinal, axis: null }
+                url: { field: url, type: nominal }
+            - mark: { type: text, dy: 48, fontSize: 11 }
+              encoding:
+                x: { field: x, type: ordinal, axis: null }
+                text: { field: label, type: nominal }
