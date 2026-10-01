@@ -93,7 +93,7 @@ Charts visualize one or more series. The `chart` field selects the chart type an
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
 | `heatmap` | `x`, `y`, `value` | `showValues`, `colorScale` | Grid heatmap. `showValues: true` prints each cell's value inside the cell; `colorScale` replaces the default blue buckets |
 | `calendar` | `x`, `value` | | GitHub-style calendar heatmap |
-| `sparkline` | `x`, `y` | | Compact inline line (60px), no axes |
+| `sparkline` | `x`, `y` | `y.beginAtZero` | Compact inline line (60px), no axes; y auto-scales to the observed range by default |
 | `waterfall` | `x`, `y` | | Waterfall chart |
 | `xmr` | `x`, `y` | `yMin`, `yMax` | Control chart with limits |
 | `dumbbell` | `x`, `y` (2 columns) | | Horizontal range comparison |
@@ -369,14 +369,99 @@ Table column fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Result column name (must match the SQL output) |
+| `name` | string | Result column name (must match the query output). |
 | `label` | string | Display header (defaults to `name`) |
-| `type` | string | Cell rendering: `text` (default) or `image`. `image` treats each cell value as an image URL and renders it as a thumbnail (plain tables only; not `pivot_table`). |
+| `type` | string | Cell rendering: `text` (default), `image`, or `sparkline`. `image` renders a URL as a thumbnail; `sparkline` renders structured numeric series data with point tooltips (plain tables only; not `pivot_table`). |
+| `number` | string | Value formatting for numbers: `currency`, `number`, or a d3-format string. For a sparkline it is a backwards-compatible fallback for `y.format`. |
+| `x` | object | Sparkline point-key and tooltip encoding. Supports `field`, `type` (`date`, `number`, or `category`), and `format`. |
+| `y` | object | Sparkline point-key, tooltip, and scale encoding. Supports `field`, `type: number`, `format`, and `beginAtZero`. |
 | `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
 | `border` | string | Non-colour vertical border on this column's `left`, `right`, or `both` edge, to separate column groups (plain tables only; not `pivot_table`). |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
 | `frozen` | boolean | Freeze the column to the left by default so it stays visible while scrolling. Viewers can temporarily freeze or unfreeze columns from the table header. Frozen columns render first, in their listed order (plain tables only; not `pivot_table`). |
 | `format` | string \| object | Value display and conditional coloring, see below |
+
+### Sparkline columns
+
+Set `type: sparkline` on a plain table column containing an array of points.
+Both encodings and their fields are required:
+
+```yaml
+columns:
+  - name: trend
+    label: 7-day revenue
+    type: sparkline
+    x: { field: x, type: date, format: "%b %d" }
+    y: { field: y, type: number, format: "$,.0f" }
+```
+
+```json
+[{"x": "2026-09-01", "y": 12}, {"x": "2026-09-02", "y": 18}]
+```
+
+Points use array order with equal X spacing. X is the tooltip label; Y is
+numeric. `x.format` and `y.format` format the tooltip, and
+`y.beginAtZero: true` includes zero. All cells in the column share one Y domain.
+
+Sparkline columns are not sortable and do not accept `format` layers or `like`. Other
+columns cannot point `like` or a `{ column: ... }` rule value at one either,
+since a series has no single value.
+
+Slides export writes the latest drawn Y value of each sparkline cell, or `—`
+when the series has no drawable points.
+
+
+```yaml
+- name: Account Trends
+  type: table
+  sql: |
+    SELECT
+      account,
+      ARRAY_AGG(
+        STRUCT(
+          CAST(revenue_date AS STRING) AS x,
+          CAST(revenue AS FLOAT64) AS y
+        )
+        ORDER BY revenue_date
+      ) AS trend
+    FROM daily_account_revenue
+    GROUP BY account
+    ORDER BY account
+  columns:
+    - name: account
+      label: Account
+    - name: trend
+      label: 7-day trend
+      type: sparkline
+      x: { field: x, type: date, format: "%b %d" }
+      y: { field: y, type: number, format: "$,.0f" }
+```
+
+The same result can be provided inline:
+
+```yaml
+- name: Account Trends
+  type: table
+  data:
+    columns: [account, trend]
+    rows:
+      - [Atlas, [["2026-09-24", 12400], ["2026-09-25", 13100]]]
+      - [Beacon, [["2026-09-24", 9200], ["2026-09-25", 8800]]]
+  columns:
+    - { name: account, label: Account }
+    - name: trend
+      label: 7-day trend
+      type: sparkline
+      x: { field: x, type: date, format: "%b %d" }
+      y: { field: y, type: number, format: "$,.0f" }
+```
+
+Keep X first and Y second in positional points. Named point objects are also
+accepted. At most 100 points are sampled; invalid or empty cells render an em
+dash. A cell can also be a JSON array string in either shape (for example
+`'[{"x":"2026-09-24","y":12400}]'`), which covers warehouses that return
+aggregated JSON as text. Strings that aren't a valid JSON array, or are larger
+than 256 KB, render an em dash.
 
 ### Pivot tables
 

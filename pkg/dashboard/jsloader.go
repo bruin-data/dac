@@ -1013,6 +1013,8 @@ func asTableColumns(v interface{}) []TableColumn {
 				Label:  asString(m["label"]),
 				Type:   asString(m["type"]),
 				Number: asString(m["number"]),
+				X:      asAxisEncoding(m["x"]),
+				Y:      asAxisEncoding(m["y"]),
 				Align:  asString(m["align"]),
 				Border: asString(m["border"]),
 				Like:   asString(m["like"]),

@@ -249,8 +249,10 @@ type RefBand struct {
 type TableColumn struct {
 	Name   string        `yaml:"name" json:"name"`
 	Label  string        `yaml:"label,omitempty" json:"label,omitempty"`
-	Type   string        `yaml:"type,omitempty" json:"type,omitempty"`     // cell rendering: text (default) | image (value is an image URL, rendered as a thumbnail)
+	Type   string        `yaml:"type,omitempty" json:"type,omitempty"`     // cell rendering: text (default) | image | sparkline
 	Number string        `yaml:"number,omitempty" json:"number,omitempty"` // value display: currency | number | d3-format spec
+	X      *AxisEncoding `yaml:"x,omitempty" json:"x,omitempty"`           // sparkline point x key/type/format
+	Y      *AxisEncoding `yaml:"y,omitempty" json:"y,omitempty"`           // sparkline point y key/type/format/domain
 	Like   string        `yaml:"like,omitempty" json:"like,omitempty"`     // mirror another column's coloring + per-row value
 	Hidden bool          `yaml:"hidden,omitempty" json:"hidden,omitempty"` // keep the column in the result (for cross-column rules / like) but don't render it
 	Align  string        `yaml:"align,omitempty" json:"align,omitempty"`   // text alignment override: left | center | right (applies to the header and body cells)
@@ -292,21 +294,23 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 	// Decode the plain fields, capturing `format` as a raw node (a nested struct
 	// with no UnmarshalYAML, so this doesn't recurse).
 	var tmp struct {
-		Name   string    `yaml:"name"`
-		Label  string    `yaml:"label,omitempty"`
-		Type   string    `yaml:"type,omitempty"`
-		Number string    `yaml:"number,omitempty"`
-		Like   string    `yaml:"like,omitempty"`
-		Hidden bool      `yaml:"hidden,omitempty"`
-		Align  string    `yaml:"align,omitempty"`
-		Border string    `yaml:"border,omitempty"`
-		Frozen bool      `yaml:"frozen,omitempty"`
-		Format yaml.Node `yaml:"format,omitempty"`
+		Name   string        `yaml:"name"`
+		Label  string        `yaml:"label,omitempty"`
+		Type   string        `yaml:"type,omitempty"`
+		Number string        `yaml:"number,omitempty"`
+		X      *AxisEncoding `yaml:"x,omitempty"`
+		Y      *AxisEncoding `yaml:"y,omitempty"`
+		Like   string        `yaml:"like,omitempty"`
+		Hidden bool          `yaml:"hidden,omitempty"`
+		Align  string        `yaml:"align,omitempty"`
+		Border string        `yaml:"border,omitempty"`
+		Frozen bool          `yaml:"frozen,omitempty"`
+		Format yaml.Node     `yaml:"format,omitempty"`
 	}
 	if err := node.Decode(&tmp); err != nil {
 		return err
 	}
-	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Type: tmp.Type, Number: tmp.Number, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align, Border: tmp.Border, Frozen: tmp.Frozen}
+	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Type: tmp.Type, Number: tmp.Number, X: tmp.X, Y: tmp.Y, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align, Border: tmp.Border, Frozen: tmp.Frozen}
 
 	// Follow a YAML alias to its target, then: a scalar is the legacy value-display
 	// shorthand (folds into `number`); a list is the style layers.

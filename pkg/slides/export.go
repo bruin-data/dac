@@ -3,8 +3,10 @@ package slides
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -384,13 +386,31 @@ func tableReqs(prefix, slideID string, w *dashboard.Widget, data *server.WidgetQ
 		})
 	}
 
+	// Sparkline columns hold point arrays; export their latest y value.
+	sparklineFields := make(map[int][2]string)
+	for c, col := range data.Columns {
+		for _, wc := range w.Columns {
+			if wc.Name != col.Name || wc.Type != "sparkline" {
+				continue
+			}
+			if xs, ys := wc.X.FieldList(), wc.Y.FieldList(); len(xs) == 1 && len(ys) == 1 {
+				sparklineFields[c] = [2]string{xs[0], ys[0]}
+			}
+			break
+		}
+	}
+
 	// Data rows.
 	for r := 0; r < maxRows; r++ {
 		for c := range data.Columns {
+			text := fmt.Sprint(data.Rows[r][c])
+			if fields, ok := sparklineFields[c]; ok {
+				text = sparklineLatest(data.Rows[r][c], fields[0], fields[1])
+			}
 			reqs = append(reqs, &slidesapi.Request{
 				InsertText: &slidesapi.InsertTextRequest{
 					ObjectId:     tableID,
-					Text:         fmt.Sprint(data.Rows[r][c]),
+					Text:         text,
 					CellLocation: &slidesapi.TableCellLocation{RowIndex: int64(r + 1), ColumnIndex: int64(c)},
 				},
 			})
@@ -398,6 +418,97 @@ func tableReqs(prefix, slideID string, w *dashboard.Widget, data *server.WidgetQ
 	}
 
 	return reqs
+}
+
+// maxSparklineJSON and maxSparklinePoints match the browser's limits.
+const (
+	maxSparklineJSON   = 256 * 1024
+	maxSparklinePoints = 100
+)
+
+// sparklineLatest returns the y value of the last point the browser would draw
+// in a sparkline cell (point objects keyed by xField/yField, or [x, y] pairs,
+// natively or as a JSON array string), or "—" when there is none (matching the
+// browser, and Slides rejects empty insertText).
+func sparklineLatest(value any, xField, yField string) string {
+	if s, ok := value.(string); ok && len(s) <= maxSparklineJSON {
+		if text := strings.Trim(s, " \t\r\n\uFEFF"); strings.HasPrefix(text, "[") {
+			// UseNumber keeps large values like 1500000 out of exponent form
+			// (native float64 values are formatted below for the same reason).
+			dec := json.NewDecoder(strings.NewReader(text))
+			dec.UseNumber()
+			var decoded []any
+			if dec.Decode(&decoded) == nil && !dec.More() {
+				value = decoded
+			}
+		}
+	}
+	points, _ := value.([]any)
+	// Walk the same downsampled indices as the browser, newest first.
+	count := min(len(points), maxSparklinePoints)
+	for i := count - 1; i >= 0; i-- {
+		index := i
+		if len(points) != count {
+			index = int(math.Round(float64(i*(len(points)-1)) / float64(count-1)))
+		}
+		var x, y any
+		switch p := points[index].(type) {
+		case map[string]any:
+			x, y = p[xField], p[yField]
+		case []any:
+			if len(p) == 2 {
+				x, y = p[0], p[1]
+			}
+		}
+		// Skip points the browser drops (missing x or non-numeric y).
+		if !sparklineValidX(x) {
+			continue
+		}
+		if text, ok := sparklineNumber(y); ok {
+			return text
+		}
+	}
+	return "—"
+}
+
+// sparklineValidX reports whether x is a string or finite number.
+func sparklineValidX(x any) bool {
+	switch v := x.(type) {
+	case string:
+		return true
+	case json.Number:
+		f, err := v.Float64()
+		return err == nil && !math.IsInf(f, 0) && !math.IsNaN(f)
+	case float64:
+		return !math.IsInf(v, 0) && !math.IsNaN(v)
+	case float32:
+		return !math.IsInf(float64(v), 0) && !math.IsNaN(float64(v))
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return true
+	}
+	return false
+}
+
+// sparklineNumber formats y if it is a finite number or numeric string.
+func sparklineNumber(y any) (string, bool) {
+	var text string
+	switch v := y.(type) {
+	case float64:
+		text = strconv.FormatFloat(v, 'f', -1, 64)
+	case json.Number:
+		text = v.String()
+	case string:
+		text = strings.TrimSpace(v)
+	case nil:
+		return "", false
+	default:
+		text = fmt.Sprint(v)
+	}
+	f, err := strconv.ParseFloat(text, 64)
+	if err != nil || math.IsInf(f, 0) || math.IsNaN(f) {
+		return "", false
+	}
+	return text, true
 }
 
 func textContentReqs(prefix, slideID string, w *dashboard.Widget, x, y, width int64) []*slidesapi.Request {

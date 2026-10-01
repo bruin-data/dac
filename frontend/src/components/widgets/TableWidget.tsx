@@ -1,9 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { format as d3Format } from "d3-format";
-import type { FormatLayer, Widget, WidgetData } from "../../types/dashboard";
+import type { AxisEncoding, FormatLayer, Widget, WidgetData } from "../../types/dashboard";
+import { axisField, buildAxisFormatter } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
 import { cellStyle, isGradient, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
 import { pivotData } from "./pivot";
+import { SparklineCell } from "./SparklineCell";
+import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
 
 interface Props {
   widget: Widget;
@@ -23,8 +26,10 @@ interface SortState {
 interface TableColumn {
   name: string;
   label: string;
-  type?: "text" | "image"; // cell rendering: image renders the value as a thumbnail
+  type?: "text" | "image" | "sparkline"; // structured sparkline data or ordinary cell rendering
   number?: string; // value display (currency | number | d3-format)
+  x?: AxisEncoding; // sparkline point x key/type/format
+  y?: AxisEncoding; // sparkline point y key/type/format/domain
   align?: "left" | "center" | "right"; // text-alignment override (header + body)
   border?: "left" | "right" | "both"; // non-colour vertical group border on this edge
   frozen?: boolean; // freeze to the left; frozen columns render first
@@ -78,6 +83,8 @@ export function TableWidget({ widget, data }: Props) {
               label: m?.label || col.name,
               type: m?.type,
               number: m?.number,
+              x: m?.x,
+              y: m?.y,
               align: m?.align,
               border: m?.border,
               like: m?.like,
@@ -92,6 +99,8 @@ export function TableWidget({ widget, data }: Props) {
             label: col.label || col.name,
             type: col.type,
             number: col.number,
+            x: col.x,
+            y: col.y,
             align: col.align,
             border: col.border,
             like: col.like,
@@ -161,7 +170,29 @@ export function TableWidget({ widget, data }: Props) {
     );
   }, [columns, pivot]);
 
-  const rows = effData?.rows ?? [];
+  const rows = useMemo(() => effData?.rows ?? [], [effData?.rows]);
+  // Parse each sparkline cell once; rendering reuses the points by row.
+  const sparklineSeries = useMemo(() => {
+    const series = new Map<string, { points: Map<unknown[], SparklinePoint[]>; domain?: readonly [number, number] }>();
+    for (const col of columns) {
+      if (col.type !== "sparkline") continue;
+      const xField = axisField(col.x);
+      const yField = axisField(col.y);
+      const points = new Map<unknown[], SparklinePoint[]>();
+      let min = Infinity;
+      let max = -Infinity;
+      for (const row of rows) {
+        const rowPoints = parseSparklineSeries(row[col.idx], xField, yField);
+        points.set(row, rowPoints);
+        for (const point of rowPoints) {
+          min = Math.min(min, point.y);
+          max = Math.max(max, point.y);
+        }
+      }
+      series.set(col.name, { points, domain: Number.isFinite(min) && Number.isFinite(max) ? [min, max] : undefined });
+    }
+    return series;
+  }, [columns, rows]);
 
   // Frozen columns render first and stick to the left; 0 on pivots.
   const frozenCount = useMemo(() => (pivot ? 0 : columns.filter((c) => c.frozen).length), [columns, pivot]);
@@ -362,7 +393,7 @@ export function TableWidget({ widget, data }: Props) {
     if (pivot || !sort || rows.length === 0) return rows;
 
     const col = columns.find((c) => c.name === sort.column);
-    if (!col || col.idx < 0) return rows;
+    if (!col || col.idx < 0 || col.type === "sparkline") return rows;
 
     return sortRows(rows, col.idx, sort.direction, col.number != null);
   }, [pivot, columns, rows, sort]);
@@ -489,7 +520,8 @@ export function TableWidget({ widget, data }: Props) {
           <tr ref={headerRowRef} className="bg-[var(--dac-surface)]">
             {columns.map((col, ci) => {
               const numeric = col.number != null;
-              const active = sort?.column === col.name;
+              const sortable = !pivot && col.type !== "sparkline";
+              const active = sortable && sort?.column === col.name;
               const alignCls = alignClasses(col.align, numeric);
               const pinAction = col.frozen ? "Unfreeze" : "Freeze";
               return (
@@ -507,8 +539,8 @@ export function TableWidget({ widget, data }: Props) {
                 >
                   <button
                     type="button"
-                    onClick={() => handleHeaderClick(col.name)}
-                    className={`group w-full min-w-0 flex items-center gap-1 py-2 pl-4 ${pivot ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${pivot ? "cursor-default" : "cursor-pointer"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    onClick={sortable ? () => handleHeaderClick(col.name) : undefined}
+                    className={`group w-full min-w-0 flex items-center gap-1 py-2 pl-4 ${pivot ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${sortable ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                     style={columnWidthStyle(col)}
                   >
                     <span
@@ -603,12 +635,12 @@ export function TableWidget({ widget, data }: Props) {
                     style={tdStyle}
                   >
                     <div
-                      data-column-value={col.type !== "image" ? "" : undefined}
-                      className="relative py-1.5 px-4 whitespace-nowrap overflow-hidden text-ellipsis"
+                      data-column-value={col.type === undefined || col.type === "text" ? "" : undefined}
+                      className="relative box-border w-full min-w-0 py-1.5 px-4 whitespace-nowrap overflow-hidden text-ellipsis"
                       style={columnWidthStyle(col)}
-                      onMouseEnter={(event) => col.type !== "image" && updateCellTooltip(event.currentTarget, displayValue)}
+                      onMouseEnter={(event) => (col.type === undefined || col.type === "text") && updateCellTooltip(event.currentTarget, displayValue)}
                       onDoubleClick={
-                        col.type !== "image"
+                        col.type === undefined || col.type === "text"
                           ? (event) => {
                               event.preventDefault();
                               copyCell(displayValue, `${i}:${col.idx}`);
@@ -623,6 +655,17 @@ export function TableWidget({ widget, data }: Props) {
                           loading="lazy"
                           referrerPolicy="no-referrer"
                           className="h-10 w-auto max-w-[120px] rounded object-cover"
+                        />
+                      ) : col.type === "sparkline" && !pivot ? (
+                        <SparklineCell
+                          points={sparklineSeries.get(col.name)?.points.get(row) ?? []}
+                          yDomain={sparklineSeries.get(col.name)?.domain}
+                          beginAtZero={col.y?.beginAtZero}
+                          formatX={buildAxisFormatter(col.x, String)}
+                          formatY={buildAxisFormatter(
+                            col.y,
+                            (value) => formatCell(value, col.number, numberFormatters.get(col.name)),
+                          )}
                         />
                       ) : (
                         displayValue

@@ -1708,6 +1708,15 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       return (
         <ResponsiveContainer width="100%" height={60}>
           <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+            <XAxis dataKey={xKey} hide />
+            <YAxis
+              hide
+              domain={
+                widget.y?.beginAtZero
+                  ? [(min: number) => Math.min(0, min), (max: number) => Math.max(0, max)]
+                  : ["dataMin", "dataMax"]
+              }
+            />
             {yKeys.map((field, i) => (
               <Line
                 key={field}
@@ -1719,7 +1728,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 isAnimationActive={false}
               />
             ))}
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={cartesianTooltip} />
           </LineChart>
         </ResponsiveContainer>
       );

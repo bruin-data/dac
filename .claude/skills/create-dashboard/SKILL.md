@@ -658,7 +658,9 @@ GitHub-style calendar heatmap, custom SVG.
   col: 3
 ```
 
-Compact line chart (60px height), no axes or labels. Great for KPI rows.
+Compact line chart (60px height), no axes or labels. Its y domain auto-scales to
+the observed range; set `y.beginAtZero: true` only when a zero baseline is
+important. Great for KPI rows.
 
 #### Waterfall
 
@@ -817,7 +819,22 @@ Data table with optional column configuration.
 
 If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
-**Conditional formatting.** A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, `frozen`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
+**Column rendering and conditional formatting.** A `table` column takes `name`, `label`, `type` (`text` default, `image`, or `sparkline`), `number` (value format: `number`, `currency`, or a d3-format string), sparkline-only `x`/`y` encodings, `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, `frozen`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
+
+**Sparkline table columns.** Use `type: sparkline` with required `x.field` and `y.field`. Cells accept named point objects or pairs in `[x, y]` order, either as native arrays or as a JSON array string (up to 256 KB; for warehouses that return aggregated JSON as text). Points use array order, cells share a Y domain, and at most 100 points are drawn. Sparkline columns are not sortable and reject `format` layers/`like`; other columns cannot target them with `like` or `{ column: ... }` (a series has no single value). Not supported on `pivot_table`.
+
+```yaml
+data:
+  columns: [account, trend]
+  rows:
+    - [Atlas, [["2026-09-24", 12400], ["2026-09-25", 13100]]]
+columns:
+  - { name: account }
+  - name: trend
+    type: sparkline
+    x: { field: date, type: date, format: "%b %d" }
+    y: { field: revenue, type: number, format: "$,.0f" }
+```
 
 - With `if` (+ `value`), the layer styles only the cells that match. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
 - With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.
@@ -1638,7 +1655,7 @@ rows:
 | `sankey` | `source`, `target`, `value` | | Sankey/flow diagram |
 | `heatmap` | `x`, `y`, `value` | `showValues`, `colorScale` | Grid heatmap. `showValues: true` prints each cell's value inside the cell; `colorScale` sets a custom ramp |
 | `calendar` | `x`, `value` | | Calendar heatmap (GitHub-style) |
-| `sparkline` | `x`, `y` | | Compact inline line (60px) |
+| `sparkline` | `x`, `y` | `y.beginAtZero` | Compact inline line (60px), auto-scaled by default |
 | `waterfall` | `x`, `y` | | Waterfall chart |
 | `xmr` | `x`, `y` | `yMin`, `yMax` | Control chart with limits |
 | `dumbbell` | `x`, `y` (2 fields) | | Horizontal range comparison |

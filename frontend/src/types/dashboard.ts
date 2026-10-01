@@ -149,10 +149,14 @@ export interface RefBand {
 export interface TableColumn {
   name: string;
   label?: string;
-  /** Cell rendering: `image` renders each value as a thumbnail from its URL (default text). */
-  type?: 'text' | 'image';
+  /** Cell rendering: text, an image URL, or a structured numeric sparkline series. */
+  type?: 'text' | 'image' | 'sparkline';
   /** Value display: `currency`, `number`, or a d3-format spec. */
   number?: string;
+  /** Required for sparkline columns: point x encoding. */
+  x?: AxisEncoding;
+  /** Required for sparkline columns: point y encoding. */
+  y?: AxisEncoding;
   /** Mirror another column's coloring, driven by that column's per-row value. */
   like?: string;
   /** Keep the column in the result (for cross-column rules / `like`) but don't render it. */
