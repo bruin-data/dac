@@ -222,18 +222,12 @@ export function TableWidget({ widget, data }: Props) {
   const tableWidthStyle = useMemo<CSSProperties | undefined>(() => {
     const widths = columns.map((col) => columnWidths[col.name] ?? autoColumnWidths[col.name]);
     const resized = columns.some((col) => columnWidths[col.name] != null);
-    // Let the browser perform the initial distribution while one or more
-    // columns are unmeasured. This accounts for the widget width, column count,
-    // and rendered content before we freeze the resulting pixel widths. Once a
-    // viewer has resized a column, skip the 100% stretch so unmeasured columns
-    // return to their natural width instead of absorbing the free space.
+    // Let the browser lay out unmeasured columns; skip the stretch once resized.
     if (!widths.length || widths.some((width) => width == null)) {
       return resized ? { tableLayout: "auto" } : { width: "100%", tableLayout: "auto" };
     }
     const total = widths.reduce((sum, width) => sum + (width ?? 0), 0) + columns.length + 1;
-    // An untouched table continues to fill its widget. Once a viewer resizes a
-    // column, the table follows the exact sum of its columns, allowing it to
-    // grow into horizontal scrolling or shrink to leave space on the right.
+    // Untouched tables fill the widget; resized ones follow their column sum.
     return {
       width: resized ? total : "100%",
       minWidth: total,
@@ -292,8 +286,7 @@ export function TableWidget({ widget, data }: Props) {
       remeasure();
     });
     const remeasure = () => {
-      // A resized table is sized by its columns, not the container, so a
-      // remeasure would only collapse untouched columns to their content width.
+      // Resized tables don't depend on the container width.
       if (columns.some((col) => columnWidthsRef.current[col.name] != null)) return;
       window.cancelAnimationFrame(clearFrame);
       window.cancelAnimationFrame(measureFrame);
@@ -314,9 +307,7 @@ export function TableWidget({ widget, data }: Props) {
 
   const measureColumnMaxWidth = (col: TableColumn, index: number) => {
     if (columnMaxWidths[col.name] != null) return columnMaxWidths[col.name];
-    // A wide browser-assigned auto width must remain reachable. Narrower auto
-    // columns can grow to at least 450px, or farther when their longest value
-    // needs more room (32px accounts for the cell's horizontal padding).
+    // Keep wide auto widths reachable (32px covers the cell's padding).
     let maxWidth = Math.max(
       DEFAULT_MAX_COLUMN_WIDTH,
       autoColumnWidths[col.name] ?? MIN_COLUMN_WIDTH,
@@ -346,8 +337,7 @@ export function TableWidget({ widget, data }: Props) {
     const renderedWidth = Math.max(MIN_COLUMN_WIDTH, Math.round(th.getBoundingClientRect().width));
     const maxWidth = Math.max(measureColumnMaxWidth(col, index), renderedWidth);
     setColumnMaxWidths((current) => ({ ...current, [col.name]: maxWidth }));
-    // Only record a user width once the pointer actually moves, so a stray
-    // click on the handle doesn't take the table out of its widget-filling state.
+    // Record a user width only once the pointer moves.
     const startWidth = Math.min(maxWidth, renderedWidth);
     resizeRef.current = { name: col.name, startX: event.clientX, startWidth, maxWidth };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -376,9 +366,7 @@ export function TableWidget({ widget, data }: Props) {
       delete next[name];
       return next;
     });
-    // Resetting the last resized column returns the table to its untouched,
-    // widget-filling state, so redistribute every column rather than letting
-    // this one absorb all of the free space.
+    // Last resized column: redistribute every column across the widget.
     if (columns.every((col) => col.name === name || columnWidths[col.name] == null)) {
       setAutoColumnWidths({});
       setColumnMaxWidths({});
