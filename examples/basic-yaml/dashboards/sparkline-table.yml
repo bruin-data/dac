@@ -1,0 +1,51 @@
+schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Sparkline Table
+description: Table sparklines with tooltips and comparable Y scales
+
+rows:
+  - widgets:
+      - name: Account Revenue Trends
+        description: Hover each sparkline to inspect its date and revenue value
+        type: table
+        col: 12
+        data:
+          columns: [account, owner, trend]
+          rows:
+            - [Atlas, Maya, [{ date: "2026-09-24", revenue: 12400 }, { date: "2026-09-25", revenue: 13100 }, { date: "2026-09-26", revenue: 12800 }, { date: "2026-09-27", revenue: 14600 }, { date: "2026-09-28", revenue: 15100 }, { date: "2026-09-29", revenue: 14900 }, { date: "2026-09-30", revenue: 16300 }]]
+            - [Beacon, Theo, [{ date: "2026-09-24", revenue: 9200 }, { date: "2026-09-25", revenue: 8800 }, { date: "2026-09-26", revenue: 9400 }, { date: "2026-09-27", revenue: 10100 }, { date: "2026-09-28", revenue: 9700 }, { date: "2026-09-29", revenue: 10500 }, { date: "2026-09-30", revenue: 10900 }]]
+            - [Comet, Lina, [{ date: "2026-09-24", revenue: 7100 }, { date: "2026-09-25", revenue: 7600 }, { date: "2026-09-26", revenue: 7400 }, { date: "2026-09-27", revenue: 8200 }, { date: "2026-09-28", revenue: 8900 }, { date: "2026-09-29", revenue: 8600 }, { date: "2026-09-30", revenue: 9300 }]]
+            - [Delta, Omar, [{ date: "2026-09-24", revenue: 15100 }, { date: "2026-09-25", revenue: 14800 }, { date: "2026-09-26", revenue: 15600 }, { date: "2026-09-27", revenue: 16100 }, { date: "2026-09-28", revenue: 17200 }, { date: "2026-09-29", revenue: 16900 }, { date: "2026-09-30", revenue: 18100 }]]
+
+            # Native [x, y] pairs and JSON array strings are also accepted.
+            - [Array values, Ava, [["2026-09-24", 8400], ["2026-09-25", 9100], ["2026-09-26", 8800]]]
+            - [JSON string, Sam, '[{"date":"2026-09-24","revenue":7800},{"date":"2026-09-25","revenue":8300},{"date":"2026-09-26","revenue":8600}]']
+        columns:
+          - name: account
+            label: Account
+            frozen: true
+          - name: owner
+            label: Owner
+          - name: trend
+            label: 7-day revenue
+            type: sparkline
+            x: { field: date, type: date, format: "%b %d" }
+            y: { field: revenue, type: number, format: "$,.0f" }
+
+  - widgets:
+      - name: Atlas Revenue Trend
+        description: The same seven Atlas points shown in the first table row
+        type: chart
+        chart: sparkline
+        col: 12
+        data:
+          columns: [date, revenue]
+          rows:
+            - ["2026-09-24", 12400]
+            - ["2026-09-25", 13100]
+            - ["2026-09-26", 12800]
+            - ["2026-09-27", 14600]
+            - ["2026-09-28", 15100]
+            - ["2026-09-29", 14900]
+            - ["2026-09-30", 16300]
+        x: { field: date, type: date, format: "%b %d" }
+        y: { field: revenue, type: number, format: "$,.0f" }

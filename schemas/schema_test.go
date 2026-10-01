@@ -153,6 +153,36 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard sparkline column",
+			schemaID: DashboardV1ID,
+			yaml: `name: Accounts
+rows:
+  - widgets:
+      - name: Active
+        type: table
+        sql: SELECT account, trend FROM accounts
+        columns:
+          - { name: account }
+          - name: trend
+            type: sparkline
+            x: { field: day, type: date, format: "%b %d" }
+            y: { field: amount, type: number, format: "$,.0f", beginAtZero: true }
+`,
+		},
+		{
+			name:     "dashboard sparkline column with legacy scalar format",
+			schemaID: DashboardV1ID,
+			yaml: `name: Accounts
+rows:
+  - widgets:
+      - name: Active
+        type: table
+        sql: SELECT trend FROM accounts
+        columns:
+          - { name: trend, type: sparkline, x: { field: day }, y: { field: amount }, format: "$,.0f" }
+`,
+		},
+		{
 			name:     "dashboard widget tabs",
 			schemaID: DashboardV1ID,
 			yaml: `name: Widget Tabs
@@ -386,6 +416,24 @@ rows:
           - name: sales
             format:
               - { backgroundColor: ["red", "green"], scaleBy: row }
+`,
+		},
+		{
+			name:     "dashboard sparkline column with format",
+			schemaID: DashboardV1ID,
+			yaml: `name: Sparkline Format
+rows:
+  - widgets:
+      - name: Active
+        type: table
+        sql: SELECT trend FROM accounts
+        columns:
+          - name: trend
+            type: sparkline
+            x: { field: day }
+            y: { field: amount }
+            format:
+              - { if: less_than, value: 1, backgroundColor: red }
 `,
 		},
 	}

@@ -795,19 +795,68 @@ func TestValidate_ImageWidget(t *testing.T) {
 }
 
 func TestValidate_TableColumnType(t *testing.T) {
-	// type: image is accepted on plain tables.
+	// image and sparkline types are accepted on plain tables.
 	tbl := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
-		Name: "w", Type: WidgetTypeTable, SQL: "SELECT photo FROM listings",
-		Columns: []TableColumn{{Name: "photo", Type: "image"}},
+		Name: "w", Type: WidgetTypeTable, SQL: "SELECT photo, trend FROM listings",
+		Columns: []TableColumn{
+			{Name: "photo", Type: "image"},
+			{
+				Name: "trend", Type: "sparkline",
+				X: &AxisEncoding{Field: "date", Type: "date", Format: "%b %d"},
+				Y: &AxisEncoding{Field: "revenue", Type: "number", Format: "$,.0f", BeginAtZero: boolPtr(true)},
+			},
+		},
 	}}}}}
 	assertNoErr(t, Validate(tbl))
+
+	missingEncodings := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypeTable, SQL: "SELECT trend FROM listings",
+		Columns: []TableColumn{{Name: "trend", Type: "sparkline"}},
+	}}}}}
+	assertValidationContains(t, Validate(missingEncodings), "x: is required when type is sparkline")
+	assertValidationContains(t, Validate(missingEncodings), "y: is required when type is sparkline")
+
+	badEncoding := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypeTable, SQL: "SELECT trend FROM listings",
+		Columns: []TableColumn{{Name: "trend", Type: "sparkline", Y: &AxisEncoding{Field: "revenue", Type: "date"}}},
+	}}}}}
+	assertValidationContains(t, Validate(badEncoding), "y.type: must be number")
+
+	sparkX := &AxisEncoding{Field: "date"}
+	sparkY := &AxisEncoding{Field: "revenue"}
+	formatOnSparkline := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypeTable, SQL: "SELECT trend FROM listings",
+		Columns: []TableColumn{{Name: "trend", Type: "sparkline", X: sparkX, Y: sparkY, Format: []FormatLayer{{If: "less_than", Value: 1, BackgroundColor: "red"}}}},
+	}}}}}
+	assertValidationContains(t, Validate(formatOnSparkline), "format and like are not supported on sparkline columns")
+
+	likeSparkline := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypeTable, SQL: "SELECT trend, total FROM listings",
+		Columns: []TableColumn{{Name: "trend", Type: "sparkline", X: sparkX, Y: sparkY}, {Name: "total", Like: "trend"}},
+	}}}}}
+	assertValidationContains(t, Validate(likeSparkline), `like: cannot reference sparkline column "trend"`)
+
+	compareSparkline := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypeTable, SQL: "SELECT trend, total FROM listings",
+		Columns: []TableColumn{
+			{Name: "trend", Type: "sparkline", X: sparkX, Y: sparkY},
+			{Name: "total", Format: []FormatLayer{{If: "greater_than", Value: map[string]any{"column": "trend"}, BackgroundColor: "red"}}},
+		},
+	}}}}}
+	assertValidationContains(t, Validate(compareSparkline), `value: cannot compare against sparkline column "trend"`)
+
+	encodingOnText := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
+		Name: "w", Type: WidgetTypeTable, SQL: "SELECT status FROM listings",
+		Columns: []TableColumn{{Name: "status", Type: "text", X: &AxisEncoding{Field: "date"}}},
+	}}}}}
+	assertValidationContains(t, Validate(encodingOnText), "x/y: only supported when type is sparkline")
 
 	// an unknown type is rejected.
 	bad := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
 		Name: "w", Type: WidgetTypeTable, SQL: "SELECT photo FROM listings",
 		Columns: []TableColumn{{Name: "photo", Type: "video"}},
 	}}}}}
-	assertValidationContains(t, Validate(bad), "type: must be text or image")
+	assertValidationContains(t, Validate(bad), "type: must be text, image, or sparkline")
 
 	// type: image is table-only — rejected on pivot_table widgets.
 	pivot := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
@@ -816,6 +865,9 @@ func TestValidate_TableColumnType(t *testing.T) {
 		Columns: []TableColumn{{Name: "photo", Type: "image"}},
 	}}}}}
 	assertValidationContains(t, Validate(pivot), "type: image not supported on pivot tables")
+
+	pivot.Rows[0].Widgets[0].Columns = []TableColumn{{Name: "photo", Type: "sparkline"}}
+	assertValidationContains(t, Validate(pivot), "type: sparkline not supported on pivot tables")
 
 	// type: text is the default rendering and stays valid on pivot tables.
 	pivotText := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{

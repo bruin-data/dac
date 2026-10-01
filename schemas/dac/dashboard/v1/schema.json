@@ -699,11 +699,17 @@
           "type": "string"
         },
         "type": {
-          "enum": ["text", "image"],
-          "description": "How to render the column's cell values. `text` (default) shows the value; `image` treats each value as an image URL and renders it as a thumbnail (plain tables only)."
+          "enum": ["text", "image", "sparkline"],
+          "description": "How to render the column's cell values. `text` (default) shows the value; `image` treats each value as an image URL and renders it as a thumbnail; `sparkline` renders an array of point objects as an inline line chart and requires `x` and `y` encodings (both plain tables only)."
         },
         "number": {
           "type": "string"
+        },
+        "x": {
+          "$ref": "#/$defs/sparklineXEncoding"
+        },
+        "y": {
+          "$ref": "#/$defs/sparklineYEncoding"
         },
         "like": {
           "type": "string"
@@ -730,8 +736,47 @@
           ]
         }
       },
+      "allOf": [
+        {
+          "if": { "anyOf": [{ "required": ["x"] }, { "required": ["y"] }] },
+          "then": { "required": ["type"], "properties": { "type": { "const": "sparkline" } } }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "sparkline" } } },
+          "then": {
+            "required": ["x", "y"],
+            "not": {
+              "anyOf": [
+                { "required": ["format"], "properties": { "format": { "type": "array" } } },
+                { "required": ["like"] }
+              ]
+            }
+          }
+        }
+      ],
       "patternProperties": {
         "^x-": true
+      },
+      "additionalProperties": false
+    },
+    "sparklineXEncoding": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["date", "number", "category"] },
+        "format": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "sparklineYEncoding": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string", "minLength": 1 },
+        "type": { "const": "number" },
+        "format": { "type": "string" },
+        "beginAtZero": { "type": "boolean" }
       },
       "additionalProperties": false
     },

@@ -907,8 +907,12 @@ func validatePivotAxis(prefix, axis string, fields []PivotField, errs *[]string)
 
 func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 	names := make(map[string]bool, len(w.Columns))
+	sparklines := make(map[string]bool)
 	for _, c := range w.Columns {
 		names[c.Name] = true
+		if c.Type == "sparkline" {
+			sparklines[c.Name] = true
+		}
 	}
 	for _, c := range w.Columns {
 		cp := fmt.Sprintf("%s: column %q", prefix, c.Name)
@@ -917,6 +921,8 @@ func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 				*errs = append(*errs, cp+".like: cannot reference itself")
 			} else if !names[c.Like] {
 				*errs = append(*errs, fmt.Sprintf("%s.like: references unknown column %q", cp, c.Like))
+			} else if sparklines[c.Like] {
+				*errs = append(*errs, fmt.Sprintf("%s.like: cannot reference sparkline column %q", cp, c.Like))
 			}
 		}
 		if c.Align != "" && c.Align != "left" && c.Align != "center" && c.Align != "right" {
@@ -933,15 +939,78 @@ func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 			*errs = append(*errs, cp+".frozen: not supported on pivot tables")
 		}
 		if c.Type != "" {
-			if c.Type != "text" && c.Type != "image" {
-				*errs = append(*errs, fmt.Sprintf("%s.type: must be text or image", cp))
-			} else if c.Type == "image" && w.Type == WidgetTypePivotTable {
-				*errs = append(*errs, cp+".type: image not supported on pivot tables")
+			if c.Type != "text" && c.Type != "image" && c.Type != "sparkline" {
+				*errs = append(*errs, fmt.Sprintf("%s.type: must be text, image, or sparkline", cp))
+			} else if c.Type != "text" && w.Type == WidgetTypePivotTable {
+				*errs = append(*errs, fmt.Sprintf("%s.type: %s not supported on pivot tables", cp, c.Type))
+			}
+		}
+		if (c.X != nil || c.Y != nil) && c.Type != "sparkline" {
+			*errs = append(*errs, cp+".x/y: only supported when type is sparkline")
+		}
+		if c.Type == "sparkline" {
+			validateSparklineEncoding(cp+".x", c.X, false, errs)
+			validateSparklineEncoding(cp+".y", c.Y, true, errs)
+			// A series has no single value to color by.
+			if len(c.Format) > 0 || c.Like != "" {
+				*errs = append(*errs, cp+": format and like are not supported on sparkline columns")
 			}
 		}
 		for i, layer := range c.Format {
-			validateFormatLayer(fmt.Sprintf("%s.format[%d]", cp, i), layer, false, errs)
+			lp := fmt.Sprintf("%s.format[%d]", cp, i)
+			validateFormatLayer(lp, layer, false, errs)
+			for _, ref := range formatValueColumns(layer.Value) {
+				if sparklines[ref] {
+					*errs = append(*errs, fmt.Sprintf("%s.value: cannot compare against sparkline column %q", lp, ref))
+				}
+			}
 		}
+	}
+}
+
+// formatValueColumns returns the column names a rule value references via
+// `{column: X}`, either directly or inside a [low, high] pair.
+func formatValueColumns(v any) []string {
+	var refs []string
+	add := func(item any) {
+		if m, ok := item.(map[string]any); ok {
+			if name, ok := m["column"].(string); ok {
+				refs = append(refs, name)
+			}
+		}
+	}
+	if list, ok := v.([]any); ok {
+		for _, item := range list {
+			add(item)
+		}
+	} else {
+		add(v)
+	}
+	return refs
+}
+
+func validateSparklineEncoding(prefix string, enc *AxisEncoding, y bool, errs *[]string) {
+	if enc == nil {
+		*errs = append(*errs, prefix+": is required when type is sparkline")
+		return
+	}
+	if len(enc.FieldList()) != 1 {
+		*errs = append(*errs, prefix+".field: must be one point field name")
+	}
+	if y {
+		if enc.Type != "" && enc.Type != "number" {
+			*errs = append(*errs, prefix+".type: must be number")
+		}
+	} else {
+		if enc.Type != "" && enc.Type != "number" && enc.Type != "date" && enc.Type != "category" {
+			*errs = append(*errs, prefix+".type: must be number, date, or category")
+		}
+		if enc.BeginAtZero != nil {
+			*errs = append(*errs, prefix+".beginAtZero: only supported on y")
+		}
+	}
+	if enc.Title != "" || enc.Markers != nil || enc.Curve != "" || enc.Dash != "" {
+		*errs = append(*errs, prefix+": table sparklines support only field, type, format, and y.beginAtZero")
 	}
 }
 

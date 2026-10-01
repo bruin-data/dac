@@ -372,6 +372,12 @@ export default (
           { name: "id", label: "Order ID", frozen: true },
           { name: "amount", label: "Amount", number: "currency", border: "left" },
           { name: "target", hidden: true },
+          {
+            name: "trend",
+            type: "sparkline",
+            x: { field: "day", type: "date", format: "%b %d" },
+            y: { field: "amount", type: "number", format: "$,.0f", beginAtZero: true },
+          },
         ]} />
     </Row>
   </Dashboard>
@@ -381,8 +387,8 @@ export default (
 	assertNoErr(t, err)
 
 	w := d.Rows[0].Widgets[0]
-	if len(w.Columns) != 3 {
-		t.Fatalf("expected 3 columns, got %d", len(w.Columns))
+	if len(w.Columns) != 4 {
+		t.Fatalf("expected 4 columns, got %d", len(w.Columns))
 	}
 	if w.Columns[0].Name != "id" || w.Columns[0].Label != "Order ID" {
 		t.Errorf("unexpected column 0: %+v", w.Columns[0])
@@ -398,6 +404,13 @@ export default (
 	}
 	if !w.Columns[2].Hidden {
 		t.Errorf("expected target column to be hidden, got %+v", w.Columns[2])
+	}
+	if w.Columns[3].Type != "sparkline" || w.Columns[3].X == nil || w.Columns[3].Y == nil || w.Columns[3].X.FieldString() != "day" || w.Columns[3].Y.FieldString() != "amount" {
+		t.Errorf("expected sparkline column with x/y encodings, got %+v", w.Columns[3])
+		return
+	}
+	if w.Columns[3].X.Type != "date" || w.Columns[3].X.Format != "%b %d" || w.Columns[3].Y.Type != "number" || w.Columns[3].Y.Format != "$,.0f" || w.Columns[3].Y.BeginAtZero == nil || !*w.Columns[3].Y.BeginAtZero {
+		t.Errorf("unexpected sparkline encoding options: x=%+v y=%+v", w.Columns[3].X, w.Columns[3].Y)
 	}
 }
 
