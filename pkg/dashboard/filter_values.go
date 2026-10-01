@@ -91,7 +91,8 @@ func defaultString(f Filter, value any) any {
 		defaults = []any{f.Default}
 	}
 	for _, d := range defaults {
-		if selectString(d) == converted {
+		// A quoted default is already a string and is echoed as one.
+		if _, quoted := d.(string); !quoted && selectString(d) == converted {
 			return converted
 		}
 	}

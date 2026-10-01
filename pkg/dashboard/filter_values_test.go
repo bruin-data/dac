@@ -77,8 +77,9 @@ func TestNormalizeKeepsNonDefaultScalars(t *testing.T) {
 		{Name: "flag", Type: "select", Options: &FilterOptions{Values: []string{"true", "false"}}},
 		{Name: "flags", Type: "select", Multiple: true, Options: &FilterOptions{Values: []string{"true"}}},
 		{Name: "text", Type: "text", Default: 1},
+		{Name: "quoted", Type: "select", Default: "true", Options: &FilterOptions{Values: []string{"true", "false"}}},
 	}}
-	for _, values := range []map[string]any{{"flag": true}, {"flags": []any{true}}, {"text": float64(2)}} {
+	for _, values := range []map[string]any{{"flag": true}, {"flags": []any{true}}, {"text": float64(2)}, {"quoted": true}} {
 		if err := d.ValidateFilterValues(d.NormalizeFilterValues(values)); err == nil {
 			t.Errorf("accepted %v", values)
 		}
