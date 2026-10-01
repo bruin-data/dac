@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { format as d3Format } from "d3-format";
 import type { AxisEncoding, FormatLayer, Widget, WidgetData } from "../../types/dashboard";
 import { axisField, buildAxisFormatter } from "../../lib/format";
@@ -55,6 +55,8 @@ export function TableWidget({ widget, data }: Props) {
   const [columnMaxWidths, setColumnMaxWidths] = useState<Record<string, number>>({});
   const [copiedCellKey, setCopiedCellKey] = useState<string | null>(null);
   const resizeRef = useRef<{ name: string; startX: number; startWidth: number; maxWidth: number } | null>(null);
+  // Container resize that arrived mid-drag; replayed when the drag ends.
+  const pendingRemeasureRef = useRef<(() => void) | null>(null);
   const copiedCellTimerRef = useRef<number | null>(null);
   const tokens = useTokens();
   const [pinOverrides, setPinOverrides] = useState(() => new Map<string, boolean>());
@@ -196,6 +198,7 @@ export function TableWidget({ widget, data }: Props) {
 
   // Frozen columns render first and stick to the left; 0 on pivots.
   const frozenCount = useMemo(() => (pivot ? 0 : columns.filter((c) => c.frozen).length), [columns, pivot]);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   const headerRowRef = useRef<HTMLTableRowElement>(null);
   const [frozenOffsets, setFrozenOffsets] = useState<number[]>([]);
   useLayoutEffect(() => {
@@ -249,38 +252,97 @@ export function TableWidget({ widget, data }: Props) {
 
   const tableWidthStyle = useMemo<CSSProperties | undefined>(() => {
     const widths = columns.map((col) => columnWidths[col.name] ?? autoColumnWidths[col.name]);
-    if (!widths.length || widths.some((width) => width == null)) return undefined;
+    const resized = columns.some((col) => columnWidths[col.name] != null);
+    // Let the browser lay out unmeasured columns; skip the stretch once resized.
+    if (!widths.length || widths.some((width) => width == null)) {
+      return resized ? { tableLayout: "auto" } : { width: "100%", tableLayout: "auto" };
+    }
     const total = widths.reduce((sum, width) => sum + (width ?? 0), 0) + columns.length + 1;
-    return { width: total, minWidth: total, tableLayout: "fixed" };
+    // Untouched tables fill the widget; resized ones follow their column sum.
+    return {
+      width: resized ? total : "100%",
+      minWidth: total,
+      tableLayout: "fixed",
+    };
   }, [autoColumnWidths, columns, columnWidths]);
+
+  // Latest user widths for the container observer, which outlives renders.
+  const columnWidthsRef = useRef(columnWidths);
+  useLayoutEffect(() => {
+    columnWidthsRef.current = columnWidths;
+  }, [columnWidths]);
+
+  const measureRenderedColumnWidths = useCallback(() => {
+    const ths = headerRowRef.current?.children;
+    if (!ths) return;
+    const widths: Record<string, number> = {};
+    columns.forEach((col, index) => {
+      widths[col.name] = Math.max(
+        MIN_COLUMN_WIDTH,
+        // Floor so the frozen sum never exceeds the width it was measured in.
+        Math.floor(ths[index]?.getBoundingClientRect().width || MIN_COLUMN_WIDTH),
+      );
+    });
+    setAutoColumnWidths(widths);
+  }, [columns]);
 
   useLayoutEffect(() => {
     let measureFrame = 0;
     const clearFrame = window.requestAnimationFrame(() => {
       setAutoColumnWidths({});
       setColumnMaxWidths({});
-      measureFrame = window.requestAnimationFrame(() => {
-        const ths = headerRowRef.current?.children;
-        if (!ths) return;
-        const widths: Record<string, number> = {};
-        columns.forEach((col, index) => {
-          widths[col.name] = Math.min(
-            DEFAULT_MAX_COLUMN_WIDTH,
-            Math.max(MIN_COLUMN_WIDTH, Math.round(ths[index]?.getBoundingClientRect().width || MIN_COLUMN_WIDTH)),
-          );
-        });
-        setAutoColumnWidths(widths);
-      });
+      measureFrame = window.requestAnimationFrame(measureRenderedColumnWidths);
     });
     return () => {
       window.cancelAnimationFrame(clearFrame);
       window.cancelAnimationFrame(measureFrame);
     };
-  }, [columns, effData?.rows]);
+  }, [measureRenderedColumnWidths, effData?.rows]);
+
+  useLayoutEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+
+    let containerWidth = container.getBoundingClientRect().width;
+    let clearFrame = 0;
+    let measureFrame = 0;
+    const observer = new ResizeObserver(([entry]) => {
+      const nextWidth = entry?.contentRect.width ?? container.getBoundingClientRect().width;
+      if (Math.abs(nextWidth - containerWidth) < 0.5) return;
+      containerWidth = nextWidth;
+      if (resizeRef.current) {
+        pendingRemeasureRef.current = remeasure;
+        return;
+      }
+      remeasure();
+    });
+    const remeasure = () => {
+      // Resized tables don't depend on the container width.
+      if (columns.some((col) => columnWidthsRef.current[col.name] != null)) return;
+      window.cancelAnimationFrame(clearFrame);
+      window.cancelAnimationFrame(measureFrame);
+      clearFrame = window.requestAnimationFrame(() => {
+        setAutoColumnWidths({});
+        setColumnMaxWidths({});
+        measureFrame = window.requestAnimationFrame(measureRenderedColumnWidths);
+      });
+    };
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      pendingRemeasureRef.current = null;
+      window.cancelAnimationFrame(clearFrame);
+      window.cancelAnimationFrame(measureFrame);
+    };
+  }, [columns, measureRenderedColumnWidths]);
 
   const measureColumnMaxWidth = (col: TableColumn, index: number) => {
     if (columnMaxWidths[col.name] != null) return columnMaxWidths[col.name];
-    let maxWidth = DEFAULT_MAX_COLUMN_WIDTH;
+    // Keep wide auto widths reachable (32px covers the cell's padding).
+    let maxWidth = Math.max(
+      DEFAULT_MAX_COLUMN_WIDTH,
+      autoColumnWidths[col.name] ?? MIN_COLUMN_WIDTH,
+    );
     const table = headerRowRef.current?.closest("table");
     const sample = table?.tBodies[0]?.rows[0]?.cells[index]?.querySelector<HTMLElement>("[data-column-value]");
     try {
@@ -303,10 +365,11 @@ export function TableWidget({ widget, data }: Props) {
     event.preventDefault();
     event.stopPropagation();
     const index = columns.findIndex((column) => column.name === col.name);
-    const maxWidth = measureColumnMaxWidth(col, index);
+    const renderedWidth = Math.max(MIN_COLUMN_WIDTH, Math.round(th.getBoundingClientRect().width));
+    const maxWidth = Math.max(measureColumnMaxWidth(col, index), renderedWidth);
     setColumnMaxWidths((current) => ({ ...current, [col.name]: maxWidth }));
-    const startWidth = Math.min(maxWidth, Math.max(MIN_COLUMN_WIDTH, Math.round(th.getBoundingClientRect().width)));
-    setColumnWidths((current) => ({ ...current, [col.name]: startWidth }));
+    // Record a user width only once the pointer moves.
+    const startWidth = Math.min(maxWidth, renderedWidth);
     resizeRef.current = { name: col.name, startX: event.clientX, startWidth, maxWidth };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -314,6 +377,7 @@ export function TableWidget({ widget, data }: Props) {
   const moveColumnResize = (event: ReactPointerEvent<HTMLSpanElement>) => {
     const resize = resizeRef.current;
     if (!resize) return;
+    if (event.clientX === resize.startX && columnWidths[resize.name] == null) return;
     const width = Math.min(resize.maxWidth, Math.max(MIN_COLUMN_WIDTH, Math.round(resize.startWidth + event.clientX - resize.startX)));
     setColumnWidths((current) => ({ ...current, [resize.name]: width }));
   };
@@ -322,6 +386,9 @@ export function TableWidget({ widget, data }: Props) {
     if (!resizeRef.current) return;
     resizeRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    const remeasure = pendingRemeasureRef.current;
+    pendingRemeasureRef.current = null;
+    remeasure?.();
   };
 
   const resetColumnWidth = (name: string, index: number) => {
@@ -330,6 +397,13 @@ export function TableWidget({ widget, data }: Props) {
       delete next[name];
       return next;
     });
+    // Last resized column: redistribute every column across the widget.
+    if (columns.every((col) => col.name === name || columnWidths[col.name] == null)) {
+      setAutoColumnWidths({});
+      setColumnMaxWidths({});
+      window.requestAnimationFrame(measureRenderedColumnWidths);
+      return;
+    }
     setAutoColumnWidths((current) => {
       const next = { ...current };
       delete next[name];
@@ -338,9 +412,9 @@ export function TableWidget({ widget, data }: Props) {
     window.requestAnimationFrame(() => {
       const th = headerRowRef.current?.children[index];
       if (!th) return;
-      const width = Math.min(
-        DEFAULT_MAX_COLUMN_WIDTH,
-        Math.max(MIN_COLUMN_WIDTH, Math.round(th.getBoundingClientRect().width || MIN_COLUMN_WIDTH)),
+      const width = Math.max(
+        MIN_COLUMN_WIDTH,
+        Math.floor(th.getBoundingClientRect().width || MIN_COLUMN_WIDTH),
       );
       setAutoColumnWidths((current) => ({ ...current, [name]: width }));
     });
@@ -350,9 +424,9 @@ export function TableWidget({ widget, data }: Props) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
     event.stopPropagation();
-    const maxWidth = measureColumnMaxWidth(col, index);
-    setColumnMaxWidths((current) => ({ ...current, [col.name]: maxWidth }));
     const current = columnWidths[col.name] ?? autoColumnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH;
+    const maxWidth = Math.max(measureColumnMaxWidth(col, index), current);
+    setColumnMaxWidths((current) => ({ ...current, [col.name]: maxWidth }));
     const width = event.key === "Home"
       ? MIN_COLUMN_WIDTH
       : event.key === "End"
@@ -511,7 +585,7 @@ export function TableWidget({ widget, data }: Props) {
   };
 
   return (
-    <div className="w-full min-w-0 max-w-full overflow-x-auto">
+    <div ref={tableContainerRef} className="w-full min-w-0 max-w-full overflow-x-auto">
       <table
         className="inline-table min-w-max text-[13px] border-separate [border-spacing:1px_1px]"
         style={tableWidthStyle}
@@ -573,13 +647,14 @@ export function TableWidget({ widget, data }: Props) {
                         aria-orientation="vertical"
                         aria-label={`Resize ${col.label} column`}
                         aria-valuemin={MIN_COLUMN_WIDTH}
-                        aria-valuemax={columnMaxWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
+                        aria-valuemax={columnMaxWidths[col.name] ?? Math.max(DEFAULT_MAX_COLUMN_WIDTH, autoColumnWidths[col.name] ?? 0)}
                         aria-valuenow={columnWidths[col.name] ?? autoColumnWidths[col.name] ?? DEFAULT_MAX_COLUMN_WIDTH}
                         className="absolute inset-y-0 right-0 z-10 w-3 cursor-col-resize touch-none opacity-0 hover:opacity-100 focus:opacity-100 after:absolute after:inset-y-1 after:right-0 after:w-0.5 after:rounded-full after:bg-[var(--dac-accent)]"
                         onPointerDown={(event) => startColumnResize(col, event)}
                         onPointerMove={moveColumnResize}
                         onPointerUp={finishColumnResize}
                         onPointerCancel={finishColumnResize}
+                        onLostPointerCapture={finishColumnResize}
                         onDoubleClick={(event) => {
                           event.stopPropagation();
                           resetColumnWidth(col.name, ci);
