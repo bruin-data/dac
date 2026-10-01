@@ -54,7 +54,7 @@ func TestNormalizeFilterValues(t *testing.T) {
 	d := &Dashboard{Filters: []Filter{
 		{Name: "date", Type: "date", Default: "TODAY-1"},
 		{Name: "year", Type: "select", Default: 2024, Options: &FilterOptions{Values: []string{"2023", "2024"}}},
-		{Name: "years", Type: "select", Multiple: true, Options: &FilterOptions{Values: []string{"2023", "2024"}}},
+		{Name: "years", Type: "select", Multiple: true, Default: []any{2023}, Options: &FilterOptions{Values: []string{"2023", "2024"}}},
 		{Name: "range", Type: "date-range", Default: "last_7_days"},
 		{Name: "zip", Type: "text", Default: 94107},
 		{Name: "store", Type: "select", Default: 1000001, Options: &FilterOptions{Values: []string{"1000001"}}},
@@ -69,6 +69,19 @@ func TestNormalizeFilterValues(t *testing.T) {
 	}
 	if err := d.ValidateFilterValues(d.NormalizeFilterValues(d.DefaultFilters())); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestNormalizeKeepsNonDefaultScalars(t *testing.T) {
+	d := &Dashboard{Filters: []Filter{
+		{Name: "flag", Type: "select", Options: &FilterOptions{Values: []string{"true", "false"}}},
+		{Name: "flags", Type: "select", Multiple: true, Options: &FilterOptions{Values: []string{"true"}}},
+		{Name: "text", Type: "text", Default: 1},
+	}}
+	for _, values := range []map[string]any{{"flag": true}, {"flags": []any{true}}, {"text": float64(2)}} {
+		if err := d.ValidateFilterValues(d.NormalizeFilterValues(values)); err == nil {
+			t.Errorf("accepted %v", values)
+		}
 	}
 }
 

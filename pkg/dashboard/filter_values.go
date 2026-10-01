@@ -12,7 +12,7 @@ import (
 // NormalizeFilterValues returns a copy of values with client-sent defaults
 // put in canonical form: date expressions such as TODAY-1 and date-range
 // presets such as last_7_days are resolved, and
-// scalar select and text values (YAML `default: 2024`) become strings. Unknown keys and
+// scalar select and text values echoing a YAML default (`default: 2024`) become strings. Unknown keys and
 // other shapes are left for ValidateFilterValues to reject.
 func (d *Dashboard) NormalizeFilterValues(values map[string]any) map[string]any {
 	definitions := make(map[string]Filter, len(d.Filters))
@@ -51,17 +51,15 @@ func normalizeFilterValue(f Filter, value any) any {
 				return resolved
 			}
 		}
-	case "text":
-		return selectString(value)
-	case "select":
+	case "text", "select":
 		if list, ok := value.([]any); ok && f.Multiple {
 			out := make([]any, len(list))
 			for i, item := range list {
-				out[i] = selectString(item)
+				out[i] = defaultString(f, item)
 			}
 			return out
 		}
-		return selectString(value)
+		return defaultString(f, value)
 	}
 	return value
 }
@@ -75,6 +73,26 @@ func normalizeDate(value any) any {
 	case string:
 		if t, err := time.Parse(time.RFC3339, v); err == nil && t.Equal(t.Truncate(24*time.Hour)) {
 			return t.Format("2006-01-02")
+		}
+	}
+	return value
+}
+
+// defaultString converts a scalar to a string only when it echoes the YAML
+// default (e.g. `default: 2024`); other non-string values stay as sent so
+// validation rejects them.
+func defaultString(f Filter, value any) any {
+	converted := selectString(value)
+	if _, ok := converted.(string); !ok || converted == value {
+		return value
+	}
+	defaults, ok := f.Default.([]any)
+	if !ok {
+		defaults = []any{f.Default}
+	}
+	for _, d := range defaults {
+		if selectString(d) == converted {
+			return converted
 		}
 	}
 	return value
