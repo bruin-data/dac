@@ -60,6 +60,7 @@ notes:
       - { name: release, type: date }
       - { name: active, type: boolean }
       - { name: comment, type: text }
+      - { name: legacy, multiselect: true }
 rows:
   - widgets:
       - name: One
@@ -304,19 +305,6 @@ rows:
       - name: Context
         type: text
         content: Dashboard context
-`,
-		},
-		{
-			name:     "dashboard note without dimension type",
-			schemaID: DashboardV1ID,
-			yaml: `name: Notes
-notes:
-  - id: invalid
-    dimensions:
-      - { name: app }
-rows:
-  - widgets:
-      - { name: Context, type: text, content: Dashboard context }
 `,
 		},
 		{

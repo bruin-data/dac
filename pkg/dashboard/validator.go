@@ -75,10 +75,9 @@ func Validate(d *Dashboard) error {
 			}
 			dimensionNames[dimension.Name] = true
 
+			// type is optional so note definitions written before it existed keep loading.
 			validTypes := map[string]bool{"date": true, "date-range": true, "number": true, "boolean": true, "select": true, "text": true}
-			if dimension.Type == "" {
-				errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
-			} else if !validTypes[dimension.Type] {
+			if dimension.Type != "" && !validTypes[dimension.Type] {
 				errs = append(errs, fmt.Sprintf("%s: unknown type %q", prefix, dimension.Type))
 			}
 			if dimension.Multiselect && (dimension.Type == "boolean" || dimension.Type == "date-range") {
@@ -86,6 +85,7 @@ func Validate(d *Dashboard) error {
 			}
 		}
 	}
+	notes := &noteLookup{ids: noteIDs, engines: map[*sem.Model]*sem.Engine{}, errs: map[*sem.Model]error{}}
 
 	for i, row := range d.Rows {
 		if len(row.Widgets) == 0 {
@@ -103,12 +103,12 @@ func Validate(d *Dashboard) error {
 			}
 
 			if w.HasTabs() {
-				errs = append(errs, validateWidgetTabs(prefix, &w, d, noteIDs)...)
+				errs = append(errs, validateWidgetTabs(prefix, &w, d, notes)...)
 			} else {
 				errs = append(errs, validateWidgetContent(prefix, &w, d)...)
 			}
 
-			errs = append(errs, validateWidgetNotes(prefix, &w, d, noteIDs)...)
+			errs = append(errs, validateWidgetNotes(prefix, &w, d, notes)...)
 
 			if w.Col < 0 || w.Col > 12 {
 				errs = append(errs, fmt.Sprintf("%s: col must be between 1 and 12, got %d", prefix, w.Col))
@@ -211,21 +211,39 @@ func Validate(d *Dashboard) error {
 	return nil
 }
 
+// noteLookup holds the dashboard's note ids and caches one semantic engine per
+// model, so notes shared across widgets don't rebuild the engine each time.
+type noteLookup struct {
+	ids     map[string]bool
+	engines map[*sem.Model]*sem.Engine
+	errs    map[*sem.Model]error
+}
+
+func (l *noteLookup) engine(model *sem.Model, models map[string]*sem.Model) (*sem.Engine, error) {
+	if engine, ok := l.engines[model]; ok {
+		return engine, l.errs[model]
+	}
+	engine, err := sem.NewEngineWithModels(model, models)
+	l.engines[model] = engine
+	l.errs[model] = err
+	return engine, err
+}
+
 // validateWidgetNotes checks that every note a widget references exists on the
 // dashboard or on the widget's semantic model. Semantic-model notes also have
 // their dimensions resolved against the model, like semantic query dimensions.
-func validateWidgetNotes(prefix string, w *Widget, d *Dashboard, noteIDs map[string]bool) []string {
+func validateWidgetNotes(prefix string, w *Widget, d *Dashboard, notes *noteLookup) []string {
 	var errs []string
 	model := semanticModelForWidget(d, w)
 	for _, id := range w.Notes {
-		if id != "" && noteIDs[id] {
+		if id != "" && notes.ids[id] {
 			continue
 		}
 		if id == "" || !semanticModelHasNote(model, id) {
 			errs = append(errs, fmt.Sprintf("%s: note %q not found", prefix, id))
 			continue
 		}
-		engine, err := sem.NewEngineWithModels(model, d.semanticModels)
+		engine, err := notes.engine(model, d.semanticModels)
 		if err == nil {
 			err = engine.ValidateNote(id)
 		}
@@ -331,7 +349,7 @@ var tabsContainerFields = map[string]bool{
 
 // validateWidgetTabs validates a `type: tabs` container. Tabs inherit nothing:
 // each is validated as a complete widget with its own type. No nesting.
-func validateWidgetTabs(prefix string, w *Widget, d *Dashboard, noteIDs map[string]bool) []string {
+func validateWidgetTabs(prefix string, w *Widget, d *Dashboard, notes *noteLookup) []string {
 	var errs []string
 
 	if w.Type != WidgetTypeTabs {
@@ -373,7 +391,7 @@ func validateWidgetTabs(prefix string, w *Widget, d *Dashboard, noteIDs map[stri
 		tab := w.ResolvedTab(k)
 		errs = append(errs, validateWidgetContent(tabPrefix, &tab, d)...)
 		// Notes live on each tab and resolve against that tab's semantic model.
-		errs = append(errs, validateWidgetNotes(tabPrefix, &tab, d, noteIDs)...)
+		errs = append(errs, validateWidgetNotes(tabPrefix, &tab, d, notes)...)
 	}
 
 	return errs
