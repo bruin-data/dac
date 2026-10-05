@@ -8,37 +8,29 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestNoteDimensionOptionsRoundTrip(t *testing.T) {
+func TestNoteDimensionRoundTrip(t *testing.T) {
 	yamlBody := `
 notes:
   - id: rollout
     dimensions:
-      - { name: app, required: true }
-      - { name: country, multiselect: true }
+      - { name: app, type: text, required: true }
+      - { name: country, type: select, multiselect: true }
+      - { name: day, type: date }
+      - { name: window, type: date-range }
+      - { name: priority, type: number }
+      - { name: active, type: boolean }
+      - { name: comment, type: text }
 rows: []
 `
-
 	var dashboard Dashboard
 	if err := yaml.Unmarshal([]byte(yamlBody), &dashboard); err != nil {
 		t.Fatalf("unmarshal dashboard: %v", err)
 	}
-
-	dimensions := dashboard.Notes[0].Dimensions
-	if !dimensions[0].Required {
-		t.Fatal("expected app to preserve required: true")
-	}
-	if !dimensions[1].Multiselect {
-		t.Fatal("expected country to preserve multiselect: true")
-	}
-	if dimensions[1].Required {
-		t.Fatal("expected omitted required to default to false")
-	}
-
 	encoded, err := json.Marshal(dashboard.Notes[0])
 	if err != nil {
 		t.Fatalf("marshal note: %v", err)
 	}
-	want := `{"id":"rollout","dimensions":[{"name":"app","required":true},{"name":"country","multiselect":true}]}`
+	want := `{"id":"rollout","dimensions":[{"name":"app","type":"text","required":true},{"name":"country","type":"select","multiselect":true},{"name":"day","type":"date"},{"name":"window","type":"date-range"},{"name":"priority","type":"number"},{"name":"active","type":"boolean"},{"name":"comment","type":"text"}]}`
 	if string(encoded) != want {
 		t.Fatalf("unexpected note JSON:\n got: %s\nwant: %s", encoded, want)
 	}

@@ -51,8 +51,16 @@ name: Notes
 notes:
   - id: note1
     dimensions:
-      - { name: app, required: true }
-      - { name: country, multiselect: true }
+      - { name: app, type: text, required: true }
+      - { name: country, type: text, multiselect: true }
+      - { name: priority, type: number }
+      - { name: city, type: select, multiselect: true }
+      - { name: segment, type: select }
+      - { name: window, type: date-range }
+      - { name: release, type: date }
+      - { name: active, type: boolean }
+      - { name: comment, type: text }
+      - { name: legacy, multiselect: true }
 rows:
   - widgets:
       - name: One
@@ -297,6 +305,97 @@ rows:
       - name: Context
         type: text
         content: Dashboard context
+`,
+		},
+		{
+			name:     "dashboard note with empty dimension type",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: app, type: "" }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
+			name:     "dashboard note with invalid dimension type",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: region, type: dropdown }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
+			name:     "dashboard note with unsupported options",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: priority, type: select, options: { values: [p0, p1] } }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
+			name:     "dashboard note with unsupported default",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: city, type: select, default: London }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
+			name:     "dashboard note with multiselect boolean",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: active, type: boolean, multiselect: true }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
+			name:     "dashboard note with multiselect date-range",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: window, type: date-range, multiselect: true }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
+			name:     "dashboard note with unsupported multiple",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: region, type: text, multiple: true }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
 `,
 		},
 		{
