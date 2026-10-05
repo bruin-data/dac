@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	sem "github.com/bruin-data/bruin/semantic-engine"
 	"gopkg.in/yaml.v3"
 
 	"github.com/bruin-data/dac/schemas"
@@ -100,11 +101,20 @@ func LoadFile(path string) (*Dashboard, error) {
 	return loadFileWithContext(path, paths, semanticModels)
 }
 
+// LoadDefinition loads YAML/JSON with parsed semantic models.
+func LoadDefinition(data []byte, models map[string]*sem.Model) (*Dashboard, error) {
+	return loadDefinition(data, "", ProjectPaths{}, semanticModelSet{models: models})
+}
+
 func loadFileWithContext(path string, paths ProjectPaths, semanticModels semanticModelSet) (*Dashboard, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading file: %w", err)
 	}
+	return loadDefinition(data, path, paths, semanticModels)
+}
+
+func loadDefinition(data []byte, path string, paths ProjectPaths, semanticModels semanticModelSet) (*Dashboard, error) {
 	if err := schemas.ValidateYAML(schemas.DashboardV1ID, data); err != nil {
 		return nil, err
 	}

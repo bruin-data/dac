@@ -87,6 +87,7 @@ func Validate(d *Dashboard) error {
 	}
 	notes := &noteLookup{ids: noteIDs, engines: map[*sem.Model]*sem.Engine{}, errs: map[*sem.Model]error{}}
 
+	widgetIDs := map[string]bool{}
 	for i, row := range d.Rows {
 		if len(row.Widgets) == 0 {
 			errs = append(errs, fmt.Sprintf("row %d: at least one widget is required", i+1))
@@ -96,6 +97,12 @@ func Validate(d *Dashboard) error {
 		totalCols := 0
 		for j, w := range row.Widgets {
 			prefix := fmt.Sprintf("row %d, widget %d (%q)", i+1, j+1, w.Name)
+			if w.ID != "" {
+				if widgetIDs[w.ID] {
+					errs = append(errs, fmt.Sprintf("%s: duplicate widget id %q", prefix, w.ID))
+				}
+				widgetIDs[w.ID] = true
+			}
 
 			// A tabbed widget's tab bar labels it, so its own name is optional.
 			if w.Name == "" && !w.HasTabs() {
@@ -378,7 +385,7 @@ func validateWidgetTabs(prefix string, w *Widget, d *Dashboard, notes *noteLooku
 	for k := range w.Tabs {
 		tabPrefix := fmt.Sprintf("%s, tab %d (%q)", prefix, k+1, w.Tabs[k].Name)
 		name := w.Tabs[k].Name
-		if name == "" {
+		if strings.TrimSpace(name) == "" {
 			errs = append(errs, fmt.Sprintf("%s, tab %d: name is required", prefix, k+1))
 		} else if seen[name] {
 			errs = append(errs, fmt.Sprintf("%s: duplicate tab name %q — tab names must be unique within a widget", prefix, name))

@@ -34,7 +34,7 @@ dac validate --with-database
 - **Dashboard**: `name` is required, at least one row
 - **Schemas**: YAML dashboards, semantic models, and themes match the v1 Bruin schema for their file type; explicit `schema` values must be v1
 - **Rows**: at least one widget per row
-- **Widgets**: `type` and `name` are required
+- **Widgets**: `type` and `name` are required; non-empty widget IDs are unique across rows
 - **Grid**: column spans are 1-12, row totals don't exceed 12
 - **Query references**: named queries referenced by widgets exist in the `queries` map
 - **Filter types**: must be `select`, `date-range`, `date`, `number`, or `text`
