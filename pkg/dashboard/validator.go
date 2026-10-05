@@ -64,14 +64,26 @@ func Validate(d *Dashboard) error {
 
 		dimensionNames := make(map[string]bool, len(n.Dimensions))
 		for j, dimension := range n.Dimensions {
+			prefix := fmt.Sprintf("note %q dimension %d", n.ID, j+1)
 			if dimension.Name == "" {
-				errs = append(errs, fmt.Sprintf("note %q dimension %d: name is required", n.ID, j+1))
+				errs = append(errs, fmt.Sprintf("%s: name is required", prefix))
 				continue
 			}
+			prefix = fmt.Sprintf("note %q dimension %q", n.ID, dimension.Name)
 			if dimensionNames[dimension.Name] {
 				errs = append(errs, fmt.Sprintf("note %q: duplicate dimension %q", n.ID, dimension.Name))
 			}
 			dimensionNames[dimension.Name] = true
+
+			validTypes := map[string]bool{"date": true, "date-range": true, "number": true, "boolean": true, "select": true, "text": true}
+			if dimension.Type == "" {
+				errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
+			} else if !validTypes[dimension.Type] {
+				errs = append(errs, fmt.Sprintf("%s: unknown type %q", prefix, dimension.Type))
+			}
+			if dimension.Multiselect && (dimension.Type == "boolean" || dimension.Type == "date-range") {
+				errs = append(errs, fmt.Sprintf("%s: multiselect is not supported for type %s", prefix, dimension.Type))
+			}
 		}
 	}
 
@@ -96,12 +108,7 @@ func Validate(d *Dashboard) error {
 				errs = append(errs, validateWidgetContent(prefix, &w, d)...)
 			}
 
-			semanticNoteIDs := semanticNoteIDsForWidget(d, &w)
-			for _, id := range w.Notes {
-				if id == "" || (!noteIDs[id] && !semanticNoteIDs[id]) {
-					errs = append(errs, fmt.Sprintf("%s: note %q not found", prefix, id))
-				}
-			}
+			errs = append(errs, validateWidgetNotes(prefix, &w, d, noteIDs)...)
 
 			if w.Col < 0 || w.Col > 12 {
 				errs = append(errs, fmt.Sprintf("%s: col must be between 1 and 12, got %d", prefix, w.Col))
@@ -158,6 +165,29 @@ func Validate(d *Dashboard) error {
 			errs = append(errs, err.Error())
 		}
 	}
+	for _, note := range d.Notes {
+		for _, dimension := range note.Dimensions {
+			if dimension.Type != "select" || dimension.Name == "" {
+				continue // A missing name is reported with the note's other checks.
+			}
+			prefix := fmt.Sprintf("note %q dimension %q", note.ID, dimension.Name)
+			if strings.TrimSpace(d.Model) == "" {
+				errs = append(errs, fmt.Sprintf("%s: select requires a dashboard semantic model", prefix))
+				continue
+			}
+			model, modelName, err := d.ResolveSemanticModel(d.Model)
+			if err != nil || model == nil {
+				continue // The model resolution error is reported above.
+			}
+			if err := validateSemanticJob(&SemanticJob{
+				Model:  model,
+				Query:  sem.Query{Dimensions: []sem.DimensionRef{{Name: dimension.Name}}},
+				Models: d.semanticModels,
+			}); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: semantic model %q: %v", prefix, modelName, err))
+			}
+		}
+	}
 	for alias, modelName := range d.Models {
 		if _, _, err := d.ResolveSemanticModel(alias); err != nil {
 			errs = append(errs, fmt.Sprintf("models %q: %v", alias, err))
@@ -181,21 +211,53 @@ func Validate(d *Dashboard) error {
 	return nil
 }
 
-func semanticNoteIDsForWidget(d *Dashboard, w *Widget) map[string]bool {
+// validateWidgetNotes checks that every note a widget references exists on the
+// dashboard or on the widget's semantic model. Semantic-model notes also have
+// their dimensions resolved against the model, like semantic query dimensions.
+func validateWidgetNotes(prefix string, w *Widget, d *Dashboard, noteIDs map[string]bool) []string {
+	var errs []string
+	model := semanticModelForWidget(d, w)
+	for _, id := range w.Notes {
+		if id != "" && noteIDs[id] {
+			continue
+		}
+		if id == "" || !semanticModelHasNote(model, id) {
+			errs = append(errs, fmt.Sprintf("%s: note %q not found", prefix, id))
+			continue
+		}
+		engine, err := sem.NewEngineWithModels(model, d.semanticModels)
+		if err == nil {
+			err = engine.ValidateNote(id)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: semantic model %q: %v", prefix, model.Name, err))
+		}
+	}
+	return errs
+}
+
+func semanticModelForWidget(d *Dashboard, w *Widget) *sem.Model {
 	ref := w.Model
 	if query, ok := d.Queries[w.QueryRef]; w.QueryRef != "" && ok && query.IsSemantic() {
 		ref = query.Model
 	}
 	model, _, err := d.ResolveSemanticModel(ref)
-	if err != nil || model == nil {
+	if err != nil {
 		return nil
 	}
+	return model
+}
 
-	ids := make(map[string]bool, len(model.Notes))
-	for _, note := range model.Notes {
-		ids[note.ID] = true
+func semanticModelHasNote(model *sem.Model, id string) bool {
+	if model == nil {
+		return false
 	}
-	return ids
+	for _, note := range model.Notes {
+		if note.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // validateWidgetContent validates a widget's type-specific fields, spec, inline
@@ -311,12 +373,7 @@ func validateWidgetTabs(prefix string, w *Widget, d *Dashboard, noteIDs map[stri
 		tab := w.ResolvedTab(k)
 		errs = append(errs, validateWidgetContent(tabPrefix, &tab, d)...)
 		// Notes live on each tab and resolve against that tab's semantic model.
-		semanticNoteIDs := semanticNoteIDsForWidget(d, &tab)
-		for _, id := range tab.Notes {
-			if id == "" || (!noteIDs[id] && !semanticNoteIDs[id]) {
-				errs = append(errs, fmt.Sprintf("%s: note %q not found", tabPrefix, id))
-			}
-		}
+		errs = append(errs, validateWidgetNotes(tabPrefix, &tab, d, noteIDs)...)
 	}
 
 	return errs

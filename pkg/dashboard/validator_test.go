@@ -45,15 +45,62 @@ func TestValidate_Notes(t *testing.T) {
 		}
 	}
 
-	// Valid: widget references an existing note.
+	// Non-select dimensions do not require a semantic model.
 	err := Validate(base([]Note{{ID: "note1", Dimensions: []NoteDimension{
-		{Name: "app", Required: true},
-		{Name: "country", Multiselect: true},
+		{Name: "app", Type: "text", Required: true},
+		{Name: "country", Type: "text", Multiselect: true},
+		{Name: "active", Type: "boolean"},
+		{Name: "window", Type: "date-range"},
+		{Name: "day", Type: "date", Multiselect: true},
+		{Name: "count", Type: "number", Multiselect: true},
+		{Name: "comment", Type: "text", Multiselect: true},
 	}}}, []string{"note1"}))
 	assertNoErr(t, err)
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x"}}}}, nil))
+	assertValidationContains(t, err, `note "n" dimension "x": type is required`)
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "unknown"}}}}, nil))
+	assertValidationContains(t, err, `note "n" dimension "x": unknown type "unknown"`)
+	for _, typ := range []string{"boolean", "date-range"} {
+		err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: typ, Multiselect: true}}}}, nil))
+		assertValidationContains(t, err, "multiselect is not supported for type "+typ)
+	}
+
+	// Dashboard select dimensions use the dashboard model, including aliases,
+	// rather than an individual widget's model.
+	selectDashboard := base([]Note{{ID: "n", Dimensions: []NoteDimension{
+		{Name: "region", Type: "select", Required: true, Multiselect: true},
+	}}}, []string{"n"})
+	selectDashboard.Rows[0].Widgets[0].Model = "marketing"
+	selectDashboard.SetProjectContext("", map[string]*sem.Model{
+		"sales": {
+			Name:       "sales",
+			Source:     sem.Source{Table: "public.sales"},
+			Dimensions: []sem.Dimension{{Name: "region", Type: "string"}},
+			Joins:      []sem.Join{{Name: "customers", Relationship: "many_to_one", ForeignKey: "customer_id"}},
+		},
+		"customers": {
+			Name:       "customers",
+			Source:     sem.Source{Table: "public.customers"},
+			PrimaryKey: "customer_id",
+			Dimensions: []sem.Dimension{{Name: "country", Type: "string"}},
+		},
+		"marketing": {Name: "marketing"},
+	}, nil)
+	assertValidationContains(t, Validate(selectDashboard), "select requires a dashboard semantic model")
+	selectDashboard.Model = "primary"
+	selectDashboard.Models = map[string]string{"primary": "sales"}
+	assertNoErr(t, Validate(selectDashboard))
+	selectDashboard.Notes[0].Dimensions[0].Name = "customers.country"
+	assertNoErr(t, Validate(selectDashboard))
+	selectDashboard.Notes[0].Dimensions[0].Name = "country"
+	assertNoErr(t, Validate(selectDashboard))
+	selectDashboard.Notes[0].Dimensions[0].Name = "missing"
+	assertValidationContains(t, Validate(selectDashboard), `semantic model "sales": dimension not found: missing`)
+	selectDashboard.Model = "unknown"
+	assertValidationContains(t, Validate(selectDashboard), `semantic model "unknown" not found`)
 
 	// Missing id.
-	err = Validate(base([]Note{{Dimensions: []NoteDimension{{Name: "app"}}}}, nil))
+	err = Validate(base([]Note{{Dimensions: []NoteDimension{{Name: "app", Type: "text"}}}}, nil))
 	assertValidationContains(t, err, "note 1: id is required")
 
 	// dimensions is required, but an empty list is valid.
@@ -67,7 +114,7 @@ func TestValidate_Notes(t *testing.T) {
 	assertValidationContains(t, err, "note \"n\": duplicate id")
 
 	// Missing and duplicate dimension names.
-	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "app"}, {Name: "app"}, {}}}}, nil))
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "app", Type: "text"}, {Name: "app", Type: "text"}, {Type: "text"}}}}, nil))
 	assertValidationContains(t, err, "note \"n\": duplicate dimension \"app\"")
 	assertValidationContains(t, err, "note \"n\" dimension 3: name is required")
 
@@ -80,8 +127,9 @@ func TestValidate_Notes(t *testing.T) {
 	d.Model = "sales"
 	d.SetProjectContext("", map[string]*sem.Model{
 		"sales": {
-			Name:  "sales",
-			Notes: []sem.Note{{ID: "semantic_note"}},
+			Name:   "sales",
+			Source: sem.Source{Table: "sales"},
+			Notes:  []sem.Note{{ID: "semantic_note", Dimensions: []sem.NoteDimension{}}},
 		},
 	}, nil)
 	err = Validate(d)
@@ -147,6 +195,40 @@ func TestValidate_Notes(t *testing.T) {
 	d.Rows[0].Widgets[0].Notes = []string{""}
 	err = Validate(d)
 	assertValidationContains(t, err, "note \"\" not found")
+}
+
+func TestValidate_SemanticNoteDimensionsResolveLikeQueryDimensions(t *testing.T) {
+	orders := &sem.Model{
+		Name:       "orders",
+		Source:     sem.Source{Table: "orders"},
+		Joins:      []sem.Join{{Name: "customers", Relationship: "many_to_one", ForeignKey: "customer_id"}},
+		Dimensions: []sem.Dimension{{Name: "status", Type: "string"}},
+		Notes: []sem.Note{
+			{ID: "joined", Dimensions: []sem.NoteDimension{{Name: "customers.region", Type: "select"}, {Name: "status", Type: "select"}}},
+			{ID: "broken", Dimensions: []sem.NoteDimension{{Name: "customers.segment", Type: "select"}}},
+		},
+	}
+	customers := &sem.Model{
+		Name:       "customers",
+		Source:     sem.Source{Table: "customers"},
+		PrimaryKey: "customer_id",
+		Dimensions: []sem.Dimension{{Name: "region", Type: "string"}},
+	}
+
+	d := dashboardWith(Widget{Name: "w", Type: WidgetTypeText, Content: "x", Model: "orders", Notes: []string{"joined"}})
+	d.SetProjectContext("", map[string]*sem.Model{"orders": orders, "customers": customers}, nil)
+	assertNoErr(t, Validate(d))
+
+	d.Rows[0].Widgets[0].Notes = []string{"broken"}
+	assertValidationContains(t, Validate(d), `row 1, widget 1 ("w"): semantic model "orders": note "broken": dimension not found: customers.segment`)
+
+	// Tabs validate the semantic notes they reference too.
+	d = dashboardWith(Widget{
+		Type: WidgetTypeTabs,
+		Tabs: []Widget{{Name: "Orders", Type: WidgetTypeText, Content: "x", Model: "orders", Notes: []string{"broken"}}},
+	})
+	d.SetProjectContext("", map[string]*sem.Model{"orders": orders, "customers": customers}, nil)
+	assertValidationContains(t, Validate(d), `tab 1 ("Orders"): semantic model "orders": note "broken": dimension not found: customers.segment`)
 }
 
 // ---------------------------------------------------------------------------
@@ -1263,7 +1345,7 @@ func TestValidate_WidgetTabs_TabNotesUseTabModel(t *testing.T) {
 	d.Model = "sales"
 	d.SetProjectContext("", map[string]*sem.Model{
 		"sales":  {Name: "sales"},
-		"orders": {Name: "orders", Notes: []sem.Note{{ID: "launch"}}},
+		"orders": {Name: "orders", Source: sem.Source{Table: "orders"}, Notes: []sem.Note{{ID: "launch", Dimensions: []sem.NoteDimension{}}}},
 	}, nil)
 	assertNoErr(t, Validate(d))
 
