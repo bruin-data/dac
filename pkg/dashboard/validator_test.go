@@ -34,6 +34,39 @@ func TestValidate_ValidDashboard(t *testing.T) {
 	assertValidationContains(t, err, "note \"\" not found")
 }
 
+func TestValidate_WidgetIDs(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		ids  []string
+		bad  bool
+	}{
+		{"distinct", []string{"one", "two"}, false},
+		{"case sensitive", []string{"one", "One"}, false},
+		{"absent", []string{"", ""}, false},
+		{"duplicate", []string{"shared", "shared"}, true},
+		{"zero", []string{"0", "0"}, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for _, separateRows := range []bool{false, true} {
+				d := &Dashboard{Name: "test", Rows: []Row{{}}}
+				for i, id := range test.ids {
+					if separateRows && i > 0 {
+						d.Rows = append(d.Rows, Row{})
+					}
+					row := &d.Rows[len(d.Rows)-1]
+					row.Widgets = append(row.Widgets, Widget{ID: id, Name: "Context", Type: WidgetTypeText, Content: "x"})
+				}
+				err := Validate(d)
+				if test.bad {
+					assertValidationContains(t, err, "duplicate widget id")
+				} else {
+					assertNoErr(t, err)
+				}
+			}
+		})
+	}
+}
+
 func TestValidate_Notes(t *testing.T) {
 	base := func(notes []Note, refs []string) *Dashboard {
 		return &Dashboard{
@@ -313,11 +346,13 @@ func TestValidate_WidgetTabs_RequiresTypeTabs(t *testing.T) {
 }
 
 func TestValidate_WidgetTabs_TabMissingName(t *testing.T) {
-	w := tabbedChartWidget()
-	w.Tabs[0].Name = ""
-	err := Validate(dashboardWith(w))
-	assertErr(t, err)
-	assertValidationContains(t, err, "tab 1: name is required")
+	for _, name := range []string{"", " \t "} {
+		w := tabbedChartWidget()
+		w.Tabs[0].Name = name
+		err := Validate(dashboardWith(w))
+		assertErr(t, err)
+		assertValidationContains(t, err, "tab 1: name is required")
+	}
 }
 
 func TestValidate_WidgetTabs_NestedRejected(t *testing.T) {

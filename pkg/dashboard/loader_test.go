@@ -1,11 +1,64 @@
 package dashboard
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	sem "github.com/bruin-data/bruin/semantic-engine"
 )
+
+func TestLoadDefinition_SemanticContextAndEncodings(t *testing.T) {
+	model := &sem.Model{
+		Name: "sales", Source: sem.Source{Table: "sales"},
+		Dimensions: []sem.Dimension{{Name: "region", Type: "string"}},
+		Metrics:    []sem.Metric{{Name: "revenue", Expression: "SUM(amount)"}},
+	}
+	data := []byte(`
+name: Sales
+model: s
+models: {s: sales}
+notes:
+  - id: rollout
+    dimensions: [{name: region, type: select}]
+queries:
+  totals: {dimensions: [{name: region}], metrics: [revenue]}
+rows:
+  - widgets:
+      - {name: Revenue, type: chart, chart: bar, query: totals, notes: [rollout]}
+`)
+	d, err := LoadDefinition(data, map[string]*sem.Model{"sales": model})
+	assertNoErr(t, err)
+	assertNoErr(t, Validate(d))
+	if d.FilePath != "" || d.Schema == "" {
+		t.Fatalf("unexpected metadata: path=%q schema=%q", d.FilePath, d.Schema)
+	}
+	w := d.Rows[0].Widgets[0]
+	if w.XField() != "region" || strings.Join(w.YFields(), ",") != "revenue" {
+		t.Fatalf("semantic encodings were not derived: %+v", w)
+	}
+	_, err = LoadDefinition([]byte(`{"name":"Broken"}`), nil)
+	assertErr(t, err)
+	withoutModels, err := LoadDefinition(data, nil)
+	assertNoErr(t, err)
+	assertErr(t, Validate(withoutModels))
+}
+
+func TestLoadDefinition_MatchesFileLoading(t *testing.T) {
+	for _, path := range []string{"../../testdata/dashboards/sales.yml"} {
+		data, err := os.ReadFile(path)
+		assertNoErr(t, err)
+		file, err := LoadFile(path)
+		assertNoErr(t, err)
+		memory, err := LoadDefinition(data, nil)
+		assertNoErr(t, err)
+		if fmt.Sprint(Validate(file)) != fmt.Sprint(Validate(memory)) {
+			t.Fatalf("validation differs for %s", path)
+		}
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Loader tests
