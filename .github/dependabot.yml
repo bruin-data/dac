@@ -1,0 +1,28 @@
+version: 2
+
+# The required schedules do not delay security updates. Keep routine version
+# update PRs disabled; these groups only consolidate security-fix PRs, not alerts.
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      go-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/frontend"
+      - "/docs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
