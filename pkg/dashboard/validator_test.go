@@ -89,8 +89,9 @@ func TestValidate_Notes(t *testing.T) {
 		{Name: "comment", Type: "text", Multiselect: true},
 	}}}, []string{"note1"}))
 	assertNoErr(t, err)
-	// Untyped dimensions from before type existed still validate.
-	assertNoErr(t, Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Multiselect: true}}}}, nil)))
+	// An untyped dimension is a select, so it needs a dashboard model.
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Multiselect: true}}}}, nil))
+	assertValidationContains(t, err, `note "n" dimension "x": select requires a dashboard semantic model`)
 	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "unknown"}}}}, nil))
 	assertValidationContains(t, err, `note "n" dimension "x": unknown type "unknown"`)
 	for _, typ := range []string{"boolean", "date-range"} {
@@ -129,6 +130,10 @@ func TestValidate_Notes(t *testing.T) {
 	assertNoErr(t, Validate(selectDashboard))
 	selectDashboard.Notes[0].Dimensions[0].Name = "missing"
 	assertValidationContains(t, Validate(selectDashboard), `semantic model "sales": dimension not found: missing`)
+	selectDashboard.Notes[0].Dimensions[0].Type = ""
+	assertValidationContains(t, Validate(selectDashboard), `semantic model "sales": dimension not found: missing`)
+	selectDashboard.Notes[0].Dimensions[0].Name = "region"
+	assertNoErr(t, Validate(selectDashboard))
 	selectDashboard.Model = "unknown"
 	assertValidationContains(t, Validate(selectDashboard), `semantic model "unknown" not found`)
 
