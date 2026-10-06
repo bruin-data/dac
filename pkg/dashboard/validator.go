@@ -75,7 +75,7 @@ func Validate(d *Dashboard) error {
 			}
 			dimensionNames[dimension.Name] = true
 
-			// type is optional so note definitions written before it existed keep loading.
+			// type is optional and defaults to select.
 			validTypes := map[string]bool{"date": true, "date-range": true, "number": true, "boolean": true, "select": true, "text": true}
 			if dimension.Type != "" && !validTypes[dimension.Type] {
 				errs = append(errs, fmt.Sprintf("%s: unknown type %q", prefix, dimension.Type))
@@ -174,7 +174,7 @@ func Validate(d *Dashboard) error {
 	}
 	for _, note := range d.Notes {
 		for _, dimension := range note.Dimensions {
-			if dimension.Type != "select" || dimension.Name == "" {
+			if (dimension.Type != "" && dimension.Type != "select") || dimension.Name == "" {
 				continue // A missing name is reported with the note's other checks.
 			}
 			prefix := fmt.Sprintf("note %q dimension %q", note.ID, dimension.Name)
