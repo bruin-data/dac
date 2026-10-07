@@ -56,7 +56,6 @@ notes:
       - { name: priority, type: number }
       - { name: city, type: select, multiselect: true }
       - { name: segment, type: select }
-      - { name: window, type: date-range }
       - { name: release, type: date }
       - { name: active, type: boolean }
       - { name: comment, type: text }
@@ -334,6 +333,19 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard note with date-range dimension type",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: window, type: date-range }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
 			name:     "dashboard note with unsupported options",
 			schemaID: DashboardV1ID,
 			yaml: `name: Notes
@@ -367,19 +379,6 @@ notes:
   - id: invalid
     dimensions:
       - { name: active, type: boolean, multiselect: true }
-rows:
-  - widgets:
-      - { name: Context, type: text, content: Dashboard context }
-`,
-		},
-		{
-			name:     "dashboard note with multiselect date-range",
-			schemaID: DashboardV1ID,
-			yaml: `name: Notes
-notes:
-  - id: invalid
-    dimensions:
-      - { name: window, type: date-range, multiselect: true }
 rows:
   - widgets:
       - { name: Context, type: text, content: Dashboard context }

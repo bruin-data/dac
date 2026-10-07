@@ -83,7 +83,6 @@ func TestValidate_Notes(t *testing.T) {
 		{Name: "app", Type: "text", Required: true},
 		{Name: "country", Type: "text", Multiselect: true},
 		{Name: "active", Type: "boolean"},
-		{Name: "window", Type: "date-range"},
 		{Name: "day", Type: "date", Multiselect: true},
 		{Name: "count", Type: "number", Multiselect: true},
 		{Name: "comment", Type: "text", Multiselect: true},
@@ -94,10 +93,10 @@ func TestValidate_Notes(t *testing.T) {
 	assertValidationContains(t, err, `note "n" dimension "x": select requires a dashboard semantic model`)
 	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "unknown"}}}}, nil))
 	assertValidationContains(t, err, `note "n" dimension "x": unknown type "unknown"`)
-	for _, typ := range []string{"boolean", "date-range"} {
-		err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: typ, Multiselect: true}}}}, nil))
-		assertValidationContains(t, err, "multiselect is not supported for type "+typ)
-	}
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "date-range"}}}}, nil))
+	assertValidationContains(t, err, `note "n" dimension "x": unknown type "date-range"`)
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "boolean", Multiselect: true}}}}, nil))
+	assertValidationContains(t, err, "multiselect is not supported for type boolean")
 
 	// Dashboard select dimensions use the dashboard model, including aliases,
 	// rather than an individual widget's model.
