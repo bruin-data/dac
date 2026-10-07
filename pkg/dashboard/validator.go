@@ -76,11 +76,11 @@ func Validate(d *Dashboard) error {
 			dimensionNames[dimension.Name] = true
 
 			// type is optional and defaults to select.
-			validTypes := map[string]bool{"date": true, "date-range": true, "number": true, "boolean": true, "select": true, "text": true}
+			validTypes := map[string]bool{"date": true, "number": true, "boolean": true, "select": true, "text": true}
 			if dimension.Type != "" && !validTypes[dimension.Type] {
 				errs = append(errs, fmt.Sprintf("%s: unknown type %q", prefix, dimension.Type))
 			}
-			if dimension.Multiselect && (dimension.Type == "boolean" || dimension.Type == "date-range") {
+			if dimension.Multiselect && dimension.Type == "boolean" {
 				errs = append(errs, fmt.Sprintf("%s: multiselect is not supported for type %s", prefix, dimension.Type))
 			}
 		}

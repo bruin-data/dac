@@ -628,7 +628,7 @@
           "minLength": 1
         },
         "type": {
-          "enum": ["select", "date-range", "date", "number", "boolean", "text"],
+          "enum": ["select", "date", "number", "boolean", "text"],
           "default": "select"
         },
         "required": {
@@ -644,7 +644,7 @@
       },
       "if": {
         "required": ["type"],
-        "properties": { "type": { "enum": ["boolean", "date-range"] } }
+        "properties": { "type": { "const": "boolean" } }
       },
       "then": {
         "properties": { "multiselect": { "const": false } }

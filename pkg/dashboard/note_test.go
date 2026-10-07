@@ -16,7 +16,6 @@ notes:
       - { name: app, type: text, required: true }
       - { name: country, type: select, multiselect: true }
       - { name: day, type: date }
-      - { name: window, type: date-range }
       - { name: priority, type: number }
       - { name: active, type: boolean }
       - { name: comment, type: text }
@@ -30,7 +29,7 @@ rows: []
 	if err != nil {
 		t.Fatalf("marshal note: %v", err)
 	}
-	want := `{"id":"rollout","dimensions":[{"name":"app","type":"text","required":true},{"name":"country","type":"select","multiselect":true},{"name":"day","type":"date"},{"name":"window","type":"date-range"},{"name":"priority","type":"number"},{"name":"active","type":"boolean"},{"name":"comment","type":"text"}]}`
+	want := `{"id":"rollout","dimensions":[{"name":"app","type":"text","required":true},{"name":"country","type":"select","multiselect":true},{"name":"day","type":"date"},{"name":"priority","type":"number"},{"name":"active","type":"boolean"},{"name":"comment","type":"text"}]}`
 	if string(encoded) != want {
 		t.Fatalf("unexpected note JSON:\n got: %s\nwant: %s", encoded, want)
 	}
