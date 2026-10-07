@@ -333,6 +333,19 @@ rows:
 `,
 		},
 		{
+			name:     "dashboard note with date-range dimension type",
+			schemaID: DashboardV1ID,
+			yaml: `name: Notes
+notes:
+  - id: invalid
+    dimensions:
+      - { name: window, type: date-range }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
 			name:     "dashboard note with unsupported options",
 			schemaID: DashboardV1ID,
 			yaml: `name: Notes
