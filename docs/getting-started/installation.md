@@ -55,6 +55,17 @@ make build
 
 The binary is output under the repository `bin/` directory. Add that directory to your `PATH` if you want to run it as `dac`.
 
+### Dependency Security
+
+The dashboard frontend and documentation site have separate npm lockfiles. When updating dependencies to address security advisories, commit the affected `package-lock.json` files and audit both dependency trees:
+
+```shell
+npm audit --prefix frontend --package-lock-only
+npm audit --prefix docs --package-lock-only
+```
+
+After updating the frontend lockfile, run `make deps`, `make format`, `make test`, and `make build` to verify the dependencies and rebuilt binary. Frontend dependency updates use `--legacy-peer-deps`, matching the installation in `make deps`.
+
 ## Verify Installation
 
 ```shell
