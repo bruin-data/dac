@@ -423,6 +423,12 @@ interface Option {
   value: string;
 }
 
+/** Keep selected values that aren't in the loaded options visible in the menu. */
+function withSelected(options: Option[], selected: Option[]): Option[] {
+  const missing = selected.filter((s) => !options.some((o) => o.value === s.value));
+  return missing.length ? [...missing, ...options] : options;
+}
+
 function SingleSelectFilter({
   filter,
   value,
@@ -437,8 +443,9 @@ function SingleSelectFilter({
   const options: Option[] = (filter.options?.values ?? []).map((v) => ({ label: v, value: v }));
   const current = value ?? filter.default;
   const selected = current != null && current !== ""
-    ? options.find((o) => o.value === String(current)) ?? null
+    ? options.find((o) => o.value === String(current)) ?? { label: String(current), value: String(current) }
     : null;
+  const menuOptions = withSelected(options, selected ? [selected] : []);
   const inputId = `select-${filter.name}`;
 
   return (
@@ -452,9 +459,13 @@ function SingleSelectFilter({
       <Select<Option, false>
         inputId={inputId}
         aria-label={label}
-        options={options}
+        isLoading={filter.options?.isLoading}
+        aria-invalid={!!filter.options?.error}
+        noOptionsMessage={() => filter.options?.error ? "Unable to load options" : "No options"}
+        options={menuOptions}
         value={selected}
         onChange={(opt) => onChange(opt ? opt.value : "")}
+        isClearable={!!filter.options?.query}
         placeholder="Select..."
         isSearchable
         menuPortalTarget={popoverPortalTarget() as HTMLElement}
@@ -463,6 +474,11 @@ function SingleSelectFilter({
         classNames={selectClassNames}
         styles={selectStyles}
       />
+      {filter.options?.error && (
+        <span role="alert" title={filter.options.error} className="text-[11px] text-[var(--dac-error)]">
+          Unable to load options
+        </span>
+      )}
     </div>
   );
 }
@@ -480,8 +496,9 @@ function MultiSelectFilter({
 }) {
   const options: Option[] = (filter.options?.values ?? []).map((v) => ({ label: v, value: v }));
   const selected = Array.isArray(value)
-    ? options.filter((o) => (value as string[]).includes(o.value))
+    ? value.map((v) => options.find((o) => o.value === String(v)) ?? { label: String(v), value: String(v) })
     : [];
+  const menuOptions = withSelected(options, selected);
   const inputId = `multi-${filter.name}`;
 
   return (
@@ -495,9 +512,12 @@ function MultiSelectFilter({
       <Select<Option, true>
         inputId={inputId}
         aria-label={label}
+        isLoading={filter.options?.isLoading}
+        aria-invalid={!!filter.options?.error}
+        noOptionsMessage={() => filter.options?.error ? "Unable to load options" : "No options"}
         isMulti
         isSearchable
-        options={options}
+        options={menuOptions}
         value={selected}
         onChange={(opts) => onChange(opts.map((o) => o.value))}
         placeholder="All"
@@ -511,6 +531,11 @@ function MultiSelectFilter({
         classNames={selectClassNames}
         styles={selectStyles}
       />
+      {filter.options?.error && (
+        <span role="alert" title={filter.options.error} className="text-[11px] text-[var(--dac-error)]">
+          Unable to load options
+        </span>
+      )}
     </div>
   );
 }

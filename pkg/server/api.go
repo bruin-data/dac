@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/bruin-data/dac/pkg/dashboard"
@@ -99,6 +100,62 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, d)
+}
+
+// ResolveFilterOptions populates query-driven select options on a loaded
+// dashboard using normalized, validated filter values. The definition is not modified on disk.
+func ResolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboard.Dashboard, filters map[string]any) error {
+	for i := range d.Filters {
+		filter := &d.Filters[i]
+		if filter.Type != "select" || filter.Options == nil || filter.Options.Query == "" || len(filter.Options.Values) > 0 {
+			continue
+		}
+
+		connection := filter.Options.Connection
+		if connection == "" {
+			connection = d.Connection
+		}
+
+		sql, err := tmpl.RenderSQL(filter.Options.Query, filters)
+		if err != nil {
+			return fmt.Errorf("resolving options for filter %q: %w", filter.Name, err)
+		}
+		result, err := backend.Execute(ctx, connection, sql)
+		if err != nil {
+			return fmt.Errorf("resolving options for filter %q: %w", filter.Name, err)
+		}
+		if result == nil {
+			return fmt.Errorf("resolving options for filter %q: query returned no result", filter.Name)
+		}
+
+		values := make([]string, 0, len(result.Rows))
+		seen := make(map[string]bool)
+		for _, row := range result.Rows {
+			if len(row) == 0 || row[0] == nil {
+				continue
+			}
+			var value string
+			switch v := row[0].(type) {
+			case string:
+				value = v
+			case float64:
+				value = strconv.FormatFloat(v, 'f', -1, 64)
+			case bool, int, int64, uint64:
+				value = fmt.Sprint(v)
+			default:
+				return fmt.Errorf("resolving options for filter %q: query must return scalar values in its first column", filter.Name)
+			}
+			if tmpl.ValidateSQLValue(value) != nil {
+				continue
+			}
+			if !seen[value] {
+				seen[value] = true
+				values = append(values, value)
+			}
+		}
+		filter.Options.Values = values
+	}
+	return nil
 }
 
 func (s *Server) handleGetDashboardRaw(w http.ResponseWriter, r *http.Request) {

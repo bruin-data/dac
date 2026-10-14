@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useDashboard } from "../hooks/useDashboard";
+import { useFilterOptions } from "../hooks/useFilterOptions";
 import { useWidgetQuery } from "../hooks/useWidgetQuery";
 import { useTemplate } from "../themes/TemplateProvider";
 import { resolvePreset } from "../themes/bruin/FilterBar";
@@ -220,6 +221,7 @@ export function DashboardView() {
 
   const [filters, setFilters] = useState<Record<string, unknown> | null>(null);
   const activeFilters = filters ?? baseFilters;
+  const allFilters = useFilterOptions(dashboard, activeFilters ?? undefined);
 
   // Last query string, so the reseed effect can skip our own writes.
   const lastSelfWrite = useRef<string | null>(null);
@@ -363,7 +365,6 @@ export function DashboardView() {
 
   // Filters with no `tab` (or an unmatched one — the validator rejects those) go
   // in the global bar; a tab-scoped filter shows only on its tab.
-  const allFilters = dashboard.filters ?? [];
   const globalFilters = allFilters.filter((f) => !f.tab || !tabNames.includes(f.tab));
   const tabFilters = currentTab ? allFilters.filter((f) => f.tab === currentTab) : [];
 

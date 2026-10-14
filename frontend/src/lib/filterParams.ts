@@ -38,8 +38,10 @@ export function fromParam(filter: Filter, raw: string): unknown {
     }
     case "select": {
       // Single-select only; multi-select is read from repeated params in
-      // DashboardView. Only accept a value the filter actually offers.
+      // DashboardView. Non-empty static values take precedence; query-driven
+      // filters preserve shared-link values while options load independently.
       const allowed = filter.options?.values;
+      if (filter.options?.query && !allowed?.length) return raw;
       return !allowed || allowed.includes(raw) ? raw : undefined;
     }
     default:
@@ -57,8 +59,9 @@ export function toParam(filter: Filter, value: unknown): string | null {
   return String(value);
 }
 
-/** Keep only multi-select values the filter offers (empty option list = accept as-is). */
+/** Static values take precedence; live query options load independently. */
 export function keepAllowedValues(filter: Filter, vals: string[]): string[] {
   const allowed = filter.options?.values;
+  if (filter.options?.query && !allowed?.length) return vals;
   return allowed ? vals.filter((v) => allowed.includes(v)) : vals;
 }

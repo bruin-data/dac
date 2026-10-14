@@ -12,12 +12,16 @@ func TestValidateFilterValues(t *testing.T) {
 		{Name: "number", Type: "number"}, {Name: "text", Type: "text"},
 		{Name: "select", Type: "select", Options: &FilterOptions{Values: []string{"US", "EU"}}},
 		{Name: "dynamic", Type: "select", Options: &FilterOptions{Query: "SELECT region FROM regions"}},
+		{Name: "dynamic_empty", Type: "select", Options: &FilterOptions{Values: []string{}, Query: "SELECT region FROM regions"}},
+		{Name: "mixed", Type: "select", Options: &FilterOptions{Values: []string{"All"}, Query: "SELECT region FROM regions"}},
+		{Name: "mixed_multi", Type: "select", Multiple: true, Options: &FilterOptions{Values: []string{"All"}, Query: "SELECT region FROM regions"}},
 		{Name: "multi", Type: "select", Multiple: true, Options: &FilterOptions{Values: []string{"US", "EU"}}},
 	}}
 	valid := []map[string]any{
 		{}, {"date": "2024-02-29"}, {"range": map[string]any{"start": "2024-01-01", "end": "2024-02-29"}},
 		{"number": 0}, {"number": -1.5}, {"text": "hello world"}, {"text": ""},
 		{"select": "EU"}, {"dynamic": "custom value"},
+		{"dynamic_empty": "EU"}, {"mixed": "All"}, {"mixed_multi": []any{"All"}},
 		{"date": ""}, {"date": nil}, {"number": ""}, {"select": ""}, {"multi": []any{"EU", "US"}}, {"multi": []string{}},
 	}
 	for _, values := range valid {
@@ -30,6 +34,8 @@ func TestValidateFilterValues(t *testing.T) {
 		{"range": "last_7_days"}, {"range": map[string]any{"start": "2024-01-01"}},
 		{"number": "123"}, {"number": math.Inf(1)}, {"number": math.NaN()}, {"number": false},
 		{"text": 12}, {"text": map[string]any{}}, {"select": "CA"}, {"dynamic": 12},
+		{"mixed": 12}, {"mixed_multi": "EU"}, {"mixed_multi": []any{12}},
+		{"mixed": "EU"}, {"mixed_multi": []any{"EU", "US"}},
 		{"multi": []any{"CA"}}, {"multi": []any{12}}, {"multi": "EU"},
 	}
 	for _, values := range invalid {
