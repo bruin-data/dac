@@ -40,6 +40,8 @@ Query-driven options:
       connection: my_db
 ```
 
+When a dashboard loads, DAC runs the query and uses values from its first result column to populate the dropdown. If `connection` is omitted, the dashboard's connection is used. Query results take precedence over `options.values` when both are set.
+
 ### Date Range
 
 A date picker with start and end dates. Supports presets for common ranges.

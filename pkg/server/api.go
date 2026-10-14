@@ -98,7 +98,45 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "dashboard not found: "+name)
 		return
 	}
+	if err := ResolveFilterOptions(r.Context(), s.backend, d); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, d)
+}
+
+// ResolveFilterOptions populates query-driven select options on a loaded
+// dashboard. The dashboard definition is not modified on disk.
+func ResolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboard.Dashboard) error {
+	for i := range d.Filters {
+		filter := &d.Filters[i]
+		if filter.Options == nil || filter.Options.Query == "" {
+			continue
+		}
+
+		connection := filter.Options.Connection
+		if connection == "" {
+			connection = d.Connection
+		}
+
+		result, err := backend.Execute(ctx, connection, filter.Options.Query)
+		if err != nil {
+			return fmt.Errorf("resolving options for filter %q: %w", filter.Name, err)
+		}
+		if result == nil {
+			return fmt.Errorf("resolving options for filter %q: query returned no result", filter.Name)
+		}
+
+		values := make([]string, 0, len(result.Rows))
+		for _, row := range result.Rows {
+			if len(row) == 0 || row[0] == nil {
+				continue
+			}
+			values = append(values, fmt.Sprint(row[0]))
+		}
+		filter.Options.Values = values
+	}
+	return nil
 }
 
 func (s *Server) handleGetDashboardRaw(w http.ResponseWriter, r *http.Request) {

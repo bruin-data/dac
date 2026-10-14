@@ -89,6 +89,67 @@ func TestResolveWidgetJobs_SkipsTextDivider(t *testing.T) {
 	}
 }
 
+func TestGetDashboardResolvesQueryDrivenFilterOptions(t *testing.T) {
+	dir := t.TempDir()
+	definition := `name: Query Options
+connection: warehouse
+filters:
+  - name: region
+    type: select
+    options:
+      values: [Manual]
+      query: SELECT DISTINCT region FROM customers ORDER BY region
+  - name: customer
+    type: select
+    options:
+      query: SELECT DISTINCT customer FROM customers ORDER BY customer
+      connection: customer_db
+rows:
+  - widgets:
+      - name: Summary
+        type: text
+        content: Customers by region
+`
+	if err := os.WriteFile(filepath.Join(dir, "query-options.yml"), []byte(definition), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(Config{DashboardDir: dir, TemplateName: "bruin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := &mockBackend{result: &query.QueryResult{
+		Columns: []query.ColumnInfo{{Name: "value"}, {Name: "count"}},
+		Rows:    [][]any{{"North", 1}, {"South", 2}},
+	}}
+	s.backend = backend
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboards/Query%20Options", nil)
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusOK, w.Body.String())
+	}
+	var resp dashboard.Dashboard
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(resp.Filters[0].Options.Values, ","), "North,South"; got != want {
+		t.Errorf("region options = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(resp.Filters[1].Options.Values, ","), "North,South"; got != want {
+		t.Errorf("customer options = %q, want %q", got, want)
+	}
+	if len(backend.calls) != 2 {
+		t.Fatalf("backend calls = %d, want 2", len(backend.calls))
+	}
+	if got, want := backend.calls[0], (mockCall{Connection: "warehouse", SQL: "SELECT DISTINCT region FROM customers ORDER BY region"}); got != want {
+		t.Errorf("first query = %+v, want %+v", got, want)
+	}
+	if got, want := backend.calls[1], (mockCall{Connection: "customer_db", SQL: "SELECT DISTINCT customer FROM customers ORDER BY customer"}); got != want {
+		t.Errorf("second query = %+v, want %+v", got, want)
+	}
+}
+
 // A data-driven image widget now yields a data job like a table.
 func TestResolveWidgetJobs_ImageGetsJob(t *testing.T) {
 	d := &dashboard.Dashboard{
