@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useDashboard } from "../hooks/useDashboard";
+import { useFilterOptions } from "../hooks/useFilterOptions";
 import { useWidgetQuery } from "../hooks/useWidgetQuery";
 import { useTemplate } from "../themes/TemplateProvider";
 import { resolvePreset } from "../themes/bruin/FilterBar";
@@ -169,6 +170,7 @@ export function DashboardView() {
   const dashboardExportRef = useRef<HTMLDivElement>(null);
 
   const { data: dashboard, isLoading: dashLoading, error: dashError } = useDashboard(name || "");
+  const allFilters = useFilterOptions(dashboard);
   const [yamlOpen, _setYamlOpen] = useState(_yamlOpen);
   const [yamlWidth, _setYamlWidth] = useState(_yamlWidth);
 
@@ -363,7 +365,6 @@ export function DashboardView() {
 
   // Filters with no `tab` (or an unmatched one — the validator rejects those) go
   // in the global bar; a tab-scoped filter shows only on its tab.
-  const allFilters = dashboard.filters ?? [];
   const globalFilters = allFilters.filter((f) => !f.tab || !tabNames.includes(f.tab));
   const tabFilters = currentTab ? allFilters.filter((f) => f.tab === currentTab) : [];
 

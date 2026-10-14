@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/bruin-data/dac/pkg/dashboard"
@@ -98,10 +99,6 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "dashboard not found: "+name)
 		return
 	}
-	if err := ResolveFilterOptions(r.Context(), s.backend, d); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 	writeJSON(w, http.StatusOK, d)
 }
 
@@ -110,7 +107,7 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 func ResolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboard.Dashboard) error {
 	for i := range d.Filters {
 		filter := &d.Filters[i]
-		if filter.Options == nil || filter.Options.Query == "" {
+		if filter.Type != "select" || filter.Options == nil || filter.Options.Query == "" || len(filter.Options.Values) > 0 {
 			continue
 		}
 
@@ -128,11 +125,26 @@ func ResolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboa
 		}
 
 		values := make([]string, 0, len(result.Rows))
+		seen := make(map[string]bool)
 		for _, row := range result.Rows {
 			if len(row) == 0 || row[0] == nil {
 				continue
 			}
-			values = append(values, fmt.Sprint(row[0]))
+			var value string
+			switch v := row[0].(type) {
+			case string:
+				value = v
+			case float64:
+				value = strconv.FormatFloat(v, 'f', -1, 64)
+			case bool, int, int64, uint64:
+				value = fmt.Sprint(v)
+			default:
+				return fmt.Errorf("resolving options for filter %q: query must return scalar values in its first column", filter.Name)
+			}
+			if !seen[value] {
+				seen[value] = true
+				values = append(values, value)
+			}
 		}
 		filter.Options.Values = values
 	}

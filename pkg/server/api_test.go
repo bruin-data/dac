@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -89,7 +90,7 @@ func TestResolveWidgetJobs_SkipsTextDivider(t *testing.T) {
 	}
 }
 
-func TestGetDashboardResolvesQueryDrivenFilterOptions(t *testing.T) {
+func TestGetDashboardDoesNotExecuteFilterOptionsQueries(t *testing.T) {
 	dir := t.TempDir()
 	definition := `name: Query Options
 connection: warehouse
@@ -117,10 +118,7 @@ rows:
 	if err != nil {
 		t.Fatal(err)
 	}
-	backend := &mockBackend{result: &query.QueryResult{
-		Columns: []query.ColumnInfo{{Name: "value"}, {Name: "count"}},
-		Rows:    [][]any{{"North", 1}, {"South", 2}},
-	}}
+	backend := &mockBackend{err: errors.New("options database unavailable")}
 	s.backend = backend
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboards/Query%20Options", nil)
@@ -133,20 +131,17 @@ rows:
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := strings.Join(resp.Filters[0].Options.Values, ","), "North,South"; got != want {
+	if got, want := strings.Join(resp.Filters[0].Options.Values, ","), "Manual"; got != want {
 		t.Errorf("region options = %q, want %q", got, want)
 	}
-	if got, want := strings.Join(resp.Filters[1].Options.Values, ","), "North,South"; got != want {
+	if got, want := strings.Join(resp.Filters[1].Options.Values, ","), ""; got != want {
 		t.Errorf("customer options = %q, want %q", got, want)
 	}
-	if len(backend.calls) != 2 {
-		t.Fatalf("backend calls = %d, want 2", len(backend.calls))
+	if len(backend.calls) != 0 {
+		t.Fatalf("backend calls = %d, want 0", len(backend.calls))
 	}
-	if got, want := backend.calls[0], (mockCall{Connection: "warehouse", SQL: "SELECT DISTINCT region FROM customers ORDER BY region"}); got != want {
-		t.Errorf("first query = %+v, want %+v", got, want)
-	}
-	if got, want := backend.calls[1], (mockCall{Connection: "customer_db", SQL: "SELECT DISTINCT customer FROM customers ORDER BY customer"}); got != want {
-		t.Errorf("second query = %+v, want %+v", got, want)
+	if got, want := resp.Filters[1].Options.Query, "SELECT DISTINCT customer FROM customers ORDER BY customer"; got != want {
+		t.Errorf("customer options query = %q, want %q", got, want)
 	}
 }
 

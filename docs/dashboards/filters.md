@@ -40,7 +40,24 @@ Query-driven options:
       connection: my_db
 ```
 
-When a dashboard loads, DAC runs the query and uses values from its first result column to populate the dropdown. If `connection` is omitted, the dashboard's connection is used. Query results take precedence over `options.values` when both are set.
+Use either static `options.values` or query-driven `options.query`. To match Bruin Cloud, a **non-empty static list takes precedence**: if both are supplied, DAC uses the static values and does not execute the query. An empty list (`values: []`) allows the query to run.
+
+In `dac serve`, query-driven options load asynchronously for both single-select and multi-select filters. DAC uses `options.connection`, falling back to the dashboard's `connection`. The first result column supplies the options; nulls are skipped, scalar values become strings, and duplicates are removed in query order. Defaults must be included in the selected options source. For an "All" option with query-driven regions, return it from SQL:
+
+```yaml
+  - name: region
+    type: select
+    default: All
+    options:
+      query: |
+        SELECT region FROM (
+          SELECT 'All' AS region, 0 AS position
+          UNION ALL
+          SELECT DISTINCT region, 1 AS position FROM orders
+        ) ORDER BY position, region
+```
+
+Options queries run as written without Jinja rendering. The control shows a loading indicator while fetching and "Unable to load options" on failure. Static `dac build` exports do not fetch live options.
 
 ### Date Range
 
@@ -141,7 +158,7 @@ Filter values are reflected in the page's URL query string. Each filter is one q
 /dashboards/sales?region=Europe&date_range=2025-01-01..2025-03-31
 ```
 
-- **Multi-select** values are comma-separated: `?region=Europe,APAC`.
+- **Multi-select** values use repeated parameters: `?region=Europe&region=APAC`. Values may contain commas.
 - **Date-range** values use `start..end`: `?date_range=2025-01-01..2025-03-31`.
 - Opening a link applies the URL values on load; queries run with them immediately.
 
@@ -221,13 +238,13 @@ WHERE customer_name LIKE '%{{ filters.search }}%'
 | `default` | any | No | Initial value. String preset for date-range, `YYYY-MM-DD` string for date, number for number, array for multi-select |
 | `options` | object | No | Filter options configuration |
 | `options.values` | string[] | No | Static list of options (select) |
-| `options.query` | string | No | SQL to populate options (select) |
-| `options.connection` | string | No | Connection for the options query |
+| `options.query` | string | No | SQL whose first column populates options (select); skipped when `options.values` is non-empty |
+| `options.connection` | string | No | Connection for the options query; defaults to the dashboard connection |
 | `options.presets` | string[] | No | Which date presets to show (date-range) |
 
 ## Server Validation and SQL Safety
 
-Batch, streaming, and individual widget queries validate request values and resolved defaults before executing widget SQL. CLI queries and exports use the same validation. Invalid values return HTTP 400. Unknown filter names, wrong JSON types, invalid calendar dates, reversed date ranges, and selections outside a static `options.values` list are rejected. Number filters require finite JSON numbers, not numeric strings. An empty string or `null` for a single-value filter means the input was cleared and is passed through as empty, so guard optional filters with `{% if filters.<name> %}`. Multi-selects require arrays of strings; date ranges require exactly `start` and `end`. Query-driven selects accept strings; their query results are not used as a server-side allowlist.
+Batch, streaming, and individual widget queries validate request values and resolved defaults before executing widget SQL. CLI queries and exports use the same validation. Invalid values return HTTP 400. Unknown filter names, wrong JSON types, invalid calendar dates, reversed date ranges, and selections outside a static `options.values` list are rejected. Number filters require finite JSON numbers, not numeric strings. An empty string or `null` for a single-value filter means the input was cleared and is passed through as empty, so guard optional filters with `{% if filters.<name> %}`. Multi-selects require arrays of strings; date ranges require exactly `start` and `end`. Selects with non-empty static values enforce that list even when a query is also supplied. Query-driven selects without a non-empty static list accept strings; their query results are not used as a server-side allowlist.
 
 Text, date, and select values must be interpolated inside ordinary single-quoted SQL literals, as shown above. Only numeric outputs can appear unquoted. Filters cannot supply table names, column names, comments, or arbitrary SQL fragments. Jinja conditionals and loops still work, as does the documented multi-select `join("','")` pattern.
 

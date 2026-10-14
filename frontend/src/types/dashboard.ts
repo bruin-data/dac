@@ -30,6 +30,9 @@ export interface Filter {
     query?: string;
     connection?: string;
     presets?: string[];
+    // Client-only state for query-driven select controls.
+    isLoading?: boolean;
+    error?: string;
   };
 }
 

@@ -452,6 +452,9 @@ function SingleSelectFilter({
       <Select<Option, false>
         inputId={inputId}
         aria-label={label}
+        isLoading={filter.options?.isLoading}
+        aria-invalid={!!filter.options?.error}
+        noOptionsMessage={() => filter.options?.error ? "Unable to load options" : "No options"}
         options={options}
         value={selected}
         onChange={(opt) => onChange(opt ? opt.value : "")}
@@ -463,6 +466,11 @@ function SingleSelectFilter({
         classNames={selectClassNames}
         styles={selectStyles}
       />
+      {filter.options?.error && (
+        <span role="alert" title={filter.options.error} className="text-[11px] text-[var(--dac-error)]">
+          Unable to load options
+        </span>
+      )}
     </div>
   );
 }
@@ -495,6 +503,9 @@ function MultiSelectFilter({
       <Select<Option, true>
         inputId={inputId}
         aria-label={label}
+        isLoading={filter.options?.isLoading}
+        aria-invalid={!!filter.options?.error}
+        noOptionsMessage={() => filter.options?.error ? "Unable to load options" : "No options"}
         isMulti
         isSearchable
         options={options}
@@ -511,6 +522,11 @@ function MultiSelectFilter({
         classNames={selectClassNames}
         styles={selectStyles}
       />
+      {filter.options?.error && (
+        <span role="alert" title={filter.options.error} className="text-[11px] text-[var(--dac-error)]">
+          Unable to load options
+        </span>
+      )}
     </div>
   );
 }
