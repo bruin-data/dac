@@ -103,8 +103,8 @@ func (s *Server) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 // ResolveFilterOptions populates query-driven select options on a loaded
-// dashboard. The dashboard definition is not modified on disk.
-func ResolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboard.Dashboard) error {
+// dashboard using normalized, validated filter values. The definition is not modified on disk.
+func ResolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboard.Dashboard, filters map[string]any) error {
 	for i := range d.Filters {
 		filter := &d.Filters[i]
 		if filter.Type != "select" || filter.Options == nil || filter.Options.Query == "" || len(filter.Options.Values) > 0 {
@@ -116,7 +116,11 @@ func ResolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboa
 			connection = d.Connection
 		}
 
-		result, err := backend.Execute(ctx, connection, filter.Options.Query)
+		sql, err := tmpl.RenderSQL(filter.Options.Query, filters)
+		if err != nil {
+			return fmt.Errorf("resolving options for filter %q: %w", filter.Name, err)
+		}
+		result, err := backend.Execute(ctx, connection, sql)
 		if err != nil {
 			return fmt.Errorf("resolving options for filter %q: %w", filter.Name, err)
 		}
@@ -140,6 +144,9 @@ func ResolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboa
 				value = fmt.Sprint(v)
 			default:
 				return fmt.Errorf("resolving options for filter %q: query must return scalar values in its first column", filter.Name)
+			}
+			if tmpl.ValidateSQLValue(value) != nil {
+				continue
 			}
 			if !seen[value] {
 				seen[value] = true

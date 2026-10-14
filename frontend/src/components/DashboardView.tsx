@@ -170,7 +170,6 @@ export function DashboardView() {
   const dashboardExportRef = useRef<HTMLDivElement>(null);
 
   const { data: dashboard, isLoading: dashLoading, error: dashError } = useDashboard(name || "");
-  const allFilters = useFilterOptions(dashboard);
   const [yamlOpen, _setYamlOpen] = useState(_yamlOpen);
   const [yamlWidth, _setYamlWidth] = useState(_yamlWidth);
 
@@ -222,6 +221,7 @@ export function DashboardView() {
 
   const [filters, setFilters] = useState<Record<string, unknown> | null>(null);
   const activeFilters = filters ?? baseFilters;
+  const allFilters = useFilterOptions(dashboard, activeFilters ?? undefined);
 
   // Last query string, so the reseed effect can skip our own writes.
   const lastSelfWrite = useRef<string | null>(null);

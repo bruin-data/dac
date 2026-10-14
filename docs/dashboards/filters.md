@@ -40,24 +40,18 @@ Query-driven options:
       connection: my_db
 ```
 
-Use either static `options.values` or query-driven `options.query`. To match Bruin Cloud, a **non-empty static list takes precedence**: if both are supplied, DAC uses the static values and does not execute the query. An empty list (`values: []`) allows the query to run.
+Use either static `options.values` or query-driven `options.query`. Static values take precedence when provided.
 
-In `dac serve`, query-driven options load asynchronously for both single-select and multi-select filters. DAC uses `options.connection`, falling back to the dashboard's `connection`. The first result column supplies the options; nulls are skipped, scalar values become strings, and duplicates are removed in query order. Defaults must be included in the selected options source. For an "All" option with query-driven regions, return it from SQL:
+The query's first column supplies the dropdown options. `options.connection` defaults to the dashboard's connection.
+
+Dropdown options can depend on other filters, such as showing cities for the selected region. Reference them as `filters.<name>` and the options reload when those filters change:
 
 ```yaml
-  - name: region
+  - name: city
     type: select
-    default: All
     options:
-      query: |
-        SELECT region FROM (
-          SELECT 'All' AS region, 0 AS position
-          UNION ALL
-          SELECT DISTINCT region, 1 AS position FROM orders
-        ) ORDER BY position, region
+      query: SELECT DISTINCT city FROM orders WHERE region = '{{ filters.region }}' ORDER BY 1
 ```
-
-Options queries run as written without Jinja rendering. The control shows a loading indicator while fetching and "Unable to load options" on failure. Static `dac build` exports do not fetch live options.
 
 ### Date Range
 

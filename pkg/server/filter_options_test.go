@@ -65,7 +65,7 @@ rows:
 		sql        string
 	}{
 		{name: "empty static list executes query; first column, deduplication and scalars", path: "Options%20Demo/filters/region/options",
-			rows:   [][]any{{"Europe", "ignored"}, {"APAC", 99}, {nil}, {}, {float64(1000001)}, {true}, {"APAC"}},
+			rows:   [][]any{{"Europe", "ignored"}, {"APAC", 99}, {nil}, {}, {float64(1000001)}, {true}, {"APAC"}, {"Xi'an"}},
 			status: 200, values: []string{"Europe", "APAC", "1000001", "true"},
 			connection: "dashboard-connection", sql: "SELECT region, ignored FROM regions ORDER BY region"},
 		{name: "multi-select connection override", path: "Options%20Demo/filters/status/options",
@@ -93,7 +93,7 @@ rows:
 			s.backend = backend
 			s.loader.backend = backend
 			w := httptest.NewRecorder()
-			s.mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/dashboards/"+tc.path, nil))
+			s.mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v1/dashboards/"+tc.path, strings.NewReader(`{"filters":{}}`)))
 			if w.Code != tc.status {
 				t.Fatalf("status %d, want %d: %s", w.Code, tc.status, w.Body.String())
 			}
@@ -167,7 +167,7 @@ rows:
 			s.loader.backend = backend
 			// Resolving options must not mutate the definition used by widget requests.
 			options := httptest.NewRecorder()
-			s.mux.ServeHTTP(options, httptest.NewRequest(http.MethodGet, "/api/v1/dashboards/Selection%20Demo/filters/region/options", nil))
+			s.mux.ServeHTTP(options, httptest.NewRequest(http.MethodPost, "/api/v1/dashboards/Selection%20Demo/filters/region/options", strings.NewReader(`{"filters":{}}`)))
 			if options.Code != 200 {
 				t.Fatalf("options: %s", options.Body.String())
 			}
@@ -185,6 +185,93 @@ rows:
 				assertContains(t, backend.calls[0].SQL, "status IN ('active','pending')")
 			} else if len(backend.calls) != 0 {
 				t.Fatalf("invalid selection executed SQL: %v", backend.calls)
+			}
+		})
+	}
+}
+
+func TestFilterOptionsRequestValues(t *testing.T) {
+	dir := t.TempDir()
+	definition := `name: Dependent Options
+connection: warehouse
+filters:
+  - name: region
+    type: select
+    default: Europe
+    options:
+      values: [Europe, APAC]
+  - name: statuses
+    type: select
+    multiple: true
+    default: [pending]
+    options:
+      values: [pending, completed]
+  - name: year
+    type: select
+    default: 2024
+    options:
+      values: ["2024"]
+  - name: min_amount
+    type: number
+    default: 0
+  - name: search
+    type: text
+    default: ""
+  - name: city
+    type: select
+    options:
+      query: >-
+        SELECT city FROM orders WHERE region = '{{ filters.region }}'
+        AND status IN ('{{ filters.statuses | join("','") }}')
+        AND year = '{{ filters.year }}' AND amount >= {{ filters.min_amount }}
+rows:
+  - widgets:
+      - name: Help
+        type: text
+        content: demo
+`
+	if err := os.WriteFile(filepath.Join(dir, "dependent.yml"), []byte(definition), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, method, body string
+		status             int
+		sql                string
+	}{
+		{"defaults", "POST", `{}`, 200, "SELECT city FROM orders WHERE region = 'Europe' AND status IN ('pending') AND year = '2024' AND amount >= 0"},
+		{"request overrides and normalized default", "POST", `{"filters":{"region":"APAC","statuses":["pending","completed"],"year":2024,"min_amount":100}}`, 200,
+			"SELECT city FROM orders WHERE region = 'APAC' AND status IN ('pending','completed') AND year = '2024' AND amount >= 100.0"},
+		{"GET is unsupported", "GET", ``, 405, ""},
+		{"empty body", "POST", ``, 400, ""},
+		{"malformed body", "POST", `{`, 400, ""},
+		{"wrong filters shape", "POST", `{"filters":[]}`, 400, ""},
+		{"unknown filter", "POST", `{"filters":{"unknown":"value"}}`, 400, ""},
+		{"invalid static selection", "POST", `{"filters":{"region":"unknown"}}`, 400, ""},
+		{"invalid multi selection", "POST", `{"filters":{"statuses":"pending"}}`, 400, ""},
+		{"invalid numeric type", "POST", `{"filters":{"min_amount":"100"}}`, 400, ""},
+		{"unsafe quote", "POST", `{"filters":{"search":"x' OR 1=1 --"}}`, 400, ""},
+		{"unsafe backslash", "POST", `{"filters":{"search":"x\\"}}`, 400, ""},
+		{"unsafe control", "POST", `{"filters":{"search":"x\n"}}`, 400, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := New(Config{DashboardDir: dir, TemplateName: "bruin"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			backend := &mockBackend{result: &query.QueryResult{Rows: [][]any{{"Berlin"}}}}
+			s.backend = backend
+			s.loader.backend = backend
+			w := httptest.NewRecorder()
+			s.mux.ServeHTTP(w, httptest.NewRequest(tc.method, "/api/v1/dashboards/Dependent%20Options/filters/city/options", strings.NewReader(tc.body)))
+			if w.Code != tc.status {
+				t.Fatalf("status %d, want %d: %s", w.Code, tc.status, w.Body.String())
+			}
+			if tc.sql != "" {
+				if len(backend.calls) != 1 || backend.calls[0].Connection != "warehouse" || strings.Join(strings.Fields(backend.calls[0].SQL), " ") != tc.sql {
+					t.Errorf("backend calls = %v, want rendered SQL %q", backend.calls, tc.sql)
+				}
+			} else if len(backend.calls) != 0 {
+				t.Errorf("invalid request executed SQL: %v", backend.calls)
 			}
 		})
 	}

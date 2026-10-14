@@ -63,9 +63,18 @@ export async function getDashboardRaw(name: string): Promise<string> {
   return res.text();
 }
 
-export async function fetchFilterOptions(dashboardName: string, filterName: string): Promise<string[]> {
+export async function fetchFilterOptions(
+  dashboardName: string,
+  filterName: string,
+  filters?: Record<string, unknown>,
+): Promise<string[]> {
   const data = await fetchJSON<{ values: string[] }>(
     `${BASE}/dashboards/${encodeURIComponent(dashboardName)}/filters/${encodeURIComponent(filterName)}/options`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filters: filters ?? {} }),
+    },
   );
   return data.values;
 }
