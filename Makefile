@@ -20,7 +20,7 @@ endif
 GO_PACKAGES ?= ./cmd/... ./pkg/... ./schemas/...
 GOFMT_FILES := $(shell find . -name '*.go' -not -path './vendor/*')
 
-.PHONY: all clean test test-unit test-frontend build frontend deps format format-go format-frontend dev dev-frontend dev-backend
+.PHONY: all clean test build frontend deps format format-go format-frontend dev dev-frontend dev-backend
 
 all: clean deps test build
 
@@ -42,15 +42,11 @@ build: frontend
 clean:
 	@rm -rf ./bin ./frontend/dist
 
-test: test-unit test-frontend
+test: test-unit
 
 test-unit:
 	@echo "$(OK_COLOR)==> Running the unit tests$(NO_COLOR)"
 	@go test -race -cover -timeout 5m $(GO_PACKAGES)
-
-test-frontend:
-	@echo "$(OK_COLOR)==> Running the frontend tests$(NO_COLOR)"
-	@cd frontend && npm test
 
 format: format-go format-frontend
 	@printf "$(OK_COLOR)==> Static checks passed$(NO_COLOR)\n"

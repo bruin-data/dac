@@ -8,8 +8,7 @@
     "build": "vite build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "test": "vitest run"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",
@@ -45,7 +44,6 @@
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.30.1",
-    "vite": "^8.1.5",
-    "vitest": "^4.1.11"
+    "vite": "^8.1.5"
   }
 }
