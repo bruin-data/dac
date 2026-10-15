@@ -364,9 +364,19 @@ export function TableWidget({ widget, data }: Props) {
   }, [columns, columnGroups.length]);
 
   useLayoutEffect(() => {
-    const measureFrame = window.requestAnimationFrame(measureRenderedColumnWidths);
-    return () => window.cancelAnimationFrame(measureFrame);
-  }, [measureRenderedColumnWidths, effData?.rows]);
+    let cancelled = false;
+    let measureFrame = 0;
+    const measure = () => {
+      if (!cancelled) measureFrame = window.requestAnimationFrame(measureRenderedColumnWidths);
+    };
+    // Grouped tables keep their widths through toggles, so measure with the final fonts.
+    if (columnGroups.length && document.fonts) document.fonts.ready.then(measure, measure);
+    else measure();
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(measureFrame);
+    };
+  }, [measureRenderedColumnWidths, effData?.rows, columnGroups.length]);
 
   // Recalculate natural widths on data/configuration changes, but keep them
   // through group toggles (which change only the visible columns).
