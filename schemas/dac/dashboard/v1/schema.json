@@ -439,6 +439,13 @@
       "allOf": [
         {
           "if": {
+            "required": ["columns"],
+            "properties": { "columns": { "contains": { "required": ["group"] } } }
+          },
+          "then": { "properties": { "type": { "const": "table" } } }
+        },
+        {
+          "if": {
             "required": ["type"],
             "properties": { "type": { "const": "pivot_table" } }
           },
@@ -562,6 +569,13 @@
       },
       "additionalProperties": false,
       "allOf": [
+        {
+          "if": {
+            "required": ["columns"],
+            "properties": { "columns": { "contains": { "required": ["group"] } } }
+          },
+          "then": { "properties": { "type": { "const": "table" } } }
+        },
         {
           "if": {
             "required": ["type"],
@@ -734,6 +748,12 @@
         "border": {
           "enum": ["left", "right", "both"]
         },
+        "group": {
+          "type": "string", "minLength": 1, "pattern": "\\S"
+        },
+        "collapsed": {
+          "type": "boolean"
+        },
         "frozen": {
           "type": "boolean"
         },
@@ -748,6 +768,14 @@
         }
       },
       "allOf": [
+        {
+          "if": { "required": ["collapsed"] },
+          "then": { "required": ["group"] }
+        },
+        {
+          "if": { "required": ["group"] },
+          "then": { "not": { "required": ["hidden"], "properties": { "hidden": { "const": true } } } }
+        },
         {
           "if": { "anyOf": [{ "required": ["x"] }, { "required": ["y"] }] },
           "then": { "required": ["type"], "properties": { "type": { "const": "sparkline" } } }

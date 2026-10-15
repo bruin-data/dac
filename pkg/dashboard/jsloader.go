@@ -1019,7 +1019,15 @@ func asTableColumns(v interface{}) []TableColumn {
 				Border: asString(m["border"]),
 				Like:   asString(m["like"]),
 				Hidden: asBool(m["hidden"]),
-				Frozen: asBool(m["frozen"]),
+				Group:  asString(m["group"]),
+			}
+			if value, present := m["frozen"]; present && value != nil {
+				frozen := asBool(value)
+				col.Frozen = &frozen
+			}
+			if value, present := m["collapsed"]; present && value != nil {
+				collapsed := asBool(value)
+				col.Collapsed = &collapsed
 			}
 			// `format` is polymorphic: a string is the legacy value-display
 			// shorthand (== `number`), a list is the style layers.

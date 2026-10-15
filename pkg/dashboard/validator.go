@@ -344,6 +344,7 @@ func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
 	errs = append(errs, validateInlineData(prefix, w)...)
 
 	validatePivot(prefix, w, &errs)
+	validateTableColumnGroups(prefix, w, &errs)
 
 	return errs
 }
@@ -987,6 +988,36 @@ func validatePivotAxis(prefix, axis string, fields []PivotField, errs *[]string)
 	}
 }
 
+func validateTableColumnGroups(prefix string, w *Widget, errs *[]string) {
+	previousGroup := ""
+	for _, col := range w.Columns {
+		cp := fmt.Sprintf("%s: column %q", prefix, col.Name)
+		if col.Group == "" {
+			if col.Collapsed != nil {
+				*errs = append(*errs, cp+".collapsed: requires group")
+			}
+			previousGroup = ""
+			continue
+		}
+		if w.Type != WidgetTypeTable {
+			*errs = append(*errs, cp+".group: only supported on plain tables")
+		}
+		if strings.TrimSpace(col.Group) == "" {
+			*errs = append(*errs, cp+".group: must not be blank")
+		}
+		if col.Hidden {
+			*errs = append(*errs, cp+".group: grouped columns must not be hidden")
+		}
+		if col.Group == previousGroup && col.Collapsed != nil {
+			*errs = append(*errs, cp+".collapsed: only allowed on the first column of its group block")
+		}
+		if col.Group == previousGroup && col.Frozen != nil {
+			*errs = append(*errs, cp+".frozen: only allowed on the first column of its group block")
+		}
+		previousGroup = col.Group
+	}
+}
+
 func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 	names := make(map[string]bool, len(w.Columns))
 	sparklines := make(map[string]bool)
@@ -1017,7 +1048,7 @@ func validateTableColumns(prefix string, w *Widget, errs *[]string) {
 				*errs = append(*errs, fmt.Sprintf("%s.border: must be left, right, or both", cp))
 			}
 		}
-		if c.Frozen && w.Type == WidgetTypePivotTable {
+		if c.Frozen != nil && *c.Frozen && w.Type == WidgetTypePivotTable {
 			*errs = append(*errs, cp+".frozen: not supported on pivot tables")
 		}
 		if c.Type != "" {

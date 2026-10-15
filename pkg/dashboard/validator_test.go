@@ -874,7 +874,7 @@ func TestValidate_TableColumnFrozen(t *testing.T) {
 	// frozen is accepted on plain tables.
 	tbl := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
 		Name: "w", Type: WidgetTypeTable, SQL: "SELECT sales FROM orders",
-		Columns: []TableColumn{{Name: "sales", Frozen: true}},
+		Columns: []TableColumn{{Name: "sales", Frozen: boolPtr(true)}},
 	}}}}}
 	assertNoErr(t, Validate(tbl))
 
@@ -882,7 +882,7 @@ func TestValidate_TableColumnFrozen(t *testing.T) {
 	pivot := &Dashboard{Name: "test", Rows: []Row{{Widgets: []Widget{{
 		Name: "w", Type: WidgetTypePivotTable, SQL: "SELECT region, sales FROM orders",
 		Pivot:   &PivotConfig{Rows: []PivotField{{Field: "region"}}, Values: []PivotValue{{Field: "sales"}}},
-		Columns: []TableColumn{{Name: "sales", Frozen: true}},
+		Columns: []TableColumn{{Name: "sales", Frozen: boolPtr(true)}},
 	}}}}}
 	assertValidationContains(t, Validate(pivot), "frozen: not supported on pivot tables")
 }

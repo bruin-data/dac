@@ -1,0 +1,24 @@
+schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Column Groups
+description: Illustrative financial data with collapsible details
+
+rows:
+  - widgets:
+      - name: Regional Financials
+        type: table
+        col: 12
+        data:
+          columns: [region, revenue, cost, profit, orders, average_order, shipping_cost, status]
+          rows:
+            - [Europe, 240000, 150000, 90000, 1200, 200, 12000, Active]
+            - [Americas, 360000, 200000, 160000, 1500, 240, 18000, Active]
+            - [Asia Pacific, 180000, 110000, 70000, 1000, 180, 9000, Review]
+        columns:
+          - { name: region, label: Region, frozen: true }
+          - { name: profit, label: Profit, number: currency, group: financials, collapsed: true }
+          - { name: revenue, label: Revenue, number: currency, group: financials }
+          - { name: cost, label: Cost, number: currency, group: orders }
+          - { name: shipping_cost, label: Shipping cost, number: currency, group: orders }
+          - { name: orders, label: Orders, number: number, group: financials }
+          - { name: average_order, label: Average order, number: currency, group: financials }
+          - { name: status, label: Status }

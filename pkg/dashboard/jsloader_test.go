@@ -393,7 +393,7 @@ export default (
 	if w.Columns[0].Name != "id" || w.Columns[0].Label != "Order ID" {
 		t.Errorf("unexpected column 0: %+v", w.Columns[0])
 	}
-	if !w.Columns[0].Frozen {
+	if w.Columns[0].Frozen == nil || !*w.Columns[0].Frozen {
 		t.Errorf("expected id column to be frozen, got %+v", w.Columns[0])
 	}
 	if w.Columns[1].Number != "currency" {

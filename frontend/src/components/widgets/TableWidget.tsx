@@ -8,6 +8,8 @@ import { pivotData } from "./pivot";
 import { SparklineCell } from "./SparklineCell";
 import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
+import { buildColumnGroups, collapsedColumnNames, isColumnGroupCollapsed, readColumnGroupState, type ColumnGroupState } from "./columnGroups";
+import { ColumnGroupToggle } from "./ColumnGroupToggle";
 
 interface Props {
   widget: Widget;
@@ -61,6 +63,29 @@ export function TableWidget({ widget, data }: Props) {
   const copiedCellTimerRef = useRef<number | null>(null);
   const tokens = useTokens();
   const [pinOverrides, setPinOverrides] = useState(() => new Map<string, boolean>());
+  // Choose the summary in declaration order, before frozen columns move left.
+  const columnGroups = useMemo(() => buildColumnGroups(widget.columns ?? []), [widget.columns]);
+  const columnGroupsByMember = useMemo(() => new Map(
+    columnGroups.flatMap((group) => group.columns.map((name) => [name, group] as const)),
+  ), [columnGroups]);
+  // Scope preferences to the dashboard, widget/tab and group definition. Editing
+  // the definition starts from its new defaults instead of stale preferences.
+  const groupStorageKey = `dac:column-groups:${JSON.stringify([
+    window.location.pathname, window.location.hash.split("?")[0], widget.id ?? widget.exportName ?? widget.name, columnGroups,
+  ])}`;
+  const [groupPreference, setGroupPreference] = useState(() => ({
+    key: groupStorageKey, state: readColumnGroupState(groupStorageKey),
+  }));
+  if (groupPreference.key !== groupStorageKey) {
+    setGroupPreference({ key: groupStorageKey, state: readColumnGroupState(groupStorageKey) });
+  }
+  const toggleColumnGroup = (id: string, collapsed: boolean) => {
+    const state: ColumnGroupState = { ...groupPreference.state, [id]: !collapsed };
+    setGroupPreference({ key: groupStorageKey, state });
+    try {
+      window.localStorage.setItem(groupStorageKey, JSON.stringify(state));
+    } catch { /* The control still works when browser storage is unavailable. */ }
+  };
 
   // A pivot reshapes the result client-side; the rest of the table renders the
   // reshaped `effData` exactly as it would a plain result set.
@@ -73,10 +98,14 @@ export function TableWidget({ widget, data }: Props) {
     [pivot, data],
   );
 
-  const columns: TableColumn[] = useMemo(() => {
+  const allColumns: TableColumn[] = useMemo(() => {
     if (!effData?.columns) return [];
 
     const meta = new Map((widget.columns ?? []).map((c) => [c.name, c]));
+    const isFrozen = (name: string) => {
+      const pinSource = columnGroupsByMember.get(name)?.summary ?? name;
+      return !pivot && (pinOverrides.get(pinSource) ?? meta.get(pinSource)?.frozen ?? false);
+    };
     const raw =
       pivot || !widget.columns?.length
         ? effData.columns.map((col, idx) => {
@@ -92,7 +121,7 @@ export function TableWidget({ widget, data }: Props) {
               border: m?.border,
               like: m?.like,
               hidden: m?.hidden ?? false,
-              frozen: !pivot && (pinOverrides.get(col.name) ?? m?.frozen ?? false),
+              frozen: isFrozen(col.name),
               format: m?.format,
               idx,
             };
@@ -108,7 +137,7 @@ export function TableWidget({ widget, data }: Props) {
             border: col.border,
             like: col.like,
             hidden: col.hidden ?? false,
-            frozen: !pivot && (pinOverrides.get(col.name) ?? col.frozen ?? false),
+            frozen: isFrozen(col.name),
             format: col.format,
             idx: effData.columns.findIndex((c) => c.name === col.name),
           }));
@@ -141,15 +170,23 @@ export function TableWidget({ widget, data }: Props) {
     if (pivot) return resolved;
     const frozen = resolved.filter((c) => c.frozen);
     return frozen.length ? [...frozen, ...resolved.filter((c) => !c.frozen)] : resolved;
-  }, [widget.columns, effData?.columns, pivot, pinOverrides]);
+  }, [widget.columns, effData?.columns, pivot, pinOverrides, columnGroupsByMember]);
+
+  const columns = useMemo(() => {
+    if (pivot || !columnGroups.length) return allColumns;
+    const hidden = collapsedColumnNames(columnGroups, groupPreference.state);
+    return allColumns.filter((column) => !hidden.has(column.name));
+  }, [allColumns, columnGroups, groupPreference.state, pivot]);
+  const summaryGroups = useMemo(() => new Map(columnGroups.map((group) => [group.summary, group])), [columnGroups]);
 
   const togglePin = (name: string) => {
-    const frozenByDefault = !pivot && !!widget.columns?.find((col) => col.name === name)?.frozen;
+    const pinSource = columnGroupsByMember.get(name)?.summary ?? name;
+    const frozenByDefault = !pivot && !!widget.columns?.find((col) => col.name === pinSource)?.frozen;
     setPinOverrides((current) => {
-      const pinned = !(current.get(name) ?? frozenByDefault);
+      const pinned = !(current.get(pinSource) ?? frozenByDefault);
       const next = new Map(current);
-      if (pinned === frozenByDefault) next.delete(name);
-      else next.set(name, pinned);
+      if (pinned === frozenByDefault) next.delete(pinSource);
+      else next.set(pinSource, pinned);
       return next;
     });
   };
@@ -256,16 +293,17 @@ export function TableWidget({ widget, data }: Props) {
     const resized = columns.some((col) => columnWidths[col.name] != null);
     // Let the browser lay out unmeasured columns; skip the stretch once resized.
     if (!widths.length || widths.some((width) => width == null)) {
-      return resized ? { tableLayout: "auto" } : { width: "100%", tableLayout: "auto" };
+      return resized || columnGroups.length ? { tableLayout: "auto" } : { width: "100%", tableLayout: "auto" };
     }
     const total = widths.reduce((sum, width) => sum + (width ?? 0), 0) + columns.length + 1;
-    // Untouched tables fill the widget; resized ones follow their column sum.
+    // Grouped tables keep their column widths through visibility changes;
+    // ordinary untouched tables fill the widget.
     return {
-      width: resized ? total : "100%",
+      width: resized || columnGroups.length ? total : "100%",
       minWidth: total,
       tableLayout: "fixed",
     };
-  }, [autoColumnWidths, columns, columnWidths]);
+  }, [autoColumnWidths, columns, columnWidths, columnGroups.length]);
 
   // Latest user widths for the container observer, which outlives renders.
   const columnWidthsRef = useRef(columnWidths);
@@ -278,27 +316,65 @@ export function TableWidget({ widget, data }: Props) {
     if (!ths) return;
     const widths: Record<string, number> = {};
     columns.forEach((col, index) => {
+      const th = ths[index] as HTMLElement | undefined;
+      let width = Math.floor(th?.getBoundingClientRect().width || MIN_COLUMN_WIDTH);
+      if (columnGroups.length && th) {
+        // Intrinsic table sizing can ignore clipped flex labels and round a
+        // currency cell below its text width. Measure the actual text before
+        // fixing a newly revealed column's width.
+        const textWidth = (element: HTMLElement) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return range.getBoundingClientRect().width;
+        };
+        const button = th.querySelector<HTMLElement>("button.group");
+        const label = button?.querySelector<HTMLElement>(".truncate");
+        if (button && label) {
+          const style = getComputedStyle(button);
+          width = Math.max(width, Math.ceil(textWidth(label) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 14));
+        }
+        const body = th.closest("table")?.tBodies[0];
+        if (body) {
+          for (const row of body.rows) {
+            const value = row.cells[index]?.querySelector<HTMLElement>("[data-column-value]");
+            if (!value) continue;
+            const style = getComputedStyle(value);
+            width = Math.max(width, Math.min(DEFAULT_MAX_COLUMN_WIDTH, Math.ceil(textWidth(value) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight))));
+          }
+        }
+      }
       widths[col.name] = Math.max(
         MIN_COLUMN_WIDTH,
-        // Floor so the frozen sum never exceeds the width it was measured in.
-        Math.floor(ths[index]?.getBoundingClientRect().width || MIN_COLUMN_WIDTH),
+        width,
       );
     });
-    setAutoColumnWidths(widths);
-  }, [columns]);
+    // Retain hidden detail widths so expanding restores the measured layout.
+    setAutoColumnWidths((current) => columnGroups.length
+      ? { ...widths, ...current }
+      : { ...current, ...widths });
+  }, [columns, columnGroups.length]);
 
   useLayoutEffect(() => {
+    let cancelled = false;
     let measureFrame = 0;
-    const clearFrame = window.requestAnimationFrame(() => {
-      setAutoColumnWidths({});
-      setColumnMaxWidths({});
-      measureFrame = window.requestAnimationFrame(measureRenderedColumnWidths);
-    });
+    const measure = () => {
+      if (!cancelled) measureFrame = window.requestAnimationFrame(measureRenderedColumnWidths);
+    };
+    // Compact grouped tables need the final font metrics before saving widths.
+    if (columnGroups.length && document.fonts) document.fonts.ready.then(measure, measure);
+    else measure();
     return () => {
-      window.cancelAnimationFrame(clearFrame);
+      cancelled = true;
       window.cancelAnimationFrame(measureFrame);
     };
-  }, [measureRenderedColumnWidths, effData?.rows]);
+  }, [measureRenderedColumnWidths, effData?.rows, columnGroups.length]);
+
+  // Recalculate natural widths on data/configuration changes, but keep them
+  // through group toggles (which change only the visible columns).
+  useLayoutEffect(() => {
+    setAutoColumnWidths({});
+    setColumnMaxWidths({});
+  }, [allColumns, effData?.rows]);
 
   useLayoutEffect(() => {
     const container = tableContainerRef.current;
@@ -467,11 +543,11 @@ export function TableWidget({ widget, data }: Props) {
     // per-row gradient scales); never apply a leftover sort from a prior table.
     if (pivot || !sort || rows.length === 0) return rows;
 
-    const col = columns.find((c) => c.name === sort.column);
+    const col = allColumns.find((c) => c.name === sort.column);
     if (!col || col.idx < 0 || col.type === "sparkline") return rows;
 
     return sortRows(rows, col.idx, sort.direction, col.number != null);
-  }, [pivot, columns, rows, sort]);
+  }, [pivot, allColumns, rows, sort]);
 
   // Resolve gradient scales per column against the full (unsorted) value range,
   // one entry per layer (null for non-gradient layers) so cell colors stay stable
@@ -599,6 +675,11 @@ export function TableWidget({ widget, data }: Props) {
               const active = sortable && sort?.column === col.name;
               const alignCls = alignClasses(col.align, numeric);
               const pinAction = col.frozen ? "Unfreeze" : "Freeze";
+              const group = !pivot ? summaryGroups.get(col.name) : undefined;
+              const pinGroup = !pivot ? columnGroupsByMember.get(col.name) : undefined;
+              const pinnable = !pinGroup || pinGroup.summary === col.name;
+              const pinTarget = pinGroup ? `${pinGroup.name} column group for ${col.label}` : `${col.label} column`;
+              const collapsed = group ? isColumnGroupCollapsed(group, groupPreference.state) : false;
               return (
                 <th
                   key={col.name}
@@ -609,13 +690,22 @@ export function TableWidget({ widget, data }: Props) {
                         : "descending"
                       : "none"
                   }
-                  className={`group/header relative py-0 px-0 whitespace-nowrap overflow-hidden ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
+                  scope="col"
+                  className={`group/header relative align-bottom py-0 px-0 whitespace-nowrap overflow-hidden ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
                   style={{ ...columnWidthStyle(col), ...frozenStyle(ci, true) }}
                 >
+                  {group && (
+                    <ColumnGroupToggle
+                      name={group.name}
+                      columnLabel={col.label}
+                      collapsed={collapsed}
+                      onToggle={() => toggleColumnGroup(group.id, collapsed)}
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={sortable ? () => handleHeaderClick(col.name) : undefined}
-                    className={`group w-full min-w-0 flex items-center gap-1 py-2 pl-4 ${pivot ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${sortable ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    className={`group w-full min-w-0 flex items-center gap-1 py-2 ${group ? "pl-10" : "pl-4"} ${pivot || !pinnable ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${sortable ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                     style={columnWidthStyle(col)}
                   >
                     <span
@@ -628,11 +718,11 @@ export function TableWidget({ widget, data }: Props) {
                   </button>
                   {!pivot && (
                     <>
-                      <button
+                      {pinnable && <button
                         type="button"
                         onClick={() => togglePin(col.name)}
-                        title={`${pinAction} ${col.label} column`}
-                        aria-label={`${pinAction} ${col.label} column`}
+                        title={`${pinAction} ${pinTarget}`}
+                        aria-label={`${pinAction} ${pinTarget}`}
                         aria-pressed={col.frozen}
                         className={`absolute right-3 top-1/2 z-20 -translate-y-1/2 transition-opacity focus:outline-none focus:opacity-100 ${
                           col.frozen
@@ -641,7 +731,7 @@ export function TableWidget({ widget, data }: Props) {
                         }`}
                       >
                         <PinIcon />
-                      </button>
+                      </button>}
                       <span
                         role="separator"
                         tabIndex={0}
