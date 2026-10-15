@@ -378,8 +378,49 @@ Table column fields:
 | `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
 | `border` | string | Non-colour vertical border on this column's `left`, `right`, or `both` edge, to separate column groups (plain tables only; not `pivot_table`). |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
-| `frozen` | boolean | Freeze the column to the left by default so it stays visible while scrolling. Viewers can temporarily freeze or unfreeze columns from the table header. Frozen columns render first, in their listed order (plain tables only; not `pivot_table`). |
+| `frozen` | boolean | Freeze a column or its entire group block to the left; defaults to `false`. Only a group's first member may set it and shows the pin control. Frozen columns render first, in listed order (plain tables only; not `pivot_table`). |
+| `group` | string | Consecutive columns with the same name form a group block. Its first member stays visible when collapsed. See [Collapsible column groups](#collapsible-column-groups). |
+| `collapsed` | boolean | Initial block state, allowed only on its first member; defaults to `false`. |
 | `format` | string \| object | Value display and conditional coloring, see below |
+
+### Collapsible column groups
+
+Add the same `group` name to consecutive columns on a plain `table`. The first
+member of each block stays visible when collapsed:
+
+```yaml
+- name: Financials
+  type: table
+  sql: SELECT region, revenue, cost, profit FROM financials
+  columns:
+    - { name: region, frozen: true }
+    - { name: profit, number: currency, group: financials, collapsed: true, frozen: true }
+    - { name: revenue, number: currency, group: financials }
+    - { name: cost, number: currency, group: financials }
+```
+
+A different group or an ungrouped column ends the current block. Reusing a name
+later creates an independent block: `financials → orders → financials` creates
+two separate `financials` groups. The first member of each block, before frozen
+columns move left, is its summary and may set `collapsed` (`false` by default).
+Using it elsewhere or without `group` is a validation error. `frozen` also belongs
+on the first member only (even `false` elsewhere is invalid). Its pin button
+freezes or unfreezes the entire block, including details revealed on expansion.
+Grouped columns
+cannot be `hidden`; single-column blocks stay visible with no `+` / `−` control.
+
+Use the header's `+` / `−` button to toggle details. Hover or keyboard focus shows
+the group name; Escape dismisses the tooltip. Column order, widths, sorting, and
+block freeze settings are preserved. Supports horizontal scrolling, plain
+tables, and table tabs; excludes `pivot_table`.
+
+Each block's state persists independently in the browser, even for repeated
+names; changing the group definition resets defaults.
+CSV exports include the full query result.
+
+The `examples/basic-yaml/dashboards/column-groups.yml` sample has two `financials`
+blocks separated by an `orders` block containing Cost and Shipping cost, plus a
+standalone Status column that remains visible when groups are collapsed.
 
 ### Sparkline columns
 

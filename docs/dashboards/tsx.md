@@ -192,6 +192,12 @@ All widget components accept the same props as their YAML equivalents.
   ],
 }} />
 <Table name="Orders" col={12} sql="..." />
+<Table name="Financials" sql="SELECT revenue, cost, profit FROM financials"
+  columns={[
+    { name: "profit", group: "financials", collapsed: true },
+    { name: "revenue", group: "financials" },
+    { name: "cost", group: "financials" },
+  ]} />
 <Text name="Note" col={6} content="**Important:** This data updates daily." />
 <Divider name="sep" col={12} />
 <Image name="logo" col={3} sql="SELECT logo_url, company_name FROM companies" src="logo_url" alt="company_name" />

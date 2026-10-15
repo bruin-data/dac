@@ -89,7 +89,7 @@ function DataWidgetInner({
   WidgetFrame: React.ComponentType<WidgetFrameProps>;
 }) {
   const { data, isLoading, isPlaceholderData } = useWidgetQuery(dashboardName, widgetId, filters, true);
-  return <WidgetFrame key={`${dashboardName}:${widgetId}`} widget={widget} data={data} isLoading={isLoading || isPlaceholderData} />;
+  return <WidgetFrame key={`${dashboardName}:${widgetId}`} widget={{ ...widget, id: widget.id ?? widgetId }} data={data} isLoading={isLoading || isPlaceholderData} />;
 }
 
 /**
@@ -121,6 +121,8 @@ function TabbedWidget({
     description: widget.description,
     // Downloads are named per tab so two tabs' exports don't share a file name.
     exportName: [widget.name, tab.name].filter(Boolean).join(" - "),
+    // A container id gives each tab a position-independent id for saved table preferences.
+    id: widget.id ? `${widget.id}::${tab.name}` : undefined,
     tabs: undefined,
   };
 

@@ -55,6 +55,7 @@ export interface Row {
 }
 
 export interface Widget {
+  id?: string;
   name: string;
   description?: string;
   type: "metric" | "chart" | "table" | "pivot_table" | "text" | "divider" | "image" | "tabs";
@@ -168,8 +169,12 @@ export interface TableColumn {
   align?: 'left' | 'center' | 'right';
   /** Non-colour vertical border on this column's edge, to separate column groups. */
   border?: 'left' | 'right' | 'both';
-  /** Freeze the column to the left so it stays visible while scrolling. */
+  /** Freeze the column or its entire block; allowed only on a block's first member. */
   frozen?: boolean;
+  /** Consecutive columns with the same group form a block; its first member is the summary. */
+  group?: string;
+  /** Initial block state, allowed only on its first member. Defaults to false. */
+  collapsed?: boolean;
   /** Ordered style layers; the first layer that matches a cell wins. */
   format?: FormatLayer[];
 }
