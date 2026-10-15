@@ -35,18 +35,8 @@ export function buildColumnGroups(columns: TableColumn[]): TableColumnGroup[] {
 export type ColumnGroupState = Record<string, boolean>;
 
 export function isColumnGroupCollapsed(group: TableColumnGroup, state: ColumnGroupState): boolean {
-  const stored = Object.prototype.hasOwnProperty.call(state, group.id) ? state[group.id] : undefined;
-  return stored ?? group.collapsed ?? false;
-}
-
-export function readColumnGroupState(key: string): ColumnGroupState {
-  try {
-    const value: unknown = JSON.parse(window.localStorage.getItem(key) ?? "{}");
-    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-    return Object.fromEntries(Object.entries(value).filter(([, collapsed]) => typeof collapsed === "boolean"));
-  } catch {
-    return {};
-  }
+  const toggled = Object.prototype.hasOwnProperty.call(state, group.id) ? state[group.id] : undefined;
+  return toggled ?? group.collapsed ?? false;
 }
 
 export function collapsedColumnNames(groups: TableColumnGroup[], state: ColumnGroupState): Set<string> {

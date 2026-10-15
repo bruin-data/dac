@@ -22,3 +22,26 @@ rows:
           - { name: orders, label: Orders, number: number, group: financials }
           - { name: average_order, label: Average order, number: currency, group: financials }
           - { name: status, label: Status }
+
+  - widgets:
+      - name: Monthly Performance
+        type: table
+        col: 12
+        data:
+          columns: [region, q1, jan, feb, mar, q2, apr, may, jun, target, owner]
+          rows:
+            - [Europe, 610000, 190000, 205000, 215000, 655000, 210000, 220000, 225000, 1300000, Ana]
+            - [Americas, 880000, 280000, 295000, 305000, 940000, 300000, 315000, 325000, 1800000, Ben]
+            - [Asia Pacific, 450000, 140000, 150000, 160000, 495000, 160000, 165000, 170000, 950000, Chen]
+        columns:
+          - { name: region, label: Region, frozen: true }
+          - { name: q1, label: Q1, number: currency, group: q1, collapsed: true }
+          - { name: jan, label: January, number: currency, group: q1 }
+          - { name: feb, label: February, number: currency, group: q1 }
+          - { name: mar, label: March, number: currency, group: q1 }
+          - { name: q2, label: Q2, number: currency, group: q2 }
+          - { name: apr, label: April, number: currency, group: q2 }
+          - { name: may, label: May, number: currency, group: q2 }
+          - { name: jun, label: June, number: currency, group: q2 }
+          - { name: target, label: Target, number: currency }
+          - { name: owner, label: Owner }
