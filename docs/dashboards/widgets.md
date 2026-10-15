@@ -410,17 +410,21 @@ Grouped columns
 cannot be `hidden`; single-column blocks stay visible with no `+` / `−` control.
 
 Use the header's `+` / `−` button to toggle details. Hover or keyboard focus shows
-the group name; Escape dismisses the tooltip. Column order, widths, sorting, and
-block freeze settings are preserved. Supports horizontal scrolling, plain
-tables, and table tabs; excludes `pivot_table`.
+the group name; Escape dismisses the tooltip. Column order, sorting, and block
+freeze settings are preserved. The table fills the widget with the columns
+visible on load; toggling a group never resizes the other columns, so expanding
+details scrolls horizontally and collapsing them leaves space at the end.
+Supports plain tables and table tabs; excludes `pivot_table`.
 
-Each block's state persists independently in the browser, even for repeated
-names; changing the group definition resets defaults.
+Each block toggles independently, even for repeated names. Toggles last for the
+current page view; reloading the dashboard restores the `collapsed` defaults.
 CSV exports include the full query result.
 
 The `examples/basic-yaml/dashboards/column-groups.yml` sample has two `financials`
 blocks separated by an `orders` block containing Cost and Shipping cost, plus a
-standalone Status column that remains visible when groups are collapsed.
+standalone Status column that remains visible when groups are collapsed. Its
+Monthly Performance table starts with Q1 collapsed and Q2 expanded, so expanding
+Q1 adds a horizontal scroll.
 
 ### Sparkline columns
 

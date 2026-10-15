@@ -8,7 +8,7 @@ import { pivotData } from "./pivot";
 import { SparklineCell } from "./SparklineCell";
 import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
-import { buildColumnGroups, collapsedColumnNames, isColumnGroupCollapsed, readColumnGroupState, type ColumnGroupState } from "./columnGroups";
+import { buildColumnGroups, collapsedColumnNames, isColumnGroupCollapsed, type ColumnGroupState } from "./columnGroups";
 import { ColumnGroupToggle } from "./ColumnGroupToggle";
 
 interface Props {
@@ -56,6 +56,8 @@ export function TableWidget({ widget, data }: Props) {
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
   const [columnMaxWidths, setColumnMaxWidths] = useState<Record<string, number>>({});
+  // Visible columns when the widths were last measured to fill the widget.
+  const [fillColumns, setFillColumns] = useState<string | null>(null);
   const [copiedCellKey, setCopiedCellKey] = useState<string | null>(null);
   const resizeRef = useRef<{ name: string; startX: number; startWidth: number; maxWidth: number } | null>(null);
   // Container resize that arrived mid-drag; replayed when the drag ends.
@@ -68,23 +70,10 @@ export function TableWidget({ widget, data }: Props) {
   const columnGroupsByMember = useMemo(() => new Map(
     columnGroups.flatMap((group) => group.columns.map((name) => [name, group] as const)),
   ), [columnGroups]);
-  // Scope preferences to the dashboard, widget/tab and group definition. Editing
-  // the definition starts from its new defaults instead of stale preferences.
-  const groupStorageKey = `dac:column-groups:${JSON.stringify([
-    window.location.pathname, window.location.hash.split("?")[0], widget.id ?? widget.exportName ?? widget.name, columnGroups,
-  ])}`;
-  const [groupPreference, setGroupPreference] = useState(() => ({
-    key: groupStorageKey, state: readColumnGroupState(groupStorageKey),
-  }));
-  if (groupPreference.key !== groupStorageKey) {
-    setGroupPreference({ key: groupStorageKey, state: readColumnGroupState(groupStorageKey) });
-  }
+  // Toggles last for the page view; a reload starts from the `collapsed` defaults.
+  const [groupState, setGroupState] = useState<ColumnGroupState>({});
   const toggleColumnGroup = (id: string, collapsed: boolean) => {
-    const state: ColumnGroupState = { ...groupPreference.state, [id]: !collapsed };
-    setGroupPreference({ key: groupStorageKey, state });
-    try {
-      window.localStorage.setItem(groupStorageKey, JSON.stringify(state));
-    } catch { /* The control still works when browser storage is unavailable. */ }
+    setGroupState((current) => ({ ...current, [id]: !collapsed }));
   };
 
   // A pivot reshapes the result client-side; the rest of the table renders the
@@ -174,9 +163,9 @@ export function TableWidget({ widget, data }: Props) {
 
   const columns = useMemo(() => {
     if (pivot || !columnGroups.length) return allColumns;
-    const hidden = collapsedColumnNames(columnGroups, groupPreference.state);
+    const hidden = collapsedColumnNames(columnGroups, groupState);
     return allColumns.filter((column) => !hidden.has(column.name));
-  }, [allColumns, columnGroups, groupPreference.state, pivot]);
+  }, [allColumns, columnGroups, groupState, pivot]);
   const summaryGroups = useMemo(() => new Map(columnGroups.map((group) => [group.summary, group])), [columnGroups]);
 
   const togglePin = (name: string) => {
@@ -288,22 +277,28 @@ export function TableWidget({ widget, data }: Props) {
     return { width, minWidth: width, maxWidth: width, boxSizing: "border-box" };
   };
 
+  const visibleColumnsKey = useMemo(() => JSON.stringify(columns.map((col) => col.name)), [columns]);
+
   const tableWidthStyle = useMemo<CSSProperties | undefined>(() => {
     const widths = columns.map((col) => columnWidths[col.name] ?? autoColumnWidths[col.name]);
     const resized = columns.some((col) => columnWidths[col.name] != null);
     // Let the browser lay out unmeasured columns; skip the stretch once resized.
+    // Expanding a group lays out only the revealed columns, so measured ones keep
+    // their widths instead of being stretched to fill the widget again.
     if (!widths.length || widths.some((width) => width == null)) {
-      return resized || columnGroups.length ? { tableLayout: "auto" } : { width: "100%", tableLayout: "auto" };
+      const revealing = columnGroups.length > 0 && widths.some((width) => width != null);
+      return resized || revealing ? { tableLayout: "auto" } : { width: "100%", tableLayout: "auto" };
     }
     const total = widths.reduce((sum, width) => sum + (width ?? 0), 0) + columns.length + 1;
-    // Grouped tables keep their column widths through visibility changes;
-    // ordinary untouched tables fill the widget.
+    // Untouched tables fill the widget; resized ones follow their column sum.
+    // Group toggles also follow the sum so the remaining columns keep their widths.
+    const toggled = columnGroups.length > 0 && fillColumns !== visibleColumnsKey;
     return {
-      width: resized || columnGroups.length ? total : "100%",
+      width: resized || toggled ? total : "100%",
       minWidth: total,
       tableLayout: "fixed",
     };
-  }, [autoColumnWidths, columns, columnWidths, columnGroups.length]);
+  }, [autoColumnWidths, columns, columnWidths, columnGroups.length, fillColumns, visibleColumnsKey]);
 
   // Latest user widths for the container observer, which outlives renders.
   const columnWidthsRef = useRef(columnWidths);
@@ -311,14 +306,25 @@ export function TableWidget({ widget, data }: Props) {
     columnWidthsRef.current = columnWidths;
   }, [columnWidths]);
 
+  // Latest natural widths for the deferred measurement below.
+  const autoColumnWidthsRef = useRef(autoColumnWidths);
+  useLayoutEffect(() => {
+    autoColumnWidthsRef.current = autoColumnWidths;
+  }, [autoColumnWidths]);
+
   const measureRenderedColumnWidths = useCallback(() => {
     const ths = headerRowRef.current?.children;
     if (!ths) return;
+    const current = autoColumnWidthsRef.current;
+    // After a group toggle, measure only newly revealed columns and keep the rest.
+    const revealing = columnGroups.length > 0 && columns.some((col) => current[col.name] != null);
     const widths: Record<string, number> = {};
     columns.forEach((col, index) => {
+      if (revealing && current[col.name] != null) return;
       const th = ths[index] as HTMLElement | undefined;
+      // Floor so the frozen sum never exceeds the width it was measured in.
       let width = Math.floor(th?.getBoundingClientRect().width || MIN_COLUMN_WIDTH);
-      if (columnGroups.length && th) {
+      if (revealing && th) {
         // Intrinsic table sizing can ignore clipped flex labels and round a
         // currency cell below its text width. Measure the actual text before
         // fixing a newly revealed column's width.
@@ -348,26 +354,19 @@ export function TableWidget({ widget, data }: Props) {
         width,
       );
     });
-    // Retain hidden detail widths so expanding restores the measured layout.
-    setAutoColumnWidths((current) => columnGroups.length
-      ? { ...widths, ...current }
-      : { ...current, ...widths });
+    if (!revealing) {
+      setFillColumns(JSON.stringify(columns.map((col) => col.name)));
+      setAutoColumnWidths(widths);
+    } else if (Object.keys(widths).length) {
+      // Retain hidden detail widths so expanding restores the measured layout.
+      setAutoColumnWidths((latest) => ({ ...widths, ...latest }));
+    }
   }, [columns, columnGroups.length]);
 
   useLayoutEffect(() => {
-    let cancelled = false;
-    let measureFrame = 0;
-    const measure = () => {
-      if (!cancelled) measureFrame = window.requestAnimationFrame(measureRenderedColumnWidths);
-    };
-    // Compact grouped tables need the final font metrics before saving widths.
-    if (columnGroups.length && document.fonts) document.fonts.ready.then(measure, measure);
-    else measure();
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(measureFrame);
-    };
-  }, [measureRenderedColumnWidths, effData?.rows, columnGroups.length]);
+    const measureFrame = window.requestAnimationFrame(measureRenderedColumnWidths);
+    return () => window.cancelAnimationFrame(measureFrame);
+  }, [measureRenderedColumnWidths, effData?.rows]);
 
   // Recalculate natural widths on data/configuration changes, but keep them
   // through group toggles (which change only the visible columns).
@@ -679,7 +678,7 @@ export function TableWidget({ widget, data }: Props) {
               const pinGroup = !pivot ? columnGroupsByMember.get(col.name) : undefined;
               const pinnable = !pinGroup || pinGroup.summary === col.name;
               const pinTarget = pinGroup ? `${pinGroup.name} column group for ${col.label}` : `${col.label} column`;
-              const collapsed = group ? isColumnGroupCollapsed(group, groupPreference.state) : false;
+              const collapsed = group ? isColumnGroupCollapsed(group, groupState) : false;
               return (
                 <th
                   key={col.name}
