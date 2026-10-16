@@ -723,9 +723,9 @@ export function TableWidget({ widget, data }: Props) {
   return (
     <div ref={outlineRootRef} className="w-full min-w-0 max-w-full">
       {!pivot && !columns.length && groupOutline.hidden.length > 0 && (
-        <div role="group" aria-label="Column groups" data-dac-export-control className="relative" style={{ height: groupOutline.height }}>
-          {groupOutline.hidden.map((group, lane) => (
-            <div key={group.id} className="absolute left-2" style={{ top: 4 + lane * 18 }}>
+        <div role="group" aria-label="Column groups" data-dac-export-control className="flex min-h-[26px] items-start gap-1.5 overflow-x-auto px-2 py-1">
+          {groupOutline.hidden.map((group) => (
+            <div key={group.id} className="shrink-0">
               {renderGroupToggle(group, true)}
             </div>
           ))}
@@ -744,39 +744,47 @@ export function TableWidget({ widget, data }: Props) {
         <thead>
           {!pivot && columnGroups.length > 0 && (
             <tr aria-label="Column groups" data-dac-export-control>
-              {groupOutline.cells.map((cell) => (
-                <td
-                  key={cell.key}
-                  colSpan={cell.span}
-                  className="pointer-events-none relative overflow-visible p-0"
-                  style={{ height: groupOutline.height, ...frozenStyle(cell.index, true), zIndex: cell.index < frozenCount ? frozenCount - cell.index + 20 : undefined, background: "var(--dac-background)" }}
-                >
-                  {cell.group && (
-                    <>
-                      <span aria-hidden="true" className="pointer-events-none absolute top-[11px] bottom-1.5 border-x border-t border-[var(--dac-border)]" style={{ left: cell.before.length ? 24 : 8, right: cell.after.length ? 24 : 8 }} />
-                      <div className="absolute left-1/2 top-1 z-10 -translate-x-1/2">
-                        {renderGroupToggle(cell.group, false)}
+              {groupOutline.cells.map((cell, outlineIndex) => {
+                const precedingControls = groupOutline.cells[outlineIndex - 1]?.after.length ?? 0;
+                const leadingControls = cell.before.length || precedingControls;
+                const trailingControls = cell.index + cell.span === columns.length ? cell.after.length : 0;
+                // Leave room for the neighboring + buttons before drawing this group's bracket.
+                const bracketLeft = 8 + leadingControls * 20;
+                const bracketRight = trailingControls ? 8 + trailingControls * 20 : cell.after.length ? 24 : 8;
+                return (
+                  <td
+                    key={cell.key}
+                    colSpan={cell.span}
+                    className="pointer-events-none relative overflow-visible p-0"
+                    style={{ height: groupOutline.height, ...frozenStyle(cell.index, true), zIndex: cell.index < frozenCount ? frozenCount - cell.index + 20 : undefined, background: "var(--dac-background)" }}
+                  >
+                    {cell.group && (
+                      <>
+                        <span aria-hidden="true" className="pointer-events-none absolute top-[11px] bottom-1.5 border-x border-t border-[var(--dac-border)]" style={{ left: bracketLeft, right: bracketRight }} />
+                        <div className="absolute top-1 z-10 -translate-x-1/2" style={{ left: `calc(50% + ${(bracketLeft - bracketRight) / 2}px)` }}>
+                          {renderGroupToggle(cell.group, false)}
+                        </div>
+                      </>
+                    )}
+                    {cell.before.length > 0 && (
+                      <div className="pointer-events-none absolute inset-y-0 left-2">
+                        <span aria-hidden="true" className="absolute bottom-0 top-[18px] border-l border-[var(--dac-border)]" />
+                        <div className="absolute -left-[7px] top-1 z-10 flex w-max gap-1.5">
+                          {cell.before.map((group) => <div key={group.id}>{renderGroupToggle(group, true)}</div>)}
+                        </div>
                       </div>
-                    </>
-                  )}
-                  {cell.before.map((group, lane) => (
-                    <div key={group.id} className="pointer-events-none absolute inset-y-0 left-2">
-                      <span aria-hidden="true" className="absolute bottom-0 border-l border-[var(--dac-border)]" style={{ top: 18 + (lane + (cell.group ? 1 : 0)) * 18 }} />
-                      <div className="absolute z-10 -translate-x-1/2" style={{ top: 4 + (lane + (cell.group ? 1 : 0)) * 18 }}>
-                        {renderGroupToggle(group, true)}
+                    )}
+                    {cell.after.length > 0 && (
+                      <div className="pointer-events-none absolute inset-y-0" style={{ right: cell.index + cell.span === columns.length ? 8 : -0.5 }}>
+                        <span aria-hidden="true" className="absolute bottom-0 top-[18px] border-l border-[var(--dac-border)]" />
+                        <div className={`absolute top-1 z-10 flex w-max gap-1.5 ${cell.index + cell.span === columns.length ? "-right-[7px]" : "-left-[7px]"}`}>
+                          {cell.after.map((group) => <div key={group.id}>{renderGroupToggle(group, true)}</div>)}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {cell.after.map((group, lane) => (
-                    <div key={group.id} className="pointer-events-none absolute inset-y-0" style={{ right: cell.index + cell.span === columns.length ? 8 : -0.5 }}>
-                      <span aria-hidden="true" className="absolute bottom-0 border-l border-[var(--dac-border)]" style={{ top: 18 + (lane + (cell.group ? 1 : 0)) * 18 }} />
-                      <div className="absolute z-10 -translate-x-1/2" style={{ top: 4 + (lane + (cell.group ? 1 : 0)) * 18 }}>
-                        {renderGroupToggle(group, true)}
-                      </div>
-                    </div>
-                  ))}
-                </td>
-              ))}
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           )}
           <tr ref={headerRowRef} className="bg-[var(--dac-surface)]">

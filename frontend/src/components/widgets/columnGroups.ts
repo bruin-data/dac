@@ -80,8 +80,5 @@ export function buildColumnGroupOutline(
     pending = [];
   }
   if (cells.length) cells[cells.length - 1].after = pending;
-  const lanes = Math.max(1, pending.length, ...cells.map((cell) =>
-    Math.max(cell.before.length, cell.after.length) + (cell.group ? 1 : 0),
-  ));
-  return { cells, hidden: cells.length ? [] : pending, height: 8 + lanes * 18 };
+  return { cells, hidden: cells.length ? [] : pending, height: 26 };
 }

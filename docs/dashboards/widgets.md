@@ -413,8 +413,8 @@ cannot be `hidden`; single-column blocks stay visible with no `+` / `−` contro
 The `+` / `−` controls sit directly above the column headers, aligned with each
 block. An expanded block has a bracket spanning its columns with a small `−`
 in the middle. A collapsed block has a `+` directly above the separator where
-its columns will reappear. Consecutive collapsed blocks stack their controls
-vertically at the same separator. A thin, softly shadowed line at that edge
+its columns will reappear. Consecutive collapsed blocks show their controls
+side by side at the same separator. A thin, softly shadowed line at that edge
 indicates collapsed columns. When every column is collapsed, expand controls
 stay at the left edge.
 Hover or keyboard focus immediately shows the group and its member columns in a
