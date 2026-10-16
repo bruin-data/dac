@@ -45,3 +45,18 @@ rows:
           - { name: jun, label: June, number: currency, group: q2 }
           - { name: target, label: Target, number: currency }
           - { name: owner, label: Owner }
+
+  - widgets:
+      - name: Order Breakdown
+        type: table
+        col: 12
+        data:
+          columns: [orders, average_order, returns]
+          rows:
+            - [1200, 200, 40]
+            - [1500, 240, 55]
+            - [1000, 180, 30]
+        columns:
+          - { name: orders, label: Orders, number: number, group: orders, collapsed: true }
+          - { name: average_order, label: Average order, number: currency, group: orders }
+          - { name: returns, label: Returns, number: number, group: orders }

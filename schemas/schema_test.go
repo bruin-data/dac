@@ -26,6 +26,20 @@ rows:
 `,
 		},
 		{
+			name:     "hidden column group",
+			schemaID: DashboardV1ID,
+			yaml: `name: Hidden group
+rows:
+  - widgets:
+      - name: Results
+        type: table
+        sql: SELECT 1 AS profit, 2 AS revenue
+        columns:
+          - {name: profit, group: financials, hidden: true}
+          - {name: revenue, group: financials}
+`,
+		},
+		{
 			name:     "dashboard filter scoped to a tab",
 			schemaID: DashboardV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1

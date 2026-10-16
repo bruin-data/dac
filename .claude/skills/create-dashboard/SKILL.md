@@ -842,9 +842,9 @@ columns:
 - With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.
 - Styles on any layer: `backgroundColor`, `textColor`, `bold`, `italic`, `underline`, `strikethrough`.
 - `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
-- `hidden: true`: keep the column in the result but don't render it. Optional. Coloring reads a column whether or not it's shown, so hide only to drop it from the display, e.g. a `like` source you must declare but don't want visible.
+- `hidden: true`: hide the column, or the entire group when set on its first member. Group members retain their data for formatting and exports. Setting `true` on a later member is a validation error.
 - `frozen: true`: freeze the column (or its whole group block) to the left so it stays visible while scrolling. Optional. Frozen columns render first, in their listed order (plain tables only; not `pivot_table`). On grouped columns, only the block's first member may set `frozen` (even `false` elsewhere is invalid).
-- `group: <name>`: consecutive columns with the same `group` form a collapsible block; a different group or an ungrouped column ends it, and reusing the name later starts an independent block. The first member is the summary that stays visible when collapsed. Plain `table` only (not `pivot_table`); grouped columns cannot be `hidden`.
+- `group: <name>`: assign the same name to consecutive columns to create a collapsible group. Each block is independent, even when names repeat. Use on plain `table` columns.
 - `collapsed: true`: start the block collapsed. Optional, defaults to `false`. Allowed only on the block's first member and requires `group`.
 
 Each layer is a YAML object, so `- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }` and the same keys written as an indented block are identical — use whichever reads better.

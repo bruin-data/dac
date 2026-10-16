@@ -1008,8 +1008,8 @@ func validateTableColumnGroups(prefix string, w *Widget, errs *[]string) {
 		if strings.TrimSpace(col.Group) == "" {
 			*errs = append(*errs, cp+".group: must not be blank")
 		}
-		if col.Hidden {
-			*errs = append(*errs, cp+".group: grouped columns must not be hidden")
+		if col.Group == previousGroup && col.Hidden {
+			*errs = append(*errs, cp+".hidden: only allowed on the first column of its group block")
 		}
 		if col.Group == previousGroup && col.Collapsed != nil {
 			*errs = append(*errs, cp+".collapsed: only allowed on the first column of its group block")

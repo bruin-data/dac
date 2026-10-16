@@ -164,7 +164,7 @@ export interface TableColumn {
   y?: AxisEncoding;
   /** Mirror another column's coloring, driven by that column's per-row value. */
   like?: string;
-  /** Keep the column in the result (for cross-column rules / `like`) but don't render it. */
+  /** Hide the column or its whole group block; set true only on a block's first member. */
   hidden?: boolean;
   /** Text alignment override — applies to the header and body cells. */
   align?: 'left' | 'center' | 'right';
@@ -172,7 +172,7 @@ export interface TableColumn {
   border?: 'left' | 'right' | 'both';
   /** Freeze the column or its entire block; allowed only on a block's first member. */
   frozen?: boolean;
-  /** Consecutive columns with the same group form a block; its first member is the summary. */
+  /** Consecutive columns with the same group form a block; collapsing hides the whole block. */
   group?: string;
   /** Initial block state, allowed only on its first member. Defaults to false. */
   collapsed?: boolean;
