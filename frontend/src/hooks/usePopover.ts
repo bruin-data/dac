@@ -15,7 +15,10 @@ export function usePopover(initialOpen = false, placement: "bottom" | "top" = "b
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setPosition({ top: placement === "top" ? rect.top - 4 : rect.bottom + 4, left: rect.left, width: rect.width });
+    // Prefer the requested side, but fall back below when there's no room above.
+    const above = rect.top - 4 - (popoverRef.current?.offsetHeight ?? 0);
+    const top = placement === "top" && above >= 8 ? above : rect.bottom + 4;
+    setPosition({ top, left: rect.left, width: rect.width });
   }, [placement]);
 
   useLayoutEffect(() => {

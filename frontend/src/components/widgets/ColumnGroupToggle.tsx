@@ -45,7 +45,7 @@ export function ColumnGroupToggle({ groupId, name, columnLabel, columnLabels, co
           ref={popoverRef}
           id={tooltipId}
           role="tooltip"
-          className="pointer-events-none fixed z-[9999] max-w-[min(240px,calc(100vw-16px))] -translate-y-full break-words rounded border border-[var(--dac-border)] bg-[var(--dac-surface)] px-2 py-1 text-[11px] font-normal text-[var(--dac-text-primary)] shadow-sm"
+          className="pointer-events-none fixed z-[9999] max-w-[min(240px,calc(100vw-16px))] break-words rounded border border-[var(--dac-border)] bg-[var(--dac-surface)] px-2 py-1 text-[11px] font-normal text-[var(--dac-text-primary)] shadow-sm"
           style={{ top: position.top, left: Math.max(8, Math.min(position.left, window.innerWidth - 248)) }}
         >
           {name}: {columnLabels.join(", ")}

@@ -418,7 +418,7 @@ vertically at the same separator. A thin, softly shadowed line at that edge
 indicates collapsed columns. When every column is collapsed, expand controls
 stay at the left edge.
 Hover or keyboard focus immediately shows the group and its member columns in a
-tooltip above the control. Clicking the control or pressing Escape dismisses it.
+tooltip above the control, or below it when there is no room above. Clicking the control or pressing Escape dismisses it.
 The outline follows horizontal scrolling and frozen columns. Column order,
 sorting, and block freeze settings are preserved. The table fills the widget
 with the columns visible on load; toggling a group never resizes the other

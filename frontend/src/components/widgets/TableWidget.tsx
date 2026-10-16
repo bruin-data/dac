@@ -251,7 +251,6 @@ export function TableWidget({ widget, data }: Props) {
 
   // Frozen columns render first and stick to the left; 0 on pivots.
   const frozenCount = useMemo(() => (pivot ? 0 : columns.filter((c) => c.frozen).length), [columns, pivot]);
-  const tableContainerRef = useRef<HTMLDivElement>(null);
   const headerRowRef = useRef<HTMLTableRowElement>(null);
   const [frozenOffsets, setFrozenOffsets] = useState<number[]>([]);
   useLayoutEffect(() => {
@@ -412,7 +411,9 @@ export function TableWidget({ widget, data }: Props) {
   }, [allColumns, effData?.rows]);
 
   useLayoutEffect(() => {
-    const container = tableContainerRef.current;
+    // Observe the always-mounted wrapper so width changes while every group is
+    // collapsed still trigger a fresh measurement once columns return.
+    const container = outlineRootRef.current;
     if (!container || typeof ResizeObserver === "undefined") return;
 
     let containerWidth = container.getBoundingClientRect().width;
@@ -730,7 +731,7 @@ export function TableWidget({ widget, data }: Props) {
           ))}
         </div>
       )}
-      {columns.length > 0 && <div ref={tableContainerRef} className="w-full min-w-0 max-w-full overflow-x-auto">
+      {columns.length > 0 && <div className="w-full min-w-0 max-w-full overflow-x-auto">
       <table
         className="inline-table min-w-max text-[13px] border-separate [border-spacing:1px_1px]"
         style={tableWidthStyle}
