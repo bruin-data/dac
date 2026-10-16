@@ -8,7 +8,7 @@ import { pivotData } from "./pivot";
 import { SparklineCell } from "./SparklineCell";
 import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
-import { buildColumnGroups, collapsedColumnNames, isColumnGroupCollapsed, type ColumnGroupState } from "./columnGroups";
+import { buildColumnGroups, buildColumnGroupOutline, collapsedColumnNames, type ColumnGroupState } from "./columnGroups";
 import { ColumnGroupToggle } from "./ColumnGroupToggle";
 
 interface Props {
@@ -65,14 +65,17 @@ export function TableWidget({ widget, data }: Props) {
   const copiedCellTimerRef = useRef<number | null>(null);
   const tokens = useTokens();
   const [pinOverrides, setPinOverrides] = useState(() => new Map<string, boolean>());
-  // Choose the summary in declaration order, before frozen columns move left.
+  // Identify group controls in declaration order, before frozen columns move left.
   const columnGroups = useMemo(() => buildColumnGroups(widget.columns ?? []), [widget.columns]);
   const columnGroupsByMember = useMemo(() => new Map(
     columnGroups.flatMap((group) => group.columns.map((name) => [name, group] as const)),
   ), [columnGroups]);
   // Toggles last for the page view; a reload starts from the `collapsed` defaults.
   const [groupState, setGroupState] = useState<ColumnGroupState>({});
+  const outlineRootRef = useRef<HTMLDivElement>(null);
+  const focusGroupRef = useRef<string | null>(null);
   const toggleColumnGroup = (id: string, collapsed: boolean) => {
+    focusGroupRef.current = id;
     setGroupState((current) => ({ ...current, [id]: !collapsed }));
   };
 
@@ -166,7 +169,30 @@ export function TableWidget({ widget, data }: Props) {
     const hidden = collapsedColumnNames(columnGroups, groupState);
     return allColumns.filter((column) => !hidden.has(column.name));
   }, [allColumns, columnGroups, groupState, pivot]);
-  const summaryGroups = useMemo(() => new Map(columnGroups.map((group) => [group.summary, group])), [columnGroups]);
+
+  const groupOutline = useMemo(() => buildColumnGroupOutline(allColumns, columnGroups, groupState), [allColumns, columnGroups, groupState]);
+  const collapsedColumnEdges = useMemo(() => {
+    const edges = new Map<number, { left: number; right: number }>();
+    for (const cell of groupOutline.cells) {
+      if (cell.before.length) edges.set(cell.index, { left: cell.before.length, right: edges.get(cell.index)?.right ?? 0 });
+      const last = cell.index + cell.span - 1;
+      if (cell.after.length) edges.set(last, { left: edges.get(last)?.left ?? 0, right: cell.after.length });
+    }
+    return edges;
+  }, [groupOutline]);
+  useLayoutEffect(() => {
+    if (focusGroupRef.current == null) return;
+    // A toggle moves between a spanning cell and a zero-width boundary marker.
+    // Restore focus after that DOM move so Enter can open the same group again.
+    const buttons = outlineRootRef.current?.querySelectorAll<HTMLButtonElement>("[data-column-group-id]");
+    const button = buttons && Array.from(buttons).find((button) => button.dataset.columnGroupId === focusGroupRef.current);
+    if (button) {
+      button.setAttribute("data-restoring-group-focus", "");
+      button.focus({ preventScroll: true });
+      button.removeAttribute("data-restoring-group-focus");
+    }
+    focusGroupRef.current = null;
+  }, [groupState]);
 
   const togglePin = (name: string) => {
     const pinSource = columnGroupsByMember.get(name)?.summary ?? name;
@@ -670,13 +696,88 @@ export function TableWidget({ widget, data }: Props) {
     return Object.keys(style).length ? style : undefined;
   };
 
+  const renderGroupToggle = (group: (typeof columnGroups)[number], collapsed: boolean) => (
+    <ColumnGroupToggle
+      groupId={group.id}
+      name={group.name}
+      columnLabel={widget.columns?.find((column) => column.name === group.summary)?.label || group.summary}
+      columnLabels={group.columns.map((name) => widget.columns?.find((column) => column.name === name)?.label || name)}
+      collapsed={collapsed}
+      onToggle={() => toggleColumnGroup(group.id, collapsed)}
+    />
+  );
+  const renderCollapsedStack = (index: number) => {
+    const edges = collapsedColumnEdges.get(index);
+    if (!edges || pivot) return null;
+    return (["left", "right"] as const).map((side) => edges[side] > 0 && (
+      <span
+        key={side}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0"
+        style={{ [side]: 0, width: 2, background: "var(--dac-border)", boxShadow: `${side === "right" ? "-1px" : "1px"} 0 2px color-mix(in srgb, var(--dac-text-muted) 20%, transparent)` }}
+      />
+    ));
+  };
+
   return (
-    <div ref={tableContainerRef} className="w-full min-w-0 max-w-full overflow-x-auto">
+    <div ref={outlineRootRef} className="w-full min-w-0 max-w-full">
+      {!pivot && !columns.length && groupOutline.hidden.length > 0 && (
+        <div role="group" aria-label="Column groups" data-dac-export-control className="relative" style={{ height: groupOutline.height }}>
+          {groupOutline.hidden.map((group, lane) => (
+            <div key={group.id} className="absolute left-2" style={{ top: 4 + lane * 18 }}>
+              {renderGroupToggle(group, true)}
+            </div>
+          ))}
+        </div>
+      )}
+      {columns.length > 0 && <div ref={tableContainerRef} className="w-full min-w-0 max-w-full overflow-x-auto">
       <table
         className="inline-table min-w-max text-[13px] border-separate [border-spacing:1px_1px]"
         style={tableWidthStyle}
       >
+        {!pivot && columnGroups.length > 0 && (
+          <colgroup>
+            {columns.map((column) => <col key={column.name} style={columnWidthStyle(column)} />)}
+          </colgroup>
+        )}
         <thead>
+          {!pivot && columnGroups.length > 0 && (
+            <tr aria-label="Column groups" data-dac-export-control>
+              {groupOutline.cells.map((cell) => (
+                <td
+                  key={cell.key}
+                  colSpan={cell.span}
+                  className="pointer-events-none relative overflow-visible p-0"
+                  style={{ height: groupOutline.height, ...frozenStyle(cell.index, true), zIndex: cell.index < frozenCount ? frozenCount - cell.index + 20 : undefined, background: "var(--dac-background)" }}
+                >
+                  {cell.group && (
+                    <>
+                      <span aria-hidden="true" className="pointer-events-none absolute top-[11px] bottom-1.5 border-x border-t border-[var(--dac-border)]" style={{ left: cell.before.length ? 24 : 8, right: cell.after.length ? 24 : 8 }} />
+                      <div className="absolute left-1/2 top-1 z-10 -translate-x-1/2">
+                        {renderGroupToggle(cell.group, false)}
+                      </div>
+                    </>
+                  )}
+                  {cell.before.map((group, lane) => (
+                    <div key={group.id} className="pointer-events-none absolute inset-y-0 left-2">
+                      <span aria-hidden="true" className="absolute bottom-0 border-l border-[var(--dac-border)]" style={{ top: 18 + (lane + (cell.group ? 1 : 0)) * 18 }} />
+                      <div className="absolute z-10 -translate-x-1/2" style={{ top: 4 + (lane + (cell.group ? 1 : 0)) * 18 }}>
+                        {renderGroupToggle(group, true)}
+                      </div>
+                    </div>
+                  ))}
+                  {cell.after.map((group, lane) => (
+                    <div key={group.id} className="pointer-events-none absolute inset-y-0" style={{ right: cell.index + cell.span === columns.length ? 8 : -0.5 }}>
+                      <span aria-hidden="true" className="absolute bottom-0 border-l border-[var(--dac-border)]" style={{ top: 18 + (lane + (cell.group ? 1 : 0)) * 18 }} />
+                      <div className="absolute z-10 -translate-x-1/2" style={{ top: 4 + (lane + (cell.group ? 1 : 0)) * 18 }}>
+                        {renderGroupToggle(group, true)}
+                      </div>
+                    </div>
+                  ))}
+                </td>
+              ))}
+            </tr>
+          )}
           <tr ref={headerRowRef} className="bg-[var(--dac-surface)]">
             {columns.map((col, ci) => {
               const numeric = col.number != null;
@@ -684,11 +785,11 @@ export function TableWidget({ widget, data }: Props) {
               const active = sortable && sort?.column === col.name;
               const alignCls = alignClasses(col.align, numeric);
               const pinAction = col.frozen ? "Unfreeze" : "Freeze";
-              const group = !pivot ? summaryGroups.get(col.name) : undefined;
+              const collapsedEdges = !pivot ? collapsedColumnEdges.get(ci) : undefined;
+              const collapsedCount = collapsedEdges ? collapsedEdges.left + collapsedEdges.right : undefined;
               const pinGroup = !pivot ? columnGroupsByMember.get(col.name) : undefined;
               const pinnable = !pinGroup || pinGroup.summary === col.name;
               const pinTarget = pinGroup ? `${pinGroup.name} column group for ${col.label}` : `${col.label} column`;
-              const collapsed = group ? isColumnGroupCollapsed(group, groupState) : false;
               return (
                 <th
                   key={col.name}
@@ -700,21 +801,14 @@ export function TableWidget({ widget, data }: Props) {
                       : "none"
                   }
                   scope="col"
+                  data-collapsed-groups={collapsedCount}
                   className={`group/header relative align-bottom py-0 px-0 whitespace-nowrap overflow-hidden ${alignCls.text} ${ci < frozenCount ? "bg-[var(--dac-surface)]" : ""} ${borderClasses[ci]}`}
                   style={{ ...columnWidthStyle(col), ...frozenStyle(ci, true) }}
                 >
-                  {group && (
-                    <ColumnGroupToggle
-                      name={group.name}
-                      columnLabel={col.label}
-                      collapsed={collapsed}
-                      onToggle={() => toggleColumnGroup(group.id, collapsed)}
-                    />
-                  )}
                   <button
                     type="button"
                     onClick={sortable ? () => handleHeaderClick(col.name) : undefined}
-                    className={`group w-full min-w-0 flex items-center gap-1 py-2 ${group ? "pl-10" : "pl-4"} ${pivot || !pinnable ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${sortable ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    className={`group w-full min-w-0 flex items-center gap-1 py-2 pl-4 ${pivot || !pinnable ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${sortable ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                     style={columnWidthStyle(col)}
                   >
                     <span
@@ -725,6 +819,7 @@ export function TableWidget({ widget, data }: Props) {
                     </span>
                     <SortIndicator direction={active ? sort!.direction : null} />
                   </button>
+                  {renderCollapsedStack(ci)}
                   {!pivot && (
                     <>
                       {pinnable && <button
@@ -849,6 +944,7 @@ export function TableWidget({ widget, data }: Props) {
                         </span>
                       )}
                     </div>
+                    {renderCollapsedStack(ci)}
                   </td>
                 );
               })}
@@ -857,6 +953,7 @@ export function TableWidget({ widget, data }: Props) {
           })}
         </tbody>
       </table>
+      </div>}
     </div>
   );
 }

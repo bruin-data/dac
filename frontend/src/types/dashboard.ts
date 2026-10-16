@@ -172,7 +172,7 @@ export interface TableColumn {
   border?: 'left' | 'right' | 'both';
   /** Freeze the column or its entire block; allowed only on a block's first member. */
   frozen?: boolean;
-  /** Consecutive columns with the same group form a block; its first member is the summary. */
+  /** Consecutive columns with the same group form a block; collapsing hides the whole block. */
   group?: string;
   /** Initial block state, allowed only on its first member. Defaults to false. */
   collapsed?: boolean;

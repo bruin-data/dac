@@ -6,7 +6,7 @@ export interface PopoverPosition {
   width: number;
 }
 
-export function usePopover(initialOpen = false) {
+export function usePopover(initialOpen = false, placement: "bottom" | "top" = "bottom") {
   const [open, setOpen] = useState(initialOpen);
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -15,8 +15,8 @@ export function usePopover(initialOpen = false) {
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-  }, []);
+    setPosition({ top: placement === "top" ? rect.top - 4 : rect.bottom + 4, left: rect.left, width: rect.width });
+  }, [placement]);
 
   useLayoutEffect(() => {
     if (open) updatePosition();

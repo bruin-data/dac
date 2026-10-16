@@ -378,15 +378,15 @@ Table column fields:
 | `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
 | `border` | string | Non-colour vertical border on this column's `left`, `right`, or `both` edge, to separate column groups (plain tables only; not `pivot_table`). |
 | `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
-| `frozen` | boolean | Freeze a column or its entire group block to the left; defaults to `false`. Only a group's first member may set it and shows the pin control. Frozen columns render first, in listed order (plain tables only; not `pivot_table`). |
-| `group` | string | Consecutive columns with the same name form a group block. Its first member stays visible when collapsed. See [Collapsible column groups](#collapsible-column-groups). |
+| `frozen` | boolean | Freeze a column or its entire group block to the left; defaults to `false`. Only a group's first member may set it and shows the group pin control when expanded. Frozen columns render first, in listed order (plain tables only; not `pivot_table`). |
+| `group` | string | Consecutive columns with the same name form a group block. Collapsing hides the entire group. See [Collapsible column groups](#collapsible-column-groups). |
 | `collapsed` | boolean | Initial block state, allowed only on its first member; defaults to `false`. |
 | `format` | string \| object | Value display and conditional coloring, see below |
 
 ### Collapsible column groups
 
-Add the same `group` name to consecutive columns on a plain `table`. The first
-member of each block stays visible when collapsed:
+Add the same `group` name to consecutive columns on a plain `table`. Collapsing
+hides the entire group; use `+` to expand it again:
 
 ```yaml
 - name: Financials
@@ -402,18 +402,27 @@ member of each block stays visible when collapsed:
 A different group or an ungrouped column ends the current block. Reusing a name
 later creates an independent block: `financials → orders → financials` creates
 two separate `financials` groups. The first member of each block, before frozen
-columns move left, is its summary and may set `collapsed` (`false` by default).
+columns move left, supplies its settings and may set `collapsed` (`false` by default).
 Using it elsewhere or without `group` is a validation error. `frozen` also belongs
-on the first member only (even `false` elsewhere is invalid). Its pin button
-freezes or unfreezes the entire block, including details revealed on expansion.
+on the first member only (even `false` elsewhere is invalid). The first member's pin
+button freezes or unfreezes the entire block, including columns revealed on
+expansion. Collapse preserves that freeze state.
 Grouped columns
 cannot be `hidden`; single-column blocks stay visible with no `+` / `−` control.
 
-Use the header's `+` / `−` button to toggle details. Hover or keyboard focus shows
-the group name; Escape dismisses the tooltip. Column order, sorting, and block
-freeze settings are preserved. The table fills the widget with the columns
-visible on load; toggling a group never resizes the other columns, so expanding
-details scrolls horizontally and collapsing them leaves space at the end.
+The `+` / `−` controls sit directly above the column headers, aligned with each
+block. An expanded block has a bracket spanning its columns with a small `−`
+in the middle. A collapsed block has a `+` directly above the separator where
+its columns will reappear. Consecutive collapsed blocks stack their controls
+vertically at the same separator. A thin, softly shadowed line at that edge
+indicates collapsed columns. When every column is collapsed, expand controls
+stay at the left edge.
+Hover or keyboard focus immediately shows the group and its member columns in a
+tooltip above the control. Clicking the control or pressing Escape dismisses it.
+The outline follows horizontal scrolling and frozen columns. Column order,
+sorting, and block freeze settings are preserved. The table fills the widget
+with the columns visible on load; toggling a group never resizes the other
+columns, so expansion can add horizontal scrolling and collapse can leave space at the end.
 Supports plain tables and table tabs; excludes `pivot_table`.
 
 Each block toggles independently, even for repeated names. Toggles last for the
@@ -424,7 +433,8 @@ The `examples/basic-yaml/dashboards/column-groups.yml` sample has two `financial
 blocks separated by an `orders` block containing Cost and Shipping cost, plus a
 standalone Status column that remains visible when groups are collapsed. Its
 Monthly Performance table starts with Q1 collapsed and Q2 expanded, so expanding
-Q1 adds a horizontal scroll.
+Q1 adds a horizontal scroll. A third table, Order Breakdown, starts with every
+column collapsed; its expand control restores the full group.
 
 ### Sparkline columns
 

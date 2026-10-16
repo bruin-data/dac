@@ -42,7 +42,46 @@ export function isColumnGroupCollapsed(group: TableColumnGroup, state: ColumnGro
 export function collapsedColumnNames(groups: TableColumnGroup[], state: ColumnGroupState): Set<string> {
   return new Set(groups.flatMap((group) =>
     isColumnGroupCollapsed(group, state)
-      ? group.columns.filter((name) => name !== group.summary)
+      ? group.columns
       : [],
   ));
+}
+
+// The outline shares the table's real columns. Hidden groups attach to a visible
+// cell boundary instead of adding a placeholder column to the table.
+export function buildColumnGroupOutline(
+  columns: { name: string }[],
+  groups: TableColumnGroup[],
+  state: ColumnGroupState,
+) {
+  const byMember = new Map(groups.flatMap((group) => group.columns.map((name) => [name, group] as const)));
+  const cells: {
+    key: string;
+    index: number;
+    span: number;
+    group?: TableColumnGroup;
+    before: TableColumnGroup[];
+    after: TableColumnGroup[];
+  }[] = [];
+  let pending: TableColumnGroup[] = [];
+  let index = 0;
+  for (const column of columns) {
+    const group = byMember.get(column.name);
+    if (group && column.name !== group.summary) continue;
+    if (group && isColumnGroupCollapsed(group, state)) {
+      pending.push(group);
+      continue;
+    }
+    const span = group?.columns.length ?? 1;
+    const before = cells.length ? [] : pending;
+    if (cells.length) cells[cells.length - 1].after = pending;
+    cells.push({ key: group?.id ?? column.name, index, span, group, before, after: [] });
+    index += span;
+    pending = [];
+  }
+  if (cells.length) cells[cells.length - 1].after = pending;
+  const lanes = Math.max(1, pending.length, ...cells.map((cell) =>
+    Math.max(cell.before.length, cell.after.length) + (cell.group ? 1 : 0),
+  ));
+  return { cells, hidden: cells.length ? [] : pending, height: 8 + lanes * 18 };
 }

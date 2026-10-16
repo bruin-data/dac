@@ -111,7 +111,7 @@ A `table` column takes `name`, `label`, `number` (value format: `number`, `curre
 - `like`: mirror another column's coloring, driven by that column's per-row value, while keeping this column's own `number`.
 - `hidden: true`: keep the column in the result but don't render it. Optional. Coloring reads a column whether or not it's shown, so hide only to drop it from the display, e.g. a `like` source you must declare but don't want visible.
 - `frozen: true`: freeze the column (or its whole group block) to the left so it stays visible while scrolling. Optional. Frozen columns render first, in their listed order (plain tables only; not `pivot_table`). On grouped columns, only the block's first member may set `frozen` (even `false` elsewhere is invalid).
-- `group: <name>`: consecutive columns with the same `group` form a collapsible block; a different group or an ungrouped column ends it, and reusing the name later starts an independent block. The first member is the summary that stays visible when collapsed. Plain `table` only (not `pivot_table`); grouped columns cannot be `hidden`.
+- `group: <name>`: assign the same name to consecutive columns to create a collapsible group. Each block is independent, even when names repeat. Use on plain `table` columns; keep `hidden: false` on group members.
 - `collapsed: true`: start the block collapsed. Optional, defaults to `false`. Allowed only on the block's first member and requires `group`.
 
 Each layer is a YAML object, so `- { backgroundColor: [red, white, green], range: [-25, 0, 25], unit: absolute }` and the same keys written as an indented block are identical — use whichever reads better.
