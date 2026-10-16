@@ -66,10 +66,11 @@ export function TableWidget({ widget, data }: Props) {
   const tokens = useTokens();
   const [pinOverrides, setPinOverrides] = useState(() => new Map<string, boolean>());
   // Identify group controls in declaration order, before frozen columns move left.
-  const columnGroups = useMemo(() => buildColumnGroups(widget.columns ?? []), [widget.columns]);
+  const configuredColumnGroups = useMemo(() => buildColumnGroups(widget.columns ?? []), [widget.columns]);
+  const columnGroups = useMemo(() => configuredColumnGroups.filter((group) => !group.hidden), [configuredColumnGroups]);
   const columnGroupsByMember = useMemo(() => new Map(
-    columnGroups.flatMap((group) => group.columns.map((name) => [name, group] as const)),
-  ), [columnGroups]);
+    configuredColumnGroups.flatMap((group) => group.columns.map((name) => [name, group] as const)),
+  ), [configuredColumnGroups]);
   // Toggles last for the page view; a reload starts from the `collapsed` defaults.
   const [groupState, setGroupState] = useState<ColumnGroupState>({});
   const outlineRootRef = useRef<HTMLDivElement>(null);
@@ -98,6 +99,8 @@ export function TableWidget({ widget, data }: Props) {
       const pinSource = columnGroupsByMember.get(name)?.summary ?? name;
       return !pivot && (pinOverrides.get(pinSource) ?? meta.get(pinSource)?.frozen ?? false);
     };
+    const isHidden = (name: string) =>
+      (!pivot && columnGroupsByMember.get(name)?.hidden) || (meta.get(name)?.hidden ?? false);
     const raw =
       pivot || !widget.columns?.length
         ? effData.columns.map((col, idx) => {
@@ -112,7 +115,7 @@ export function TableWidget({ widget, data }: Props) {
               align: m?.align,
               border: m?.border,
               like: m?.like,
-              hidden: m?.hidden ?? false,
+              hidden: isHidden(col.name),
               frozen: isFrozen(col.name),
               format: m?.format,
               idx,
@@ -128,7 +131,7 @@ export function TableWidget({ widget, data }: Props) {
             align: col.align,
             border: col.border,
             like: col.like,
-            hidden: col.hidden ?? false,
+            hidden: isHidden(col.name),
             frozen: isFrozen(col.name),
             format: col.format,
             idx: effData.columns.findIndex((c) => c.name === col.name),
@@ -719,6 +722,7 @@ export function TableWidget({ widget, data }: Props) {
       />
     ));
   };
+  const trailingGroups = !pivot ? groupOutline.cells[groupOutline.cells.length - 1]?.after ?? [] : [];
 
   return (
     <div ref={outlineRootRef} className="w-full min-w-0 max-w-full">
@@ -731,9 +735,9 @@ export function TableWidget({ widget, data }: Props) {
           ))}
         </div>
       )}
-      {columns.length > 0 && <div className="w-full min-w-0 max-w-full overflow-x-auto">
+      {columns.length > 0 && <div className="w-full min-w-0 max-w-full overflow-x-auto whitespace-nowrap">
       <table
-        className="inline-table min-w-max text-[13px] border-separate [border-spacing:1px_1px]"
+        className="inline-table min-w-max align-top text-[13px] border-separate [border-spacing:1px_1px]"
         style={tableWidthStyle}
       >
         {!pivot && columnGroups.length > 0 && (
@@ -747,10 +751,9 @@ export function TableWidget({ widget, data }: Props) {
               {groupOutline.cells.map((cell, outlineIndex) => {
                 const precedingControls = groupOutline.cells[outlineIndex - 1]?.after.length ?? 0;
                 const leadingControls = cell.before.length || precedingControls;
-                const trailingControls = cell.index + cell.span === columns.length ? cell.after.length : 0;
                 // Leave room for the neighboring + buttons before drawing this group's bracket.
                 const bracketLeft = 8 + leadingControls * 20;
-                const bracketRight = trailingControls ? 8 + trailingControls * 20 : cell.after.length ? 24 : 8;
+                const bracketRight = cell.after.length ? 24 : 8;
                 return (
                   <td
                     key={cell.key}
@@ -774,10 +777,10 @@ export function TableWidget({ widget, data }: Props) {
                         </div>
                       </div>
                     )}
-                    {cell.after.length > 0 && (
-                      <div className="pointer-events-none absolute inset-y-0" style={{ right: cell.index + cell.span === columns.length ? 8 : -0.5 }}>
+                    {cell.after.length > 0 && cell.index + cell.span < columns.length && (
+                      <div className="pointer-events-none absolute inset-y-0" style={{ right: -0.5 }}>
                         <span aria-hidden="true" className="absolute bottom-0 top-[18px] border-l border-[var(--dac-border)]" />
-                        <div className={`absolute top-1 z-10 flex w-max gap-1.5 ${cell.index + cell.span === columns.length ? "-right-[7px]" : "-left-[7px]"}`}>
+                        <div className="absolute -left-[7px] top-1 z-10 flex w-max gap-1.5">
                           {cell.after.map((group) => <div key={group.id}>{renderGroupToggle(group, true)}</div>)}
                         </div>
                       </div>
@@ -962,6 +965,13 @@ export function TableWidget({ widget, data }: Props) {
           })}
         </tbody>
       </table>
+      {/* Reserve scrollable space for controls beyond the final column. */}
+      {trailingGroups.length > 0 && (
+        <div role="group" aria-label="Column groups" data-dac-export-control className="relative -left-[7px] top-px inline-flex h-[26px] items-start gap-1.5 py-1 align-top" style={{ zIndex: frozenCount + 21 }}>
+          <span aria-hidden="true" className="pointer-events-none absolute bottom-0 left-[7px] top-[18px] border-l border-[var(--dac-border)]" />
+          {trailingGroups.map((group) => <div key={group.id} className="shrink-0">{renderGroupToggle(group, true)}</div>)}
+        </div>
+      )}
       </div>}
     </div>
   );

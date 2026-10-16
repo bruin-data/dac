@@ -256,7 +256,7 @@ type TableColumn struct {
 	X         *AxisEncoding `yaml:"x,omitempty" json:"x,omitempty"`                 // sparkline point x key/type/format
 	Y         *AxisEncoding `yaml:"y,omitempty" json:"y,omitempty"`                 // sparkline point y key/type/format/domain
 	Like      string        `yaml:"like,omitempty" json:"like,omitempty"`           // mirror another column's coloring + per-row value
-	Hidden    bool          `yaml:"hidden,omitempty" json:"hidden,omitempty"`       // keep the column in the result (for cross-column rules / like) but don't render it
+	Hidden    bool          `yaml:"hidden,omitempty" json:"hidden,omitempty"`       // hide the column or its entire group block; set true only on a block's first member
 	Align     string        `yaml:"align,omitempty" json:"align,omitempty"`         // text alignment override: left | center | right (applies to the header and body cells)
 	Border    string        `yaml:"border,omitempty" json:"border,omitempty"`       // non-colour vertical group border on this column's edge: left | right | both
 	Frozen    *bool         `yaml:"frozen,omitempty" json:"frozen,omitempty"`       // freeze the column or its entire block; only allowed on a block's first member

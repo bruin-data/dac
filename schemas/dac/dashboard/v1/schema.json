@@ -778,10 +778,6 @@
           "then": { "required": ["group"] }
         },
         {
-          "if": { "required": ["group"] },
-          "then": { "not": { "required": ["hidden"], "properties": { "hidden": { "const": true } } } }
-        },
-        {
           "if": { "anyOf": [{ "required": ["x"] }, { "required": ["y"] }] },
           "then": { "required": ["type"], "properties": { "type": { "const": "sparkline" } } }
         },

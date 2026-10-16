@@ -6,6 +6,7 @@ interface TableColumnGroup {
   columns: string[];
   summary: string;
   collapsed: boolean;
+  hidden: boolean;
 }
 
 export function buildColumnGroups(columns: TableColumn[]): TableColumnGroup[] {
@@ -23,6 +24,7 @@ export function buildColumnGroups(columns: TableColumn[]): TableColumnGroup[] {
         columns: [],
         summary: column.name,
         collapsed: column.collapsed ?? false,
+        hidden: column.hidden ?? false,
       };
       groups.push(group);
     }

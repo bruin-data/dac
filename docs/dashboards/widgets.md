@@ -377,7 +377,7 @@ Table column fields:
 | `y` | object | Sparkline point-key, tooltip, and scale encoding. Supports `field`, `type: number`, `format`, and `beginAtZero`. |
 | `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
 | `border` | string | Non-colour vertical border on this column's `left`, `right`, or `both` edge, to separate column groups (plain tables only; not `pivot_table`). |
-| `hidden` | boolean | Keep the column in the result but don't render it, see [Hidden columns](#hidden-columns) |
+| `hidden` | boolean | `true` hides the column. For grouped columns, set it on the first member to hide the entire group. See [Hidden columns](#hidden-columns). |
 | `frozen` | boolean | Freeze a column or its entire group block to the left; defaults to `false`. Only a group's first member may set it and shows the group pin control when expanded. Frozen columns render first, in listed order (plain tables only; not `pivot_table`). |
 | `group` | string | Consecutive columns with the same name form a group block. Collapsing hides the entire group. See [Collapsible column groups](#collapsible-column-groups). |
 | `collapsed` | boolean | Initial block state, allowed only on its first member; defaults to `false`. |
@@ -407,16 +407,18 @@ Using it elsewhere or without `group` is a validation error. `frozen` also belon
 on the first member only (even `false` elsewhere is invalid). The first member's pin
 button freezes or unfreezes the entire block, including columns revealed on
 expansion. Collapse preserves that freeze state.
-Grouped columns
-cannot be `hidden`; single-column blocks stay visible with no `+` / `−` control.
+Set `hidden: true` on a block's first member to hide the whole group, including
+its controls. Setting it to `true` on a later member is a validation error.
+Single-column blocks support `hidden` and render as ordinary columns when visible.
 
 The `+` / `−` controls sit directly above the column headers, aligned with each
 block. An expanded block has a bracket spanning its columns with a small `−`
 in the middle. A collapsed block has a `+` directly above the separator where
 its columns will reappear. Consecutive collapsed blocks show their controls
-side by side at the same separator. A thin, softly shadowed line at that edge
-indicates collapsed columns. When every column is collapsed, expand controls
-stay at the left edge.
+side by side at the same separator. Controls after the final visible column
+extend to the right and remain reachable by horizontal scrolling. A thin, softly
+shadowed line at that edge indicates collapsed columns. When every column is
+collapsed, expand controls stay at the left edge.
 Hover or keyboard focus immediately shows the group and its member columns in a
 tooltip above the control, or below it when there is no room above. Clicking the control or pressing Escape dismisses it.
 The outline follows horizontal scrolling and frozen columns. Column order,
@@ -751,6 +753,16 @@ columns:
 ```
 
 Hidden columns are still in the underlying data, so they appear in CSV exports. `hidden` has no effect on non-table widgets.
+
+For a group, set `hidden: true` on its first column to hide the entire block and
+its controls. Use `collapsed: true` instead when viewers should be able to expand it.
+
+```yaml
+columns:
+  - { name: region }
+  - { name: profit, group: financials, hidden: true }
+  - { name: revenue, group: financials }
+```
 
 ## Inline data
 

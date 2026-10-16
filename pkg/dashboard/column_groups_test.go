@@ -16,7 +16,7 @@ rows:
           columns: [revenue, cost, profit]
           rows: [[100, 60, 40]]
         columns:
-          - {name: profit, number: currency, group: financials, collapsed: true, frozen: true}
+          - {name: profit, number: currency, group: financials, collapsed: true, frozen: true, hidden: true}
           - {name: revenue, number: currency, group: financials}
           - {name: cost, number: currency, group: financials}
 `)
@@ -24,7 +24,7 @@ rows:
 	assertNoErr(t, err)
 	assertNoErr(t, Validate(d))
 	want := []TableColumn{
-		{Name: "profit", Number: "currency", Group: "financials", Collapsed: boolPtr(true), Frozen: boolPtr(true)},
+		{Name: "profit", Number: "currency", Group: "financials", Collapsed: boolPtr(true), Frozen: boolPtr(true), Hidden: true},
 		{Name: "revenue", Number: "currency", Group: "financials"},
 		{Name: "cost", Number: "currency", Group: "financials"},
 	}
@@ -107,8 +107,18 @@ func TestColumnGroupsValidation(t *testing.T) {
 		{name: "singleton with frozen", modify: func(w *Widget) {
 			w.Columns = []TableColumn{{Name: "orders", Group: "orders", Frozen: boolPtr(true)}}
 		}},
-		{name: "hidden summary", modify: func(w *Widget) { w.Columns[0].Hidden = true }, want: "must not be hidden"},
-		{name: "hidden detail", modify: func(w *Widget) { w.Columns[1].Hidden = true }, want: "must not be hidden"},
+		{name: "hidden block", modify: func(w *Widget) { w.Columns[0].Hidden = true }},
+		{name: "hidden detail", modify: func(w *Widget) { w.Columns[1].Hidden = true }, want: "hidden: only allowed on the first column"},
+		{name: "hidden later member of hidden block", modify: func(w *Widget) { w.Columns[0].Hidden = true; w.Columns[1].Hidden = true }, want: "hidden: only allowed on the first column"},
+		{name: "hide only second block with repeated name", modify: func(w *Widget) {
+			w.Columns = []TableColumn{
+				{Name: "profit", Group: "financials"},
+				{Name: "revenue", Group: "financials"},
+				{Name: "region"},
+				{Name: "forecast", Group: "financials", Hidden: true},
+				{Name: "target", Group: "financials"},
+			}
+		}},
 		{name: "non-table", modify: func(w *Widget) { w.Type = WidgetTypeText; w.Content = "hello" }, want: "only supported on plain tables"},
 		{name: "pivot", modify: func(w *Widget) {
 			w.Type = WidgetTypePivotTable
