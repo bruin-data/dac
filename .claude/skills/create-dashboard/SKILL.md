@@ -173,6 +173,8 @@ filters:
     default: 1000
 ```
 
+**Filter column span (`col`):** Optional width on a 12-column grid, like widget widths. YAML `col: 4` or TSX `<Filter ... col={4} />` displays a filter four columns wide in `dac serve`. Values must be integers from 1 to 12. If any filter in a visible bar sets `col`, filters without it take three columns; if none sets it, the bar keeps its compact layout. Grid filters wrap and stack on small screens. Configure widths in the definition.
+
 **Filter types:** `select`, `date-range`, `date`, `number`, `text`
 
 **Searchable selects:** both single and multiple `select` filters show a searchable dropdown, so you can type to find an option quickly when the list is long.

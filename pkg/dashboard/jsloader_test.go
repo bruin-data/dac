@@ -22,6 +22,29 @@ func TestVnodeToFilter_Tab(t *testing.T) {
 	}
 }
 
+func TestVnodeToFilter_Col(t *testing.T) {
+	f := vnodeToFilter(&vnode{Props: map[string]interface{}{
+		"name": "region",
+		"type": "text",
+		"col":  float64(4),
+	}})
+	if f.Col == nil || *f.Col != 4 {
+		t.Fatalf("expected col 4, got %v", f.Col)
+	}
+
+	f = vnodeToFilter(&vnode{Props: map[string]interface{}{"name": "region", "type": "text"}})
+	if f.Col != nil {
+		t.Errorf("expected nil col when absent, got %d", *f.Col)
+	}
+
+	for _, raw := range []interface{}{4.5, "4"} {
+		f = vnodeToFilter(&vnode{Props: map[string]interface{}{"name": "region", "type": "text", "col": raw}})
+		err := Validate(&Dashboard{Name: "test", Filters: []Filter{f}})
+		assertErr(t, err)
+		assertValidationContains(t, err, "col must be an integer from 1 to 12")
+	}
+}
+
 func TestLoadTSXFile_DataDrivenDashboard(t *testing.T) {
 	// The sample dashboard uses query() at load time. Without a backend,
 	// query() returns empty results, so the data-driven loops produce no widgets.

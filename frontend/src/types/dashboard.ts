@@ -20,6 +20,7 @@ export interface Dashboard {
 }
 
 export interface Filter {
+  col?: number;
   name: string;
   type: "date" | "date-range" | "number" | "select" | "text";
   multiple?: boolean;

@@ -465,6 +465,21 @@ func TestValidate_ColumnSumExceeds12(t *testing.T) {
 	assertValidationContains(t, err, "exceeds 12")
 }
 
+func TestValidate_FilterCol(t *testing.T) {
+	rows := []Row{{Widgets: []Widget{{Name: "w", Type: WidgetTypeText, Content: "x"}}}}
+	for _, col := range []int{0, 13} {
+		d := &Dashboard{Name: "test", Rows: rows, Filters: []Filter{{Name: "region", Type: "text", Col: &col}}}
+		err := Validate(d)
+		assertErr(t, err)
+		assertValidationContains(t, err, "col must be an integer from 1 to 12")
+	}
+	for _, col := range []int{1, 12} {
+		d := &Dashboard{Name: "test", Rows: rows, Filters: []Filter{{Name: "region", Type: "text", Col: &col}}}
+		assertNoErr(t, Validate(d))
+	}
+	assertNoErr(t, Validate(&Dashboard{Name: "test", Rows: rows, Filters: []Filter{{Name: "region", Type: "text"}}}))
+}
+
 func TestValidate_TextWidgetMissingContent(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",

@@ -141,6 +141,9 @@ func Validate(d *Dashboard) error {
 	// Validate filters.
 	for i, f := range d.Filters {
 		prefix := fmt.Sprintf("filter %d (%q)", i+1, f.Name)
+		if f.Col != nil && (*f.Col < 1 || *f.Col > 12) {
+			errs = append(errs, fmt.Sprintf("%s: col must be an integer from 1 to 12", prefix))
+		}
 		if f.Name == "" {
 			errs = append(errs, fmt.Sprintf("filter %d: name is required", i+1))
 		}

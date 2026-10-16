@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 import type { DateRange } from "react-day-picker";
@@ -10,15 +11,22 @@ import { popoverPortalTarget, usePopover } from "../../hooks/usePopover";
 export function BruinFilterBar({ filters, values, onChange }: FilterBarProps) {
   if (!filters.length) return null;
 
+  const useGrid = filters.some((filter) => filter.col !== undefined);
+
   return (
-    <div className="flex items-end flex-wrap gap-3 mb-5 pb-4 border-b border-[var(--dac-border)]">
+    <div className={`${useGrid ? "grid grid-cols-1 sm:grid-cols-12" : "flex flex-wrap"} items-end gap-3 mb-5 pb-4 border-b border-[var(--dac-border)]`}>
       {filters.map((filter) => (
-        <FilterControl
+        <div
           key={filter.name}
-          filter={filter}
-          value={values[filter.name]}
-          onChange={(v) => onChange(filter.name, v)}
-        />
+          className={useGrid ? "dac-filter-column min-w-0" : undefined}
+          style={useGrid ? { "--dac-filter-col": filter.col ?? 3 } as CSSProperties : undefined}
+        >
+          <FilterControl
+            filter={filter}
+            value={values[filter.name]}
+            onChange={(v) => onChange(filter.name, v)}
+          />
+        </div>
       ))}
     </div>
   );
@@ -331,12 +339,12 @@ function DateRangeFilter({
         ref={triggerRef}
         type="button"
         onClick={() => { setOpen((v) => !v); if (open) setShowCalendar(false); }}
-        className={`${inputClass} cursor-pointer flex items-center gap-1.5`}
+        className={`${inputClass} cursor-pointer flex items-center gap-1.5 min-w-0 overflow-hidden`}
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0 opacity-50">
           <path d="M5 1v2M11 1v2M1.5 6h13M2.5 3h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        <span className="text-[13px] whitespace-nowrap">{triggerLabel}</span>
+        <span className="text-[13px] truncate min-w-0">{triggerLabel}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0 opacity-40 ml-auto">
           <path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
@@ -458,6 +466,7 @@ function SingleSelectFilter({
       </label>
       <Select<Option, false>
         inputId={inputId}
+        classNamePrefix="dac-select"
         aria-label={label}
         isLoading={filter.options?.isLoading}
         aria-invalid={!!filter.options?.error}
@@ -511,6 +520,7 @@ function MultiSelectFilter({
       </label>
       <Select<Option, true>
         inputId={inputId}
+        classNamePrefix="dac-select"
         aria-label={label}
         isLoading={filter.options?.isLoading}
         aria-invalid={!!filter.options?.error}
