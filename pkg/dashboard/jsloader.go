@@ -465,6 +465,14 @@ func vnodeToFilter(n *vnode) Filter {
 		Default:  n.Props["default"],
 	}
 
+	if raw := n.Props["col"]; raw != nil {
+		col := asInt(raw)
+		if asFloat(raw) != float64(col) {
+			col = 0
+		}
+		f.Col = &col
+	}
+
 	if opts, ok := n.Props["options"]; ok {
 		if m, ok := opts.(map[string]interface{}); ok {
 			fo := &FilterOptions{}

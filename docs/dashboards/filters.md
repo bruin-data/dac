@@ -108,6 +108,23 @@ A free-form text input.
     default: ""
 ```
 
+## Filter Widths
+
+Set optional `col` (an integer from 1 to 12) to control a filter's width on the same 12-column grid used by widgets:
+
+```yaml
+filters:
+  - name: region
+    type: select
+    col: 4
+    options:
+      values: [All, Europe, Americas, APAC]
+```
+
+In TSX, use `<Filter name="region" type="text" col={4} />`. A span of 4 occupies four of the 12 columns in `dac serve`.
+
+When any filter in a visible filter bar sets `col`, that bar uses the grid; filters without `col` take three columns. If no filter sets `col`, the bar keeps its compact, content-sized layout. Global and tab-scoped bars determine their layout independently.
+
 ## Scoping a Filter to a Tab
 
 By default a filter renders in the bar at the top of the dashboard and applies everywhere. Set `tab` to a tab name (matching a row's `tab`, see [Layout → Tabs](/dashboards/layout)) to move that filter into that tab's own filter bar — it then shows only while that tab is active:
@@ -227,6 +244,7 @@ WHERE customer_name LIKE '%{{ filters.search }}%'
 |-------|------|----------|-------------|
 | `name` | string | Yes | Filter identifier, used in `filters.<name>` |
 | `type` | string | Yes | `select`, `date-range`, `date`, `number`, or `text` |
+| `col` | integer | No | Filter width on a 12-column grid, from 1 to 12 |
 | `multiple` | bool | No | Allow multiple selections (select only) |
 | `tab` | string | No | Scope the filter to a row tab; shown only on that tab. Omit for the global bar |
 | `default` | any | No | Initial value. String preset for date-range, `YYYY-MM-DD` string for date, number for number, array for multi-select |

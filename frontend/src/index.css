@@ -416,3 +416,12 @@ body {
   border-radius: 4px;
 }
 .dac-prose del { opacity: 0.5; }
+
+/* Filter column spans are configured in the dashboard definition. */
+.dac-filter-column { grid-column: span 1; }
+@media (min-width: 640px) {
+  .dac-filter-column { grid-column: span var(--dac-filter-col); }
+}
+.dac-filter-column > div > input,
+.dac-filter-column > div > button { width: 100%; min-width: 0; }
+.dac-filter-column .dac-select__control { min-width: 0; }

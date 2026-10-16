@@ -294,6 +294,28 @@ func TestSchemasRejectInvalidDocuments(t *testing.T) {
 		yaml     string
 	}{
 		{
+			name:     "dashboard filter col above 12",
+			schemaID: DashboardV1ID,
+			yaml: `name: Filters
+filters:
+  - { name: region, type: text, col: 13 }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
+			name:     "dashboard filter col not an integer",
+			schemaID: DashboardV1ID,
+			yaml: `name: Filters
+filters:
+  - { name: region, type: text, col: 4.5 }
+rows:
+  - widgets:
+      - { name: Context, type: text, content: Dashboard context }
+`,
+		},
+		{
 			name:     "dashboard note without dimensions",
 			schemaID: DashboardV1ID,
 			yaml: `name: Notes

@@ -49,6 +49,7 @@ type Dashboard struct {
 }
 
 type Filter struct {
+	Col      *int           `yaml:"col,omitempty" json:"col,omitempty"`
 	Name     string         `yaml:"name" json:"name"`
 	Type     string         `yaml:"type" json:"type"`
 	Multiple bool           `yaml:"multiple,omitempty" json:"multiple,omitempty"`
