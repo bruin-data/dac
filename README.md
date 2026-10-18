@@ -100,6 +100,10 @@ If you cloned the repository and have `dac` installed, you can also run one of t
 dac serve --dir examples/basic-yaml
 ```
 
+## One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/DAC/)
+
 ## Examples
 
 The repository includes four self-contained example projects under [`examples/`](examples):
