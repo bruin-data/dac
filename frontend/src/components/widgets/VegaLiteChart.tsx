@@ -192,8 +192,8 @@ export function VegaLiteChart({ widget, data }: Props) {
     container.replaceChildren();
     syncTooltipTheme(tokens);
 
-    void Promise.all([import("vega-embed"), import("vega")])
-      .then(([{ default: vegaEmbed }, { loader }]) => vegaEmbed(
+    void Promise.all([import("vega-embed"), import("vega"), import("vega-interpreter")])
+      .then(([{ default: vegaEmbed }, { loader }, { expressionInterpreter }]) => vegaEmbed(
         container,
         resolvedSpec as VisualizationSpec,
         {
@@ -202,6 +202,9 @@ export function VegaLiteChart({ widget, data }: Props) {
           renderer: "svg",
           actions: false,
           defaultStyle: false,
+          // Interpreter instead of `new Function`, so charts render without CSP 'unsafe-eval'.
+          ast: true,
+          expr: expressionInterpreter,
         },
       ))
       .then(async (result) => {

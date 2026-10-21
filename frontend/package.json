@@ -1,24 +1,43 @@
 {
-  "name": "frontend",
+  "name": "@bruin-data/dac-ui",
   "private": true,
   "version": "0.0.0",
+  "description": "React components that render dac dashboards",
+  "license": "AGPL-3.0-only",
   "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist-lib/types/lib.d.ts",
+      "import": "./dist-lib/index.js"
+    },
+    "./styles.css": "./src/styles/dac.css"
+  },
+  "types": "./dist-lib/types/lib.d.ts",
+  "files": [
+    "dist-lib",
+    "src/styles"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:lib": "vite build -c vite.lib.config.ts && tsc -p tsconfig.lib.json"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.90.21",
+    "@fontsource/geist-mono": "^5.3.0",
+    "@fontsource/geist-sans": "^5.3.0",
+    "@shikijs/langs": "^4.0.2",
+    "@shikijs/themes": "^4.0.2",
     "d3-format": "^3.1.2",
     "d3-time-format": "^4.1.0",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
-    "react": "^19.2.4",
     "react-day-picker": "^9.14.0",
-    "react-dom": "^19.2.4",
     "react-is": "^19.2.4",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.2",
@@ -27,11 +46,18 @@
     "shiki": "^4.0.1",
     "vega": "^6.2.0",
     "vega-embed": "^7.1.0",
+    "vega-interpreter": "^2.3.2",
     "vega-lite": "^6.4.3"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
     "@tailwindcss/vite": "^4.2.1",
+    "@tanstack/react-query": "^5.90.21",
     "@types/d3-format": "^3.0.4",
     "@types/d3-time-format": "^4.0.3",
     "@types/react": "^19.2.14",
@@ -41,6 +67,8 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^16.0.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.30.1",

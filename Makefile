@@ -20,7 +20,7 @@ endif
 GO_PACKAGES ?= ./cmd/... ./pkg/... ./schemas/...
 GOFMT_FILES := $(shell find . -name '*.go' -not -path './vendor/*')
 
-.PHONY: all clean test build frontend deps format format-go format-frontend dev dev-frontend dev-backend
+.PHONY: all clean test build frontend frontend-lib deps format format-go format-frontend dev dev-frontend dev-backend
 
 all: clean deps test build
 
@@ -34,13 +34,18 @@ frontend:
 	@echo "$(OK_COLOR)==> Building the frontend...$(NO_COLOR)"
 	@cd frontend && npm run build
 
+# Build the dashboard components as an npm package (frontend/dist-lib)
+frontend-lib:
+	@echo "$(OK_COLOR)==> Building the component library...$(NO_COLOR)"
+	@cd frontend && npm run build:lib
+
 # Build the Go binary (requires frontend assets to be built first)
 build: frontend
 	@echo "$(OK_COLOR)==> Building the application...$(NO_COLOR)"
 	@go build -v -ldflags="$(GO_LDFLAGS)" -o "$(BUILD_DIR)/$(NAME)" "$(BUILD_SRC)"
 
 clean:
-	@rm -rf ./bin ./frontend/dist
+	@rm -rf ./bin ./frontend/dist ./frontend/dist-lib
 
 test: test-unit
 

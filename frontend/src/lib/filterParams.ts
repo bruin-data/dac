@@ -65,3 +65,21 @@ export function keepAllowedValues(filter: Filter, vals: string[]): string[] {
   if (filter.options?.query && !allowed?.length) return vals;
   return allowed ? vals.filter((v) => allowed.includes(v)) : vals;
 }
+
+/** Initial filter values from each filter's `default`, with date-range presets resolved. */
+export function buildDefaultFilters(dashboard: { filters?: Filter[] }): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {};
+  if (dashboard.filters) {
+    for (const f of dashboard.filters) {
+      if (f.default !== undefined) {
+        if (f.type === "date-range" && typeof f.default === "string") {
+          const resolved = resolvePreset(f.default);
+          defaults[f.name] = resolved ?? f.default;
+        } else {
+          defaults[f.name] = f.default;
+        }
+      }
+    }
+  }
+  return defaults;
+}

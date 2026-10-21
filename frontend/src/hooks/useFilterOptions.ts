@@ -1,5 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
-import { fetchFilterOptions, getStaticPayload } from "../api/client";
+import { getStaticPayload } from "../api/client";
+import { useDataClient } from "../api/dataClient";
 import type { Dashboard, Filter } from "../types/dashboard";
 
 /** Resolve options independently so a slow or failed filter query never blocks widgets. */
@@ -7,6 +8,7 @@ export function useFilterOptions(
   dashboard: Dashboard | undefined,
   values?: Record<string, unknown>,
 ): Filter[] {
+  const client = useDataClient();
   const filters = dashboard?.filters ?? [];
   const dynamic = filters.filter((f) =>
     f.type === "select" && f.options?.query && !f.options.values?.length,
@@ -17,7 +19,7 @@ export function useFilterOptions(
       return {
         queryKey: ["filterOptions", dashboard?.name, filter.name, filter.options?.query,
           filter.options?.connection, dashboard?.connection, filter.options?.values, dependencies],
-        queryFn: () => fetchFilterOptions(dashboard!.name, filter.name, dependencies),
+        queryFn: () => client.fetchFilterOptions(dashboard!.name, filter.name, dependencies),
         enabled: !getStaticPayload(),
       };
     }),

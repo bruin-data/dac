@@ -21,6 +21,16 @@ make build
 
 `make frontend` writes assets to `frontend/dist`, and the Go binary embeds that directory through `embed.go`.
 
+## Component Library
+
+The same components are packaged as `@bruin-data/dac-ui` for other React apps (see `docs/dashboards/embedding.md`):
+
+```bash
+make frontend-lib
+```
+
+The entry point is `src/lib.ts`, the output goes to `frontend/dist-lib`, and component styles live in `src/styles/dac.css`. Releases attach the package as `dac-ui.tgz`.
+
 ## Useful Commands
 
 From `frontend/`:
@@ -28,6 +38,7 @@ From `frontend/`:
 ```bash
 npm run dev
 npm run build
+npm run build:lib
 npm run typecheck
 npm run lint
 ```
