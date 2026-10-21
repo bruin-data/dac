@@ -27,9 +27,12 @@ export function useTemplateRaw(): DashboardTemplate {
 
 export function TemplateProvider({
   template,
+  className = "min-h-screen",
   children,
 }: {
   template: DashboardTemplate;
+  /** Sizing for the root element; embedded hosts can drop the full-screen default. */
+  className?: string;
   children: ReactNode;
 }) {
   const style = useMemo(() => {
@@ -46,7 +49,7 @@ export function TemplateProvider({
     <TemplateContext.Provider value={template}>
       <div
         style={style}
-        className="dac-root min-h-screen bg-[var(--dac-background)] text-[var(--dac-text-primary)] antialiased"
+        className={`dac-root ${className} bg-[var(--dac-background)] text-[var(--dac-text-primary)] antialiased`}
       >
         {children}
       </div>

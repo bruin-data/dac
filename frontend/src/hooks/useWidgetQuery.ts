@@ -1,5 +1,5 @@
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { fetchWidgetData } from "../api/client";
+import { dataClientKey, useDataClient } from "../api/dataClient";
 import type { WidgetData } from "../types/dashboard";
 
 /**
@@ -13,9 +13,10 @@ export function useWidgetQuery(
   filters?: Record<string, unknown>,
   enabled = true,
 ) {
+  const client = useDataClient();
   return useQuery<WidgetData>({
-    queryKey: ["widget-data", dashboardName, widgetId, filters],
-    queryFn: () => fetchWidgetData(dashboardName, widgetId, filters),
+    queryKey: ["widget-data", dashboardName, widgetId, filters, dataClientKey(client)],
+    queryFn: () => client.fetchWidgetData(dashboardName, widgetId, filters),
     enabled: enabled && !!dashboardName && !!widgetId,
     placeholderData: keepPreviousData,
   });

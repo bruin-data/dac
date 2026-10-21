@@ -59,3 +59,16 @@ jobs:
           npm --prefix frontend run build -- --outDir dist-embed --emptyOutDir
           tar -czf dac-frontend.tar.gz -C frontend/dist-embed .
           gh release upload "${{ github.ref_name }}" dac-frontend.tar.gz --clobber
+
+      # npm tarball of @bruin-data/dac-ui, installable from the release URL.
+      - name: Build & upload component library
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          cd frontend
+          npm version --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+          npm run build:lib
+          cp ../LICENSE .
+          mv "$(npm pack --silent | tail -n 1)" dac-ui.tgz
+          gh release upload "${{ github.ref_name }}" dac-ui.tgz --clobber

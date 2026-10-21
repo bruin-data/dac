@@ -38,6 +38,7 @@ export default defineConfig({
           { text: "Semantic Layer", link: "/dashboards/semantic-layer" },
           { text: "Layout", link: "/dashboards/layout" },
           { text: "Themes", link: "/dashboards/themes" },
+          { text: "Embedding", link: "/dashboards/embedding" },
         ],
       },
       {
