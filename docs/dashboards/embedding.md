@@ -87,6 +87,8 @@ function Dashboard({ name }: { name: string }) {
 }
 ```
 
+Render it as `<Dashboard key={name} name={name} />` so filter state resets when the dashboard changes.
+
 `TemplateProvider` takes the same templates and tokens as [themes](./themes.md). Its `className` replaces the default `min-h-screen` sizing.
 
 The individual widgets (`ChartWidget`, `TableWidget`, `MetricWidget`, `TextWidget`) take `{ widget, data }` and can be rendered on their own.

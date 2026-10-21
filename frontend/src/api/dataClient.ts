@@ -30,3 +30,15 @@ export const DataClientContext = createContext<DataClient>(httpDataClient);
 export function useDataClient(): DataClient {
   return useContext(DataClientContext);
 }
+
+// Appended to query keys so two clients sharing a QueryClient never read each other's cache.
+const clientIds = new WeakMap<DataClient, number>();
+let nextClientId = 0;
+export function dataClientKey(client: DataClient): number {
+  let id = clientIds.get(client);
+  if (id === undefined) {
+    id = ++nextClientId;
+    clientIds.set(client, id);
+  }
+  return id;
+}

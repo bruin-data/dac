@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import type { DashboardLayoutProps } from "../../types/template";
 
-const isStaticMode = window.__DAC_STATIC__ !== undefined;
+const isStaticMode = typeof window !== "undefined" && window.__DAC_STATIC__ !== undefined;
 
 export function BruinDashboardLayout({ dashboard, filterBar, headerActions, children }: DashboardLayoutProps) {
   return (

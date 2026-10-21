@@ -1,8 +1,8 @@
 import type { DashboardSummary, Dashboard, BatchDataResponse, WidgetData } from "../types/dashboard";
 import type { Theme } from "../types/theme";
 
-// Embed injects the dac-serve URL; else relative.
-const BASE = (window.__DAC_API_BASE__ || "") + "/api/v1";
+// Embed injects the dac-serve URL; else relative. Read lazily so importing this module never touches `window`.
+const apiBase = () => (window.__DAC_API_BASE__ || "") + "/api/v1";
 
 // --- Static payload detection ---
 
@@ -15,7 +15,7 @@ export interface StaticPayload {
 }
 
 export function getStaticPayload(): StaticPayload | undefined {
-  return window.__DAC_STATIC__;
+  return typeof window === "undefined" ? undefined : window.__DAC_STATIC__;
 }
 
 // --- API functions ---
@@ -38,24 +38,24 @@ export interface ServerConfig {
 export async function fetchConfig(): Promise<ServerConfig> {
   const sp = getStaticPayload();
   if (sp) return sp.config;
-  return fetchJSON<ServerConfig>(`${BASE}/config`);
+  return fetchJSON<ServerConfig>(`${apiBase()}/config`);
 }
 
 export async function listDashboards(): Promise<DashboardSummary[]> {
   const sp = getStaticPayload();
   if (sp) return sp.dashboards;
-  const data = await fetchJSON<{ dashboards: DashboardSummary[] }>(`${BASE}/dashboards`);
+  const data = await fetchJSON<{ dashboards: DashboardSummary[] }>(`${apiBase()}/dashboards`);
   return data.dashboards;
 }
 
 export async function getDashboard(name: string): Promise<Dashboard> {
   const sp = getStaticPayload();
   if (sp) return sp.dashboard;
-  return fetchJSON<Dashboard>(`${BASE}/dashboards/${encodeURIComponent(name)}`);
+  return fetchJSON<Dashboard>(`${apiBase()}/dashboards/${encodeURIComponent(name)}`);
 }
 
 export async function getDashboardRaw(name: string): Promise<string> {
-  const res = await fetch(`${BASE}/dashboards/${encodeURIComponent(name)}/raw`);
+  const res = await fetch(`${apiBase()}/dashboards/${encodeURIComponent(name)}/raw`);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`API error ${res.status}: ${body}`);
@@ -69,7 +69,7 @@ export async function fetchFilterOptions(
   filters?: Record<string, unknown>,
 ): Promise<string[]> {
   const data = await fetchJSON<{ values: string[] }>(
-    `${BASE}/dashboards/${encodeURIComponent(dashboardName)}/filters/${encodeURIComponent(filterName)}/options`,
+    `${apiBase()}/dashboards/${encodeURIComponent(dashboardName)}/filters/${encodeURIComponent(filterName)}/options`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -86,7 +86,7 @@ export async function fetchDashboardData(
   const sp = getStaticPayload();
   if (sp) return sp.widgetData;
   const data = await fetchJSON<BatchDataResponse>(
-    `${BASE}/dashboards/${encodeURIComponent(name)}/data`,
+    `${apiBase()}/dashboards/${encodeURIComponent(name)}/data`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -122,7 +122,7 @@ export function streamDashboardData(
   (async () => {
     try {
       const res = await fetch(
-        `${BASE}/dashboards/${encodeURIComponent(name)}/stream`,
+        `${apiBase()}/dashboards/${encodeURIComponent(name)}/stream`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -183,7 +183,7 @@ export async function fetchWidgetData(
   const sp = getStaticPayload();
   if (sp) return sp.widgetData[widgetId];
   return fetchJSON<WidgetData>(
-    `${BASE}/dashboards/${encodeURIComponent(dashboardName)}/widgets/${encodeURIComponent(widgetId)}/query`,
+    `${apiBase()}/dashboards/${encodeURIComponent(dashboardName)}/widgets/${encodeURIComponent(widgetId)}/query`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -193,12 +193,12 @@ export async function fetchWidgetData(
 }
 
 export async function listThemes(): Promise<string[]> {
-  const data = await fetchJSON<{ themes: string[] }>(`${BASE}/themes`);
+  const data = await fetchJSON<{ themes: string[] }>(`${apiBase()}/themes`);
   return data.themes;
 }
 
 export async function getTheme(name: string): Promise<Theme> {
-  return fetchJSON<Theme>(`${BASE}/themes/${encodeURIComponent(name)}`);
+  return fetchJSON<Theme>(`${apiBase()}/themes/${encodeURIComponent(name)}`);
 }
 
 // --- Admin API ---
@@ -226,7 +226,7 @@ function adminHeaders(): Record<string, string> {
 }
 
 export async function adminLogin(password: string): Promise<void> {
-  const res = await fetch(`${BASE}/admin/login`, {
+  const res = await fetch(`${apiBase()}/admin/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
@@ -242,7 +242,7 @@ export interface AdminConnections {
 }
 
 export async function listConnections(): Promise<AdminConnections> {
-  return fetchJSON<AdminConnections>(`${BASE}/admin/connections`, {
+  return fetchJSON<AdminConnections>(`${apiBase()}/admin/connections`, {
     headers: adminHeaders(),
   });
 }
@@ -252,7 +252,7 @@ export async function createConnection(
   name: string,
   fields: Record<string, unknown>,
 ): Promise<void> {
-  await fetchJSON(`${BASE}/admin/connections`, {
+  await fetchJSON(`${apiBase()}/admin/connections`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...adminHeaders() },
     body: JSON.stringify({ type, name, fields }),
@@ -265,7 +265,7 @@ export async function updateConnection(
   fields: Record<string, unknown>,
 ): Promise<void> {
   await fetchJSON(
-    `${BASE}/admin/connections/${encodeURIComponent(type)}/${encodeURIComponent(name)}`,
+    `${apiBase()}/admin/connections/${encodeURIComponent(type)}/${encodeURIComponent(name)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...adminHeaders() },
@@ -276,7 +276,7 @@ export async function updateConnection(
 
 export async function deleteConnection(type: string, name: string): Promise<void> {
   await fetchJSON(
-    `${BASE}/admin/connections/${encodeURIComponent(type)}/${encodeURIComponent(name)}`,
+    `${apiBase()}/admin/connections/${encodeURIComponent(type)}/${encodeURIComponent(name)}`,
     {
       method: "DELETE",
       headers: adminHeaders(),
@@ -289,7 +289,7 @@ export async function testConnection(
   name: string,
 ): Promise<{ ok: boolean }> {
   return fetchJSON<{ ok: boolean }>(
-    `${BASE}/admin/connections/${encodeURIComponent(type)}/${encodeURIComponent(name)}/test`,
+    `${apiBase()}/admin/connections/${encodeURIComponent(type)}/${encodeURIComponent(name)}/test`,
     {
       method: "POST",
       headers: adminHeaders(),
