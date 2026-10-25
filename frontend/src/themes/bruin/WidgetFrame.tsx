@@ -107,13 +107,14 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
   }
 
   const isTable = widget.type === "table" || widget.type === "pivot_table";
+  const isVegaChart = widget.type === "chart" && widget.chart === "vega-lite";
   const isExportable = widget.type === "chart" || isTable;
   const canExport = isExportable && !isLoading;
 
   return (
-    <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? (isTable ? containerClass.table : containerClass.text)}`}>
+    <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? (isTable ? containerClass.table : containerClass.text)} ${isVegaChart ? "min-h-0 min-w-0 flex flex-col" : ""}`}>
       {widget.type !== "text" && (
-        <div className={`flex items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] ${widget.description ? "mb-0.5" : "mb-1.5"} ${isTable ? "px-4" : ""}`}>
+        <div className={`flex shrink-0 items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] ${widget.description ? "mb-0.5" : "mb-1.5"} ${isTable ? "px-4" : ""}`}>
           <span>{widget.name}</span>
           {(canExport || data?.query) && (
             <span className="ml-auto inline-flex items-center gap-1">
@@ -124,7 +125,7 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
         </div>
       )}
       {widget.type !== "text" && widget.description && (
-        <div className={`text-[11px] leading-snug text-[var(--dac-text-muted)] opacity-70 mb-1.5 ${isTable ? "px-4" : ""}`}>
+        <div className={`shrink-0 text-[11px] leading-snug text-[var(--dac-text-muted)] opacity-70 mb-1.5 ${isTable ? "px-4" : ""}`}>
           {widget.description}
         </div>
       )}

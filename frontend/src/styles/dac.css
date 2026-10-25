@@ -5,6 +5,20 @@
   font-feature-settings: "ss01", "ss02", "cv01";
 }
 
+.dac-widget-container {
+  grid-column: 1 / -1;
+}
+
+@media (width >= 40rem) {
+  .dac-row {
+    height: var(--dac-row-height, auto);
+  }
+
+  .dac-widget-container {
+    grid-column: span var(--dac-widget-col, 12);
+  }
+}
+
 /* Bundled, not from a CDN, so dashboards work offline and under a strict CSP. */
 @font-face {
   font-family: "Geist";
@@ -50,7 +64,6 @@
 
 .dac-vega-lite svg {
   display: block;
-  max-width: 100%;
 }
 
 #vg-tooltip-element.vg-tooltip {

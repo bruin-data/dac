@@ -89,7 +89,6 @@ function themedSpec(
   source: JSONObject,
   records: JSONObject[],
   tokens: Record<string, string>,
-  chartHeight: number,
 ): JSONObject {
   if (hasExternalDataURL(source)) {
     throw new Error("Vega-Lite data.url is not allowed; load data through the widget query");
@@ -144,7 +143,7 @@ function themedSpec(
   const isSingleOrLayeredView = "mark" in source || "layer" in source;
   if (isSingleOrLayeredView) {
     spec.width ??= "container";
-    spec.height ??= chartHeight;
+    spec.height ??= "container";
     spec.autosize ??= { type: "fit", contains: "padding", resize: true };
   }
 
@@ -163,11 +162,11 @@ export function VegaLiteChart({ widget, data }: Props) {
   const records = useMemo(() => data ? toRecords(data) : [], [data]);
   const resolvedSpec = useMemo(() => {
     try {
-      return themedSpec(widget.spec ?? {}, records, tokens, chartHeight);
+      return themedSpec(widget.spec ?? {}, records, tokens);
     } catch (error) {
       return error instanceof Error ? error : new Error(String(error));
     }
-  }, [widget.spec, records, tokens, chartHeight]);
+  }, [widget.spec, records, tokens]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -193,21 +192,31 @@ export function VegaLiteChart({ widget, data }: Props) {
     syncTooltipTheme(tokens);
 
     void Promise.all([import("vega-embed"), import("vega"), import("vega-interpreter")])
-      .then(([{ default: vegaEmbed }, { loader }, { expressionInterpreter }]) => vegaEmbed(
-        container,
-        resolvedSpec as VisualizationSpec,
-        {
-          mode: "vega-lite",
-          loader: dashboardLoader(loader),
-          renderer: "svg",
-          actions: false,
-          defaultStyle: false,
-          // Interpreter instead of `new Function`, so charts render without CSP 'unsafe-eval'.
-          ast: true,
-          expr: expressionInterpreter,
-        },
-      ))
+      .then(([{ default: vegaEmbed }, { loader }, { expressionInterpreter }]) => {
+        if (disposed) return;
+        // Let our observer own responsive sizing instead of racing Vega's
+        // independent window-resize signals generated for "container" sizes.
+        const size = getComputedStyle(container);
+        const spec = { ...resolvedSpec };
+        if (spec.width === "container") spec.width = Math.floor(parseFloat(size.width));
+        if (spec.height === "container") spec.height = Math.floor(parseFloat(size.height));
+        return vegaEmbed(
+          container,
+          spec as VisualizationSpec,
+          {
+            mode: "vega-lite",
+            loader: dashboardLoader(loader),
+            renderer: "svg",
+            actions: false,
+            defaultStyle: false,
+            // Interpreter instead of `new Function`, so charts render without CSP 'unsafe-eval'.
+            ast: true,
+            expr: expressionInterpreter,
+          },
+        );
+      })
       .then(async (result) => {
+        if (!result) return;
         if (disposed) {
           result.view.finalize();
           return;
@@ -218,8 +227,10 @@ export function VegaLiteChart({ widget, data }: Props) {
         container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
 
         observer = new ResizeObserver(([entry]) => {
-          const width = Math.round(entry.contentRect.width);
-          const height = Math.round(entry.contentRect.height);
+          // Stay within fractional bounds so rounding cannot create scrollbars
+          // that change the available space and trigger another resize.
+          const width = Math.floor(entry.contentRect.width);
+          const height = Math.floor(entry.contentRect.height);
           if (width === lastWidth && height === lastHeight) return;
           lastWidth = width;
           lastHeight = height;
@@ -229,6 +240,10 @@ export function VegaLiteChart({ widget, data }: Props) {
           animationFrame = requestAnimationFrame(() => {
             const activeView = view;
             if (!activeView || disposed || generation !== resizeGeneration) return;
+            // Vega's container signals listen for window resizes. Frame changes
+            // (wrapped descriptions, tabs, embedded hosts) need an explicit size.
+            if (resolvedSpec.width === "container") activeView.width(width);
+            if (resolvedSpec.height === "container") activeView.height(height);
             void activeView.resize().runAsync()
               .catch((error: unknown) => {
                 if (!disposed && generation === resizeGeneration) {
@@ -242,7 +257,7 @@ export function VegaLiteChart({ widget, data }: Props) {
               });
           });
         });
-        observer.observe(container);
+        observer.observe(container.parentElement ?? container);
       })
       .catch((error: unknown) => {
         if (!disposed) {
@@ -266,7 +281,7 @@ export function VegaLiteChart({ widget, data }: Props) {
   }
 
   return (
-    <div className="relative" style={{ height: chartHeight }}>
+    <div className="relative min-h-0 min-w-0 flex-auto overflow-auto" style={{ height: chartHeight }}>
       <div
         ref={containerRef}
         className="dac-vega-lite h-full w-full"
