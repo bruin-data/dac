@@ -85,6 +85,21 @@ function syncTooltipTheme(tokens: Record<string, string>): void {
   }
 }
 
+// Vega ellipsizes long axis and legend labels; show the full text on hover.
+function titleTruncatedLabels(container: HTMLElement) {
+  for (const label of container.querySelectorAll<SVGTextElement>(".role-axis-label text, .role-legend-label text")) {
+    label.querySelector("title")?.remove();
+    const full = [(label as SVGTextElement & { __data__?: { text?: unknown } }).__data__?.text].flat().join(" ").trim();
+    // Ignore whitespace: multi-line labels render their lines without separators.
+    const truncated = full !== "" && label.textContent?.replace(/\s/g, "") !== full.replace(/\s/g, "");
+    label.style.pointerEvents = truncated ? "auto" : "";
+    if (!truncated) continue;
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    title.textContent = full;
+    label.appendChild(title);
+  }
+}
+
 function themedSpec(
   source: JSONObject,
   records: JSONObject[],
@@ -140,11 +155,17 @@ function themedSpec(
     config: mergeConfig(defaultConfig, source.config),
   };
 
-  const isSingleOrLayeredView = "mark" in source || "layer" in source;
+  // Charts always fit their widget, like the built-in chart types: explicit and
+  // step sizes are replaced so the plot squeezes into the available space.
+  // Composed views (concat, facet, repeat, or row/column/facet channels) cannot
+  // fit, so CSS scales them down.
+  const encoding = isObject(source.encoding) ? source.encoding : {};
+  const isFaceted = "row" in encoding || "column" in encoding || "facet" in encoding;
+  const isSingleOrLayeredView = ("mark" in source || "layer" in source) && !isFaceted;
   if (isSingleOrLayeredView) {
-    spec.width ??= "container";
-    spec.height ??= "container";
-    spec.autosize ??= { type: "fit", contains: "padding", resize: true };
+    spec.width = "container";
+    spec.height = "container";
+    spec.autosize = { type: "fit", contains: "padding", resize: true };
   }
 
   return spec;
@@ -224,6 +245,7 @@ export function VegaLiteChart({ widget, data }: Props) {
         view = result.view;
         await result.view.resize().runAsync();
         if (disposed) return;
+        titleTruncatedLabels(container);
         container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
 
         observer = new ResizeObserver(([entry]) => {
@@ -245,6 +267,9 @@ export function VegaLiteChart({ widget, data }: Props) {
             if (resolvedSpec.width === "container") activeView.width(width);
             if (resolvedSpec.height === "container") activeView.height(height);
             void activeView.resize().runAsync()
+              .then(() => {
+                if (!disposed && generation === resizeGeneration) titleTruncatedLabels(container);
+              })
               .catch((error: unknown) => {
                 if (!disposed && generation === resizeGeneration) {
                   setRenderError(error instanceof Error ? error.message : String(error));
@@ -281,7 +306,7 @@ export function VegaLiteChart({ widget, data }: Props) {
   }
 
   return (
-    <div className="relative min-h-0 min-w-0 flex-auto overflow-auto" style={{ height: chartHeight }}>
+    <div className="relative min-h-0 min-w-0 flex-auto overflow-hidden" style={{ height: chartHeight }}>
       <div
         ref={containerRef}
         className="dac-vega-lite h-full w-full"

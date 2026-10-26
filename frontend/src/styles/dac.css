@@ -62,8 +62,11 @@
   height: 100%;
 }
 
+/* Composed views keep their own size; the viewBox lets them shrink to fit. */
 .dac-vega-lite svg {
   display: block;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 #vg-tooltip-element.vg-tooltip {
