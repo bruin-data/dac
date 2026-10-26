@@ -67,48 +67,12 @@ async function waitForExportContent(element: HTMLElement): Promise<void> {
   });
 }
 
-// Rework only the export copy; live chart sizes and scroll positions stay intact.
-// Animations are always frozen; overflowing charts are expanded only when asked.
-function exportSnapshot(dataURL: string, expand: boolean): { element: HTMLElement; cleanup: () => void } {
-  const xml = decodeURIComponent(dataURL.slice(dataURL.indexOf(",") + 1));
-  const content = new DOMParser().parseFromString(xml, "image/svg+xml")
-    .querySelector("foreignObject")?.firstElementChild;
-  if (!content) throw new Error("Could not prepare chart export");
-  const copy = document.importNode(content, true) as HTMLElement;
-  copy.setAttribute("data-dac-export-copy", "");
-  const style = document.createElement("style");
-  style.textContent = `
-    [data-dac-export-copy], [data-dac-export-copy] * { animation: none !important; transition: none !important; }
-  `;
-  if (expand) {
-    for (const row of copy.querySelectorAll<HTMLElement>(".dac-row")) {
-      row.style.flexDirection = row.style.gridTemplateColumns.split(" ").length === 1 ? "column" : "row";
-    }
-    style.textContent += `
-      [data-dac-export-copy], [data-dac-export-copy] :has(.dac-vega-lite), [data-dac-export-copy] .dac-vega-lite {
-        width: max-content !important; height: auto !important;
-        max-width: none !important; max-height: none !important;
-        overflow: visible !important; flex-shrink: 0 !important;
-      }
-      [data-dac-export-copy] .dac-row:has(.dac-vega-lite) { display: flex !important; }
-    `;
-  }
-  copy.appendChild(style);
-  const host = document.createElement("div");
-  host.style.cssText = "position:fixed;left:-100000px;top:0;opacity:0;pointer-events:none";
-  host.inert = true;
-  host.appendChild(copy);
-  document.body.appendChild(host);
-
-  return { element: copy, cleanup: () => host.remove() };
-}
-
 async function elementToPNGDataURL(element: HTMLElement): Promise<string> {
   await Promise.all([waitForFonts(), waitForExportContent(element)]);
 
-  const { toPng, toSvg } = await import("html-to-image");
+  const { toPng } = await import("html-to-image");
   const { width, height } = elementSize(element);
-  const options = {
+  return toPng(element, {
     width,
     height,
     backgroundColor: elementBackground(element),
@@ -116,18 +80,7 @@ async function elementToPNGDataURL(element: HTMLElement): Promise<string> {
     imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
     pixelRatio: Math.min(2, Math.max(1, window.devicePixelRatio || 1)),
     filter: exportFilter,
-  };
-  const hasOverflow = Array.from(element.querySelectorAll<HTMLElement>(".dac-vega-lite"))
-    .some((chart) => chart.scrollWidth > chart.clientWidth || chart.scrollHeight > chart.clientHeight);
-  const hasAnimation = element.matches(".animate-in") || element.querySelector(".animate-in") !== null;
-  if (!hasOverflow && !hasAnimation) return toPng(element, options);
-
-  const snapshot = exportSnapshot(await toSvg(element, options), hasOverflow);
-  try {
-    return await toPng(snapshot.element, { ...options, ...elementSize(snapshot.element) });
-  } finally {
-    snapshot.cleanup();
-  }
+  });
 }
 
 function downloadDataURL(filename: string, dataURL: string): void {
