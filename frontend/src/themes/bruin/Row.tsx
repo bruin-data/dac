@@ -18,7 +18,8 @@ function serverStacking() {
   return false;
 }
 
-const cssHeight = (height: number | string) => typeof height === "number" ? `${height}px` : height;
+// Unitless strings ("480") are pixels, as in parseRowHeight.
+const cssHeight = (height: number | string) => typeof height === "number" || /^\d+(?:\.\d+)?$/.test(height) ? `${height}px` : height;
 
 export function BruinRow({ children, height }: RowProps) {
   const stacked = useSyncExternalStore(subscribeToStacking, isStacked, serverStacking);

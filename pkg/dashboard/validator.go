@@ -109,6 +109,13 @@ func Validate(d *Dashboard) error {
 				errs = append(errs, fmt.Sprintf("row %d, widget %d: name is required", i+1, j+1))
 			}
 
+			// TSX can pass any value, e.g. `height={expanded && 480}` → false.
+			switch w.Height.(type) {
+			case nil, string, int, int64, float64:
+			default:
+				errs = append(errs, fmt.Sprintf("%s: height must be a number of pixels or a CSS length", prefix))
+			}
+
 			if w.HasTabs() {
 				errs = append(errs, validateWidgetTabs(prefix, &w, d, notes)...)
 			} else {

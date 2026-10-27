@@ -1414,3 +1414,14 @@ func TestValidate_WidgetTabs_ContainerNotesRejected(t *testing.T) {
 	assertErr(t, err)
 	assertValidationContains(t, err, `"notes" is not allowed on a tabs widget`)
 }
+
+func TestValidate_WidgetHeightType(t *testing.T) {
+	w := tabbedChartWidget()
+	w.Height = 480
+	assertNoErr(t, Validate(dashboardWith(w)))
+	// TSX `height={expanded && 480}` evaluates to false.
+	w.Height = false
+	err := Validate(dashboardWith(w))
+	assertErr(t, err)
+	assertValidationContains(t, err, "height must be a number of pixels or a CSS length")
+}
