@@ -270,7 +270,7 @@ export function DashboardView() {
     const id = `r${rowIdx}-w${widgetIdx}`;
     const col = widget.col || Math.floor(12 / totalInRow);
     return (
-      <WidgetContainer key={id} col={col}>
+      <WidgetContainer key={id} col={col} height={widget.height}>
         {widget.tabs && widget.tabs.length > 0 ? (
           <TabbedWidget
             dashboardName={name || ""}

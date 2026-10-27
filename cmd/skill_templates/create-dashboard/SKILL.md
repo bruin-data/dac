@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 11
+version: 12
 ---
 
 # Create Dashboard
@@ -337,7 +337,7 @@ A `type: tabs` widget switches between sub-views in place inside one widget box.
 Rules:
 
 - A widget with `tabs` must be `type: tabs`, and a `type: tabs` widget must have `tabs`.
-- The container only takes `type`, `name`, `description`, `col`, `id`, and `tabs`. Put everything else (data source, `chart`, encodings, `notes`) on each tab — setting it on the container fails validation. A tab's `notes` resolve against that tab's semantic model.
+- The container only takes `type`, `name`, `description`, `col`, `height`, `id`, and `tabs`. Put everything else (data source, `chart`, encodings) on each tab — setting it on the container fails validation. 
 - Every tab needs a `type` and a `name`; tab names must be unique within the widget. Tabs cannot be nested.
 - In TSX, use `<WidgetTabs name="Sales">` with one child widget per tab (the child's `name` is the tab label).
 - Use widget tabs to pack related views into one widget; use row-level `tab:` to group whole rows into dashboard tabs.

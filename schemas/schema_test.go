@@ -58,6 +58,28 @@ rows:
 `,
 		},
 		{
+			name:     "widget heights",
+			schemaID: DashboardV1ID,
+			yaml: `name: Heights
+rows:
+  - height: 400px
+    widgets:
+      - name: Tall
+        type: metric
+        height: 480
+        sql: SELECT 1 AS value
+        value: { field: value }
+      - { name: Max, type: text, content: Hi, height: 10000px }
+      - { name: Calc, type: text, content: Hi, height: "calc(100vh - 200px)" }
+      - type: tabs
+        height: 50vh
+        tabs:
+          - name: One
+            type: text
+            content: Hi
+`,
+		},
+		{
 			name:     "dashboard notes",
 			schemaID: DashboardV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/dashboard/v1
@@ -307,6 +329,26 @@ func TestSchemasRejectInvalidDocuments(t *testing.T) {
 		schemaID string
 		yaml     string
 	}{
+		{
+			name:     "widget height zero",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Heights\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi, height: 0 }\n",
+		},
+		{
+			name:     "widget height above 10000 pixels",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Heights\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi, height: 10001 }\n",
+		},
+		{
+			name:     "widget height px string above 10000",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Heights\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi, height: 10001px }\n",
+		},
+		{
+			name:     "widget height unsupported string",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Heights\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi, height: auto }\n",
+		},
 		{
 			name:     "dashboard filter col above 12",
 			schemaID: DashboardV1ID,
