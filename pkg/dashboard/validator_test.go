@@ -84,6 +84,7 @@ func TestValidate_Notes(t *testing.T) {
 		{Name: "country", Type: "text", Multiselect: true},
 		{Name: "active", Type: "boolean"},
 		{Name: "day", Type: "date", Multiselect: true},
+		{Name: "period", Type: "date-range", Required: true},
 		{Name: "count", Type: "number", Multiselect: true},
 		{Name: "comment", Type: "text", Multiselect: true},
 	}}}, []string{"note1"}))
@@ -93,8 +94,8 @@ func TestValidate_Notes(t *testing.T) {
 	assertValidationContains(t, err, `note "n" dimension "x": select requires a dashboard semantic model`)
 	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "unknown"}}}}, nil))
 	assertValidationContains(t, err, `note "n" dimension "x": unknown type "unknown"`)
-	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "date-range"}}}}, nil))
-	assertValidationContains(t, err, `note "n" dimension "x": unknown type "date-range"`)
+	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "date-range", Multiselect: true}}}}, nil))
+	assertValidationContains(t, err, "multiselect is not supported for type date-range")
 	err = Validate(base([]Note{{ID: "n", Dimensions: []NoteDimension{{Name: "x", Type: "boolean", Multiselect: true}}}}, nil))
 	assertValidationContains(t, err, "multiselect is not supported for type boolean")
 
