@@ -61,6 +61,7 @@ export interface Widget {
   description?: string;
   type: "metric" | "chart" | "table" | "pivot_table" | "text" | "divider" | "image" | "tabs";
   col?: number;
+  height?: number | string;
 
   // Sub-views of a `type: tabs` widget; each tab is a complete widget.
   // Each tab is a complete widget (own type/chart).

@@ -513,6 +513,7 @@ func vnodeToWidget(n *vnode) Widget {
 		Description: asString(n.Props["description"]),
 		Type:        widgetType(n.Tag),
 		Col:         asInt(n.Props["col"]),
+		Height:      n.Props["height"],
 
 		// Query source
 		QueryRef:   asString(n.Props["query"]),

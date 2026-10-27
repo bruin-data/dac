@@ -18,10 +18,12 @@ function serverStacking() {
   return false;
 }
 
+const cssHeight = (height: number | string) => typeof height === "number" ? `${height}px` : height;
+
 export function BruinRow({ children, height }: RowProps) {
   const stacked = useSyncExternalStore(subscribeToStacking, isStacked, serverStacking);
   const style = height !== undefined
-    ? { "--dac-row-height": typeof height === "number" ? `${height}px` : height } as CSSProperties
+    ? { "--dac-row-height": cssHeight(height) } as CSSProperties
     : undefined;
   return (
     <div className="dac-row grid grid-cols-1 sm:grid-cols-12 gap-4" style={style}>
@@ -32,13 +34,23 @@ export function BruinRow({ children, height }: RowProps) {
   );
 }
 
-export function BruinWidgetContainer({ col, children }: WidgetContainerProps) {
-  return (
+export function BruinWidgetContainer({ col, height, children }: WidgetContainerProps) {
+  const stacked = useSyncExternalStore(subscribeToStacking, isStacked, serverStacking);
+  const style = { "--dac-widget-col": col, ...(height !== undefined ? { "--dac-widget-height": cssHeight(height) } : {}) };
+  const content = (
     <div
       className="dac-widget-container min-h-0 min-w-0"
-      style={{ "--dac-widget-col": col } as CSSProperties}
+      data-height={height !== undefined ? "" : undefined}
+      style={style as CSSProperties}
     >
       {children}
     </div>
+  );
+  if (height === undefined) return content;
+  // The widget's own height replaces the row height its charts size against.
+  return (
+    <RowHeightContext.Provider value={stacked ? undefined : parseRowHeight(height)}>
+      {content}
+    </RowHeightContext.Provider>
   );
 }

@@ -17,6 +17,22 @@
   .dac-widget-container {
     grid-column: span var(--dac-widget-col, 12);
   }
+
+  /* A widget height overrides the row height; the row grows to fit the tallest
+     widget and the remaining widgets keep the row height (or their natural one). */
+  .dac-row:has(> .dac-widget-container[data-height]) {
+    height: auto;
+    min-height: var(--dac-row-height, auto);
+    align-items: start;
+  }
+
+  .dac-row:has(> .dac-widget-container[data-height]) > .dac-widget-container:not([data-height]) {
+    height: var(--dac-row-height, auto);
+  }
+
+  .dac-widget-container[data-height] {
+    height: var(--dac-widget-height);
+  }
 }
 
 /* Bundled, not from a CDN, so dashboards work offline and under a strict CSP. */

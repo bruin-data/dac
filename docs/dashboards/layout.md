@@ -38,6 +38,20 @@ rows:
 
 Height accepts CSS values (`400px`, `50vh`) or numbers (interpreted as pixels).
 
+### Widget Height
+
+A widget can set its own `height` (same values as a row). It overrides the row
+height for that widget; widgets without one keep the row height, or their
+natural height when the row has none. The row grows to fit its tallest widget.
+
+```yaml
+rows:
+  - height: 300px
+    widgets:
+      - { name: Tall Chart, type: chart, chart: line, col: 8, height: 500 }
+      - { name: Side Metric, type: metric, col: 4 }   # stays 300px
+```
+
 ## 12-Column Grid
 
 Widget widths are specified using the `col` field (1-12). Columns in a row should add up to 12:
@@ -160,7 +174,7 @@ rows:
             sql: SELECT month, revenue, orders FROM sales ORDER BY 1
 ```
 
-The container only takes `type`, `name`, `description`, `col`, `id`, and `tabs`;
+The container only takes `type`, `name`, `description`, `col`, `height`, `id`, and `tabs`;
 anything else (a data source, `chart`, encodings, `notes`) goes on each tab. Every
 tab needs a `name` (unique within the widget) and a `type`, and tabs cannot be
 nested. When many tabs don't fit, the tab bar scrolls horizontally.

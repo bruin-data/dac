@@ -324,6 +324,8 @@ Each row accepts an optional `height` to override its rendered height. Useful wh
 - Other CSS strings → e.g. `"60vh"`, `"32rem"`. The row container takes that height, but charts fall back to their default 240px (use a pixel value if you want the chart to grow).
 - Omitted → default height; widgets use their built-in sizing.
 
+A widget can also set its own `height` (same values). It overrides the row height for that widget only; the other widgets keep the row height, and the row grows to fit the tallest one.
+
 ```yaml
 rows:
   - height: 480               # Tall row — charts fill the extra vertical space

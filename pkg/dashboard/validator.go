@@ -355,7 +355,7 @@ func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
 // tabsContainerFields are the only fields a `type: tabs` container may set;
 // everything else (data source, encodings, chart…) belongs on each tab.
 var tabsContainerFields = map[string]bool{
-	"id": true, "name": true, "description": true, "col": true, "type": true, "tabs": true,
+	"id": true, "name": true, "description": true, "col": true, "height": true, "type": true, "tabs": true,
 }
 
 // validateWidgetTabs validates a `type: tabs` container. Tabs inherit nothing:

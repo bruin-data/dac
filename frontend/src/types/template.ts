@@ -43,6 +43,8 @@ export interface RowProps {
  */
 export interface WidgetContainerProps {
   col: number;
+  /** Widget height; overrides the row height for this widget. */
+  height?: number | string;
   children: ReactNode;
 }
 

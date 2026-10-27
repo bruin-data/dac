@@ -105,6 +105,7 @@ type Widget struct {
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 	Type        string `yaml:"type" json:"type"`
 	Col         int    `yaml:"col,omitempty" json:"col,omitempty"`
+	Height any `yaml:"height,omitempty" json:"height,omitempty"`
 
 	// Query source (pick one)
 	QueryRef  string `yaml:"query,omitempty" json:"query,omitempty"` // reference to queries map key
