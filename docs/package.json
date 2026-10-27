@@ -8,9 +8,9 @@
     "vitepress": "^1.6.4"
   },
   "dependencies": {
-    "vite": "^6.4.1"
+    "vite": "^6.4.4"
   },
   "overrides": {
-    "vite": "^6.4.1"
+    "vite": "^6.4.4"
   }
 }
