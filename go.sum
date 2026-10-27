@@ -10,6 +10,8 @@ github.com/Masterminds/semver/v3 v3.2.1 h1:RN9w6+7QoMeJVGyfmbcgs28Br8cvmnucEXnY0
 github.com/Masterminds/semver/v3 v3.2.1/go.mod h1:qvl/7zhW3nngYb5+80sSMF+FG2BjYrf8m9wsX0PNOMQ=
 github.com/bruin-data/bruin/semantic-engine v0.0.0-20261007132843-c2ab5b508fee h1:QzFARCsn1Ys0JPw41gO3mMfCSLIik0tXuHwdNoup5yY=
 github.com/bruin-data/bruin/semantic-engine v0.0.0-20261007132843-c2ab5b508fee/go.mod h1:7S5N8HODGx12XRjRcjUeEt36/AhJkWiyMGA1j8ViH/s=
+github.com/bruin-data/bruin/semantic-engine v0.0.0-20261027105030-c69c7f06e8bf h1:BEEy1T3eLu43+/LC+8/+M7W2D9VoyGr1kr6zCfxcaWc=
+github.com/bruin-data/bruin/semantic-engine v0.0.0-20261027105030-c69c7f06e8bf/go.mod h1:7S5N8HODGx12XRjRcjUeEt36/AhJkWiyMGA1j8ViH/s=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
