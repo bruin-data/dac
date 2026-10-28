@@ -73,6 +73,8 @@ Widget widths are specified using the `col` field (1-12). Widgets that don't fit
     - { name: Wide, type: table, col: 12 }
 ```
 
+[Google Slides export](/commands/export) puts each wrapped line on a separate slide so widgets stay within the slide boundaries.
+
 Common patterns:
 
 | Layout | Columns |

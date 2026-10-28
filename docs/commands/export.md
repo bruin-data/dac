@@ -61,7 +61,7 @@ Created presentation: https://docs.google.com/presentation/d/1abc.../edit
 ### Slide Layout
 
 - **Title slide** with dashboard name and description
-- **One slide per row** in the dashboard
+- **One slide per row** when its widgets fit within 12 columns. Overflow continues on additional slides, preserving widget order and column widths. For example, two `col: 8` widgets export to two slides.
 - **Metrics** rendered as text boxes with formatted values
 - **Charts** rendered as PNG images via go-chart, uploaded to Drive, embedded in the slide, then cleaned up
 - **Tables** rendered as native Slides tables (max 10 data rows)
