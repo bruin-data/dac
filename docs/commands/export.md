@@ -52,6 +52,8 @@ dac export slides \
 
 ### Output
 
+For a database-free wrapping test, use the [Slides wrapping example](https://github.com/bruin-data/dac/tree/main/examples/slides-wrapping). It includes two `col: 8` metrics, a chart/table continuation, and a tabbed metric, with the expected seven-slide output documented in its README.
+
 The command creates a new Google Slides presentation and prints the URL:
 
 ```

@@ -23,5 +23,6 @@ DAC uses Bruin connections for query execution, so install both `dac` and `bruin
 
 - `basic-yaml`: standard YAML dashboards with SQL queries, filters, query files, and a self-contained Vega-Lite layered-chart demo
 - `basic-tsx`: TSX dashboard with load-time queries that generate layout from the database
+- `slides-wrapping`: inline-data dashboard for testing wrapped Google Slides exports; no database required (see its README for commands and expected slides)
 - `semantic-yaml`: YAML dashboard backed by external semantic models in `semantic/`
 - `semantic-tsx`: TSX dashboard backed by external semantic models in `semantic/`
