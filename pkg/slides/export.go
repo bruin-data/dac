@@ -102,9 +102,10 @@ func Export(ctx context.Context, cfg Config) (string, error) {
 	presID := pres.PresentationId
 
 	// Set up title slide + create blank content slides.
+	rows := splitSlideRows(d.Rows)
 	var setupReqs []*slidesapi.Request
 	setupReqs = append(setupReqs, titleSlideReqs(pres.Slides[0].ObjectId, d)...)
-	for i := range d.Rows {
+	for i := range rows {
 		setupReqs = append(setupReqs, &slidesapi.Request{
 			CreateSlide: &slidesapi.CreateSlideRequest{
 				ObjectId: fmt.Sprintf("slide_%d", i),
@@ -123,9 +124,9 @@ func Export(ctx context.Context, cfg Config) (string, error) {
 
 	// Populate each content slide with widgets.
 	var driveCleanup []string
-	for i, row := range d.Rows {
+	for i, row := range rows {
 		slideID := fmt.Sprintf("slide_%d", i)
-		reqs, fileIDs, err := widgetRequests(ctx, driveSvc, slideID, i, row, d, widgetData)
+		reqs, fileIDs, err := widgetRequests(ctx, driveSvc, slideID, row, d, widgetData)
 		if err != nil {
 			log.Printf("Warning: slide %d: %v", i, err)
 			continue
@@ -182,34 +183,63 @@ func titleSlideReqs(slideID string, d *dashboard.Dashboard) []*slidesapi.Request
 
 // --- Widget renderers ---
 
-func widgetRequests(ctx context.Context, driveSvc *driveapi.Service, slideID string, rowIdx int, row dashboard.Row, d *dashboard.Dashboard, widgetData map[string]*server.WidgetQueryResult) ([]*slidesapi.Request, []string, error) {
+type slideRow struct {
+	row          dashboard.Row
+	rowIndex     int
+	widgetOffset int
+}
+
+// A wrapped line gets its own slide, keeping full-height charts and tables
+// readable. Retain original indices for query results and element IDs.
+func splitSlideRows(rows []dashboard.Row) []slideRow {
+	var slides []slideRow
+	for i, row := range rows {
+		widgets := append([]dashboard.Widget(nil), row.Widgets...)
+		start, used := 0, 0
+		for j := range widgets {
+			cols := widgets[j].Col
+			if cols <= 0 {
+				cols = max(1, 12/len(widgets))
+			}
+			widgets[j].Col = cols
+			if used+cols > 12 {
+				part := row
+				part.Widgets = widgets[start:j]
+				slides = append(slides, slideRow{part, i, start})
+				start, used = j, 0
+			}
+			used += cols
+		}
+		row.Widgets = widgets[start:]
+		slides = append(slides, slideRow{row, i, start})
+	}
+	return slides
+}
+
+func widgetRequests(ctx context.Context, driveSvc *driveapi.Service, slideID string, row slideRow, d *dashboard.Dashboard, widgetData map[string]*server.WidgetQueryResult) ([]*slidesapi.Request, []string, error) {
 	var reqs []*slidesapi.Request
 	var fileIDs []string
 
 	colUnit := float64(contentW) / 12.0
 	xOff := int64(0)
 
-	for j, w := range row.Widgets {
-		cols := w.Col
-		if cols <= 0 {
-			cols = 12 / len(row.Widgets)
-		}
-
-		wWidth := int64(colUnit * float64(cols))
+	for j, w := range row.row.Widgets {
+		j += row.widgetOffset
+		wWidth := int64(colUnit * float64(w.Col))
 		// A tabbed widget has no data of its own; render its first tab (the
 		// default view) with that tab's resolved type and data.
-		wID := server.WidgetID(rowIdx, j)
+		wID := server.WidgetID(row.rowIndex, j)
 		if w.HasTabs() {
 			name, description := w.Name, w.Description
 			w = w.ResolvedTab(0)
-			wID = server.WidgetTabID(rowIdx, j, w.Name)
+			wID = server.WidgetTabID(row.rowIndex, j, w.Name)
 			if name != "" {
 				w.Name = name // keep the parent's title when set; else use the tab's
 			}
 			w.Description = description // the frame's description is the container's
 		}
 		data := widgetData[wID]
-		prefix := fmt.Sprintf("r%d_w%d", rowIdx, j)
+		prefix := fmt.Sprintf("r%d_w%d", row.rowIndex, j)
 		x := padX + xOff
 
 		switch w.Type {

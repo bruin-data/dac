@@ -94,7 +94,6 @@ func Validate(d *Dashboard) error {
 			continue
 		}
 
-		totalCols := 0
 		for j, w := range row.Widgets {
 			prefix := fmt.Sprintf("row %d, widget %d (%q)", i+1, j+1, w.Name)
 			if w.ID != "" {
@@ -124,16 +123,10 @@ func Validate(d *Dashboard) error {
 
 			errs = append(errs, validateWidgetNotes(prefix, &w, d, notes)...)
 
+			// A row's cols may exceed 12; widgets wrap onto the next line.
 			if w.Col < 0 || w.Col > 12 {
 				errs = append(errs, fmt.Sprintf("%s: col must be between 1 and 12, got %d", prefix, w.Col))
 			}
-			if w.Col > 0 {
-				totalCols += w.Col
-			}
-		}
-
-		if totalCols > 12 {
-			errs = append(errs, fmt.Sprintf("row %d: total column span is %d, exceeds 12", i+1, totalCols))
 		}
 	}
 

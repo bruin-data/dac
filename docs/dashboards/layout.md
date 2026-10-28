@@ -54,7 +54,7 @@ rows:
 
 ## 12-Column Grid
 
-Widget widths are specified using the `col` field (1-12). Columns in a row should add up to 12:
+Widget widths are specified using the `col` field (1-12). Widgets that don't fit in the row's 12 columns wrap onto the next line:
 
 ```yaml
 # Three equal columns
@@ -72,6 +72,8 @@ Widget widths are specified using the `col` field (1-12). Columns in a row shoul
 - widgets:
     - { name: Wide, type: table, col: 12 }
 ```
+
+[Google Slides export](/commands/export) puts each wrapped line on a separate slide so widgets stay within the slide boundaries.
 
 Common patterns:
 
@@ -200,4 +202,4 @@ for a runnable example.
 - **Chart rows**: Pair a main chart (`col: 8`) with a breakdown (`col: 4`)
 - **Tables**: Usually work best at `col: 12` (full width)
 - **Sparklines**: Compact at `col: 4`, great for KPI rows
-- Validation will warn if a row's columns exceed 12
+- A row's columns may add up to more than 12; extra widgets wrap onto the next line

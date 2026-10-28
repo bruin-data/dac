@@ -297,7 +297,7 @@ dimensions:
 
 ## Rows and Grid
 
-Dashboards use a **12-column grid**. Each row contains widgets whose `col` values should sum to 12 (or less). If `col` is omitted, widgets share space equally.
+Dashboards use a **12-column grid**. Each row contains widgets whose `col` values usually sum to 12; widgets that don't fit wrap onto the next line. If `col` is omitted, widgets share space equally.
 
 ```yaml
 rows:
@@ -1682,7 +1682,7 @@ rows:
 
 - `name` is required on the dashboard and every widget.
 - At least one row is required; each row needs at least one widget.
-- `col` must be 1-12; total per row must not exceed 12.
+- `col` must be 1-12; row totals may exceed 12 and wrap onto additional lines.
 - Every widget that requires data needs a query source (`query`, `sql`, `file`) OR a declarative reference (`metric:` for metric widgets, `dimension:` + `metrics:` for chart widgets).
 - `metric` widgets require either `metric: <name>` (declarative) or `value` + query source (SQL mode).
 - `chart` widgets require `chart` type plus either `dimension` + `metrics` (declarative) or chart-specific fields (SQL mode).

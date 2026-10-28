@@ -451,7 +451,7 @@ func TestValidate_WidgetMissingType(t *testing.T) {
 	assertValidationContains(t, err, "type is required")
 }
 
-func TestValidate_ColumnSumExceeds12(t *testing.T) {
+func TestValidate_ColumnSumAbove12Wraps(t *testing.T) {
 	d := &Dashboard{
 		Name: "test",
 		Rows: []Row{
@@ -461,9 +461,7 @@ func TestValidate_ColumnSumExceeds12(t *testing.T) {
 			}},
 		},
 	}
-	err := Validate(d)
-	assertErr(t, err)
-	assertValidationContains(t, err, "exceeds 12")
+	assertNoErr(t, Validate(d))
 }
 
 func TestValidate_FilterCol(t *testing.T) {
