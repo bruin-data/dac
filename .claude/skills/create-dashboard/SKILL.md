@@ -297,7 +297,7 @@ dimensions:
 
 ## Rows and Grid
 
-Dashboards use a **12-column grid**. Each row contains widgets whose `col` values should sum to 12 (or less). If `col` is omitted, widgets share space equally.
+Dashboards use a **12-column grid**. Each row contains widgets whose `col` values usually sum to 12; widgets that don't fit wrap onto the next line. If `col` is omitted, widgets share space equally.
 
 ```yaml
 rows:
