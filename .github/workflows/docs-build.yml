@@ -6,7 +6,6 @@ on:
     paths:
       - 'docs/**'
   pull_request:
-    branches: [main]
     paths:
       - 'docs/**'
 
