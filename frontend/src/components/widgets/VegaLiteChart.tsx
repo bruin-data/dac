@@ -6,6 +6,7 @@ import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { DAC_EXPORT_PENDING_ATTRIBUTE } from "../../lib/renderExport";
 import { RowHeightContext } from "../../themes/RowContext";
 import { useTokens } from "../../themes/TemplateProvider";
+import { axisFields, buildSemanticFormatter, formatForField } from "../../lib/format";
 
 const DAC_DATASET_NAME = "dac";
 const VEGA_TOOLTIP_ID = "vg-tooltip-element";
@@ -18,6 +19,64 @@ interface Props {
 }
 
 type JSONObject = Record<string, unknown>;
+
+// Vega-Lite aggregates whose result is not in the metric's unit: counts, and
+// (like pivot `var`, `varp` and `product`) variances and products.
+const UNITLESS_AGGREGATES = ["count", "distinct", "valid", "missing", "variance", "variancep", "product"];
+
+// Apply model defaults to field encodings throughout layered/faceted specs.
+function inheritFormats(value: unknown, y: Widget["y"]): unknown {
+  const metrics = axisFields(y).map((field) => field.toLowerCase());
+  const config = isObject(value) && isObject(value.config) ? value.config : {};
+  // A spec-wide number format is explicit and wins over model defaults.
+  if (config.numberFormat != null || config.numberFormatType != null) return value;
+  const inherit = (def: unknown, channel: string): unknown => {
+    if (Array.isArray(def)) return def.map((child) => inherit(child, channel));
+    // Dimensions, counts, variances and normalized shares keep Vega's defaults.
+    if (!isObject(def) || typeof def.field !== "string" || !metrics.includes(def.field.toLowerCase())
+      || UNITLESS_AGGREGATES.includes(def.aggregate as string) || def.stack === "normalize") return def;
+    const format = formatForField(y?.format, def.field);
+    if (!format) return def;
+    const explicit = def.format != null || def.formatType != null;
+    const defaults = explicit
+      ? { format: def.format, formatType: def.formatType }
+      : typeof format === "string" ? { format, formatType: undefined }
+      : { format: JSON.stringify(format), formatType: "dacSemantic" };
+    const guide = channel === "x" || channel === "y" ? "axis" : "legend";
+    const own = isObject(def[guide]) ? def[guide] : undefined;
+    const configs = guideConfigs(config, channel, own);
+    const hasFormat = (source: JSONObject) => source.format != null || source.formatType != null;
+    // Leave the guide alone when the spec already formats it, or when it is hidden:
+    // an encoding guide object re-enables a guide hidden by `null`, `false` or config `disable`.
+    const disabled = configs.reduce<unknown>((value, source) => source.disable ?? value, undefined) === true;
+    if (def[guide] === null || def[guide] === false || (!own && disabled)
+      || (own && hasFormat(own)) || configs.some(hasFormat)) return { ...defaults, ...def };
+    // Guides show object formats compactly, like DAC chart ticks.
+    const guideFormat = explicit || typeof format === "string" ? defaults : { ...defaults, format: JSON.stringify({ ...format, compact: true }) };
+    return { ...defaults, ...def, [guide]: { ...guideFormat, ...own } };
+  };
+  const visit = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(visit);
+    if (!isObject(node)) return node;
+    return Object.fromEntries(Object.entries(node).map(([key, child]) => [key,
+      key === "encoding" && isObject(child)
+        ? Object.fromEntries(Object.entries(child).map(([channel, def]) => [channel, inherit(def, channel)]))
+        : visit(child),
+    ]));
+  };
+  return visit(value);
+}
+
+// Vega-Lite config sections that apply to a quantitative axis, or to a legend,
+// in Vega-Lite's precedence order (later sections win).
+function guideConfigs(config: JSONObject, channel: string, axis?: JSONObject): JSONObject[] {
+  if (channel !== "x" && channel !== "y") return [config.legend].filter(isObject);
+  const axisChannel = `axis${channel.toUpperCase()}`;
+  const orients = [axis, config[axisChannel], config.axis].map((source) => isObject(source) ? source.orient : undefined);
+  const orient = orients.find((value): value is string => typeof value === "string") ?? (channel === "x" ? "bottom" : "left");
+  const keys = ["axis", `axis${orient.charAt(0).toUpperCase()}${orient.slice(1)}`, axisChannel, "axisQuantitative", `${axisChannel}Quantitative`];
+  return keys.map((key) => config[key]).filter(isObject);
+}
 
 function isObject(value: unknown): value is JSONObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -183,11 +242,13 @@ export function VegaLiteChart({ widget, data }: Props) {
   const records = useMemo(() => data ? toRecords(data) : [], [data]);
   const resolvedSpec = useMemo(() => {
     try {
-      return themedSpec(widget.spec ?? {}, records, tokens);
+      const spec = themedSpec(inheritFormats(widget.spec ?? {}, widget.y) as JSONObject, records, tokens);
+      spec.config = { ...spec.config as JSONObject, customFormatTypes: true };
+      return spec;
     } catch (error) {
       return error instanceof Error ? error : new Error(String(error));
     }
-  }, [widget.spec, records, tokens]);
+  }, [widget.spec, widget.y, records, tokens]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -213,8 +274,12 @@ export function VegaLiteChart({ widget, data }: Props) {
     syncTooltipTheme(tokens);
 
     void Promise.all([import("vega-embed"), import("vega"), import("vega-interpreter")])
-      .then(([{ default: vegaEmbed }, { loader }, { expressionInterpreter }]) => {
+      .then(([{ default: vegaEmbed }, { loader, expressionFunction }, { expressionInterpreter }]) => {
         if (disposed) return;
+        expressionFunction("dacSemantic", (value: unknown, format: string) => {
+          const { compact, ...spec } = JSON.parse(format);
+          return buildSemanticFormatter(spec, compact)?.(value) ?? String(value);
+        });
         // Let our observer own responsive sizing instead of racing Vega's
         // independent window-resize signals generated for "container" sizes.
         const size = getComputedStyle(container);

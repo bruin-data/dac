@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
@@ -52,7 +53,7 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 		return "", "", nil, err
 	}
 
-	return sql, job.Connection, semanticColumnRenames(query), nil
+	return sql, job.Connection, semanticColumnRenames(model, query), nil
 }
 
 // semanticColumnRenames maps the column names the engine emits back to the
@@ -61,12 +62,12 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 // "customers_country" — so without this remap the widget would look up a
 // column that does not exist in the result. Non-qualified dimensions keep
 // their name and need no entry.
-func semanticColumnRenames(query sem.Query) map[string]string {
+func semanticColumnRenames(model *sem.Model, query sem.Query) map[string]string {
 	renames := map[string]string{}
 	for _, dim := range query.Dimensions {
-		alias := semanticOutputAlias(dim)
+		alias := semanticOutputAlias(model, dim)
 		if alias != dim.Name {
-			renames[alias] = dim.Name
+			renames[strings.ToLower(alias)] = dim.Name
 		}
 	}
 	return renames
@@ -74,10 +75,14 @@ func semanticColumnRenames(query sem.Query) map[string]string {
 
 // semanticOutputAlias mirrors the engine's output-column naming for a
 // dimension reference: only qualified names (containing ".") are sanitized,
-// replacing the dot (and granularity separator) with an underscore.
-func semanticOutputAlias(ref sem.DimensionRef) string {
+// replacing the dot (and granularity separator) with an underscore. An
+// unqualified dimension from a joined model still gets the granularity suffix.
+func semanticOutputAlias(model *sem.Model, ref sem.DimensionRef) string {
 	if !strings.Contains(ref.Name, ".") {
-		return ref.Name
+		if ref.Granularity == "" || model == nil || slices.ContainsFunc(model.Dimensions, func(d sem.Dimension) bool { return d.Name == ref.Name }) {
+			return ref.Name
+		}
+		return ref.Name + "_" + strings.ReplaceAll(ref.Granularity, ".", "_")
 	}
 	alias := strings.ReplaceAll(ref.Name, ".", "_")
 	if ref.Granularity != "" {

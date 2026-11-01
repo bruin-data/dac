@@ -166,6 +166,7 @@ func postProcessDashboard(d *Dashboard) {
 
 // postProcessWidget fills x/y for a semantic widget (or tab) that omits them.
 func postProcessWidget(d *Dashboard, w *Widget) {
+	defer d.inheritWidgetFormats(w)
 	// A named query fills x/y only if the widget came without them.
 	hasEncoding := w.XField() != "" || len(w.YFields()) > 0
 	if w.Dimension != "" && len(w.MetricRefs) > 0 {

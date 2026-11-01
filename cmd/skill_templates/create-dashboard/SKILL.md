@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 12
+version: 13
 ---
 
 # Create Dashboard
@@ -103,7 +103,46 @@ rows:
 
 Widget types are `metric`, `chart`, `table`, `pivot_table`, `text`, `divider`, `image`, and `tabs` (see Widget Tabs).
 
-A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, or a d3-format string), `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, `frozen`, `group`, `collapsed`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
+### Number and Currency Formats
+
+Use a string or object in `value.format`, `x/y/y2.format`, or table `columns[].number`:
+
+```yaml
+value:
+  field: revenue
+  format: {currency: TRY, decimals: 2}
+```
+
+For `1234.5`, this shows `₺1,234.50` in English or `₺1.234,50` in Turkish.
+The viewer's locale controls separators and symbol placement.
+
+- `currency: TRY` implies `type: currency`. Use `type: number` or `decimal` for plain numbers; `{type: percentage, decimals: 0}` displays `0.12` as `12%` in English.
+- `decimals: 0` removes fractional digits. Allowed: 0–100; omit for Intl defaults. Model metrics currently treat zero as unset, so set zero on the widget when whole numbers are required.
+- Currency codes must have three uppercase letters, e.g. `TRY`, `EUR`, `USD`; validation checks their shape. Model metric codes are case-insensitive (`usd` becomes `USD`), and a model format that is still invalid is ignored. If no symbol is available, the code is shown, e.g. `VES 1,234.50`. `{type: currency}` without a code shows a plain number.
+- Omit the widget format to use the model's format. Set it explicitly to override the model; SQL widgets can use objects without a model.
+- Chart axis ticks show object formats compactly (`₺1.2M`); tooltips, metric values and table cells show them in full.
+- Pivot values keep their field's format for `sum`, `average`, `min`, `max`, `median`, `stdev` and `stdevp`. Counts show whole numbers; `var`, `varp` and `product` show plain numbers.
+- Existing strings work: `",.2f"`, `"$,.2f"`, `".1%"`; dates use strings such as `"%b %Y"`. Table `number: currency` keeps `$` unless the model supplies a currency code. Table `format: [...]` still controls colors.
+
+For different formats on the same axis:
+
+```yaml
+y:
+  field: [revenue, margin]
+  format:
+    fields:
+      revenue: {currency: TRY, decimals: 2}
+      margin: {type: percentage, decimals: 1}
+```
+
+Fields left out of `fields` keep their model format.
+
+Pass formats as data; never interpolate them into SQL, JavaScript, or HTML.
+Run `dac validate` after editing YAML or TSX formats.
+
+### Table Columns and Conditional Formatting
+
+A `table` column takes `name`, `label`, `number` (value format: `number`, `currency`, a d3-format string, or a structured number/currency format object), `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, `frozen`, `group`, `collapsed`, and `format`. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
 
 - With `if` (+ `value`), the layer styles only the cells that match. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
 - With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.
@@ -274,6 +313,8 @@ Use `chart: vega-lite` with a `spec` object for advanced layered, faceted, conca
 ```
 
 `spec.data` is optional and defaults to `{ name: dac }`. If provided, it must use that name. Do not use `data.url` or define `datasets.dac`; load primary data through `sql`, `query`, semantic fields, or the widget's illustrative inline `data`. DAC supplies theme and responsive-size defaults, while explicit Vega-Lite `config`, `width`, `height`, and `autosize` values override them.
+
+Metric fields in the spec that have a widget or model format (a semantic widget's `y` format, inherited from the model when omitted) use it automatically: axes and legends show it compactly (`₺1.2M`), tooltips and text marks in full. Counts, variances, products and normalized stacks keep Vega-Lite's defaults. A `format` or `formatType` set in the spec wins: on the field, its `axis` or `legend`, in `config` (including `config.numberFormat`).
 
 Every query is an inline `sql:` block or a named `query:` reference — YAML widgets do not take file paths. In TSX, `include("queries/revenue.sql")` reads a `.sql` file into an inline query at load time.
 

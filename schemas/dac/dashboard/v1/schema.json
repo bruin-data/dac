@@ -734,9 +734,7 @@
           "enum": ["text", "image", "sparkline"],
           "description": "How to render the column's cell values. `text` (default) shows the value; `image` treats each value as an image URL and renders it as a thumbnail; `sparkline` renders an array of point objects as an inline line chart and requires `x` and `y` encodings (both plain tables only)."
         },
-        "number": {
-          "type": "string"
-        },
+        "number": { "$ref": "#/$defs/displayFormat" },
         "x": {
           "$ref": "#/$defs/sparklineXEncoding"
         },
@@ -807,7 +805,7 @@
       "properties": {
         "field": { "type": "string", "minLength": 1 },
         "type": { "enum": ["date", "number", "category"] },
-        "format": { "type": "string" }
+        "format": { "$ref": "#/$defs/displayFormat" }
       },
       "additionalProperties": false
     },
@@ -817,7 +815,7 @@
       "properties": {
         "field": { "type": "string", "minLength": 1 },
         "type": { "const": "number" },
-        "format": { "type": "string" },
+        "format": { "$ref": "#/$defs/displayFormat" },
         "beginAtZero": { "type": "boolean" }
       },
       "additionalProperties": false
@@ -1018,6 +1016,34 @@
       "patternProperties": { "^x-": true },
       "additionalProperties": false
     },
+    "semanticFormat": {
+      "type": "object",
+      "minProperties": 1,
+      "properties": {
+        "type": { "enum": ["number", "currency", "percentage", "decimal"] },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 100 }
+      },
+      "additionalProperties": false
+    },
+    "displayFormat": {
+      "oneOf": [
+        { "type": "string" },
+        { "$ref": "#/$defs/semanticFormat" },
+        {
+          "type": "object",
+          "required": ["fields"],
+          "properties": {
+            "fields": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": { "$ref": "#/$defs/semanticFormat" }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "axisEncoding": {
       "type": "object",
       "required": ["field"],
@@ -1035,9 +1061,7 @@
         "title": {
           "type": "string"
         },
-        "format": {
-          "type": "string"
-        },
+        "format": { "$ref": "#/$defs/displayFormat" },
         "beginAtZero": {
           "type": "boolean"
         },
@@ -1093,9 +1117,7 @@
           "type": "string",
           "enum": ["date", "number", "category"]
         },
-        "format": {
-          "type": "string"
-        }
+        "format": { "$ref": "#/$defs/displayFormat" }
       },
       "additionalProperties": false
     },

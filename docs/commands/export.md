@@ -74,3 +74,7 @@ Created presentation: https://docs.google.com/presentation/d/1abc.../edit
 | Chart (line, area, bar, pie) | PNG image via go-chart |
 | Table | Native Slides table |
 | Text | Not currently exported |
+
+### Number Formats
+
+Metric values, table cells and chart value-axis ticks use the widget's format, or the semantic model's format when the widget sets none (see [Number and currency formats](/dashboards/widgets#number-and-currency-formats)). Slides always use English separators and narrow currency symbols (`₺1,234.50`), whatever the viewer's locale. Chart ticks show format objects compactly (`₺1.5M`), and empty table cells show `—`.

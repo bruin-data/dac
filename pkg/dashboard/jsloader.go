@@ -777,7 +777,7 @@ func asAxisEncoding(v interface{}) *AxisEncoding {
 		a := &AxisEncoding{
 			Type:   asString(val["type"]),
 			Title:  asString(val["title"]),
-			Format: asString(val["format"]),
+			Format: val["format"],
 			Curve:  asString(val["curve"]),
 			Dash:   asString(val["dash"]),
 		}
@@ -802,7 +802,7 @@ func asAxisEncoding(v interface{}) *AxisEncoding {
 				a.Field = f
 			}
 		}
-		if a.Field == nil && a.Type == "" && a.Title == "" && a.Format == "" &&
+		if a.Field == nil && a.Type == "" && a.Title == "" && emptyFormat(a.Format) &&
 			a.Curve == "" && a.Dash == "" && a.BeginAtZero == nil && a.Markers == nil {
 			return nil
 		}
@@ -890,7 +890,7 @@ func asValueEncoding(v interface{}) *ValueEncoding {
 		return &ValueEncoding{
 			Field:  field,
 			Type:   asString(val["type"]),
-			Format: asString(val["format"]),
+			Format: val["format"],
 		}
 	default:
 		return nil
@@ -1021,7 +1021,7 @@ func asTableColumns(v interface{}) []TableColumn {
 				Name:   asString(m["name"]),
 				Label:  asString(m["label"]),
 				Type:   asString(m["type"]),
-				Number: asString(m["number"]),
+				Number: formatOrNil(m["number"]),
 				X:      asAxisEncoding(m["x"]),
 				Y:      asAxisEncoding(m["y"]),
 				Align:  asString(m["align"]),
@@ -1041,8 +1041,8 @@ func asTableColumns(v interface{}) []TableColumn {
 			// `format` is polymorphic: a string is the legacy value-display
 			// shorthand (== `number`), a list is the style layers.
 			if s, ok := m["format"].(string); ok {
-				if col.Number == "" {
-					col.Number = s
+				if emptyFormat(col.Number) {
+					col.Number = formatOrNil(s)
 				}
 			} else {
 				col.Format = asFormatLayers(m["format"])

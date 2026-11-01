@@ -432,11 +432,23 @@ func tableReqs(prefix, slideID string, w *dashboard.Widget, data *server.WidgetQ
 
 	// Data rows.
 	for r := 0; r < maxRows; r++ {
-		for c := range data.Columns {
-			text := fmt.Sprint(data.Rows[r][c])
-			if fields, ok := sparklineFields[c]; ok {
-				text = sparklineLatest(data.Rows[r][c], fields[0], fields[1])
+		for c, col := range data.Columns {
+			column := dashboard.TableColumn{Name: col.Name}
+			for _, configured := range w.Columns {
+				if strings.EqualFold(configured.Name, col.Name) {
+					column = configured
+					break
+				}
 			}
+			raw := data.Rows[r][c]
+			if fields, ok := sparklineFields[c]; ok {
+				raw = sparklineLatest(raw, fields[0], fields[1])
+				// Like the browser tooltip, the y format wins over the column's `number`.
+				if column.Y != nil && column.Y.Format != nil && column.Y.Format != "" {
+					column.Name, column.Number = fields[1], column.Y.Format
+				}
+			}
+			text := formatTableValue(raw, column)
 			reqs = append(reqs, &slidesapi.Request{
 				InsertText: &slidesapi.InsertTextRequest{
 					ObjectId:     tableID,
@@ -650,8 +662,10 @@ func formatMetricValue(w *dashboard.Widget, data *server.WidgetQueryResult) stri
 	raw := data.Rows[0][ci]
 
 	var format, typ string
+	var semantic *dashboard.SemanticFormat
 	if w.Value != nil {
-		format, typ = w.Value.Format, w.Value.Type
+		format, semantic = dashboard.ParseDisplayFormat(w.Value.Format, w.Value.Field)
+		typ = w.Value.Type
 	}
 
 	// Date-typed values render with the d3-time-format string.
@@ -670,6 +684,11 @@ func formatMetricValue(w *dashboard.Widget, data *server.WidgetQueryResult) stri
 	}
 
 	if format == "" {
+		if semantic != nil {
+			if text, ok := formatSemanticNumber(num, *semantic, false); ok {
+				return text
+			}
+		}
 		// No explicit format: comma-group, trimming to whole numbers when exact.
 		if num == float64(int64(num)) {
 			return humanize.Comma(int64(num))
