@@ -2,6 +2,7 @@
 // Bruin Cloud renderer (keep the two in lockstep). See PivotConfig for the shape.
 
 import type { DisplayFormat, TableColumn } from "../../types/dashboard";
+import { formatForField } from "../../lib/format";
 
 export interface PivotField {
   field: string;
@@ -38,7 +39,7 @@ export function pivotFormats(
   result.columnValues.forEach((valueIndex, columnIndex) => {
     if (valueIndex === null) return; // Row labels are dimensions, not measures.
     const value = config.values?.[valueIndex];
-    const format = value && columns.find((column) => column.name.toLowerCase() === value.field.toLowerCase())?.number;
+    const format = value && formatForField(columns.find((column) => column.name.toLowerCase() === value.field.toLowerCase())?.number, value.field);
     if (!format) return;
     // Counts, variances and products change the unit: they are numbers, not money.
     const summarize = value.summarize ?? "sum";

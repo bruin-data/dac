@@ -47,6 +47,7 @@ y:
 ```
 
 Fields left out of `fields` keep their model format.
+Color-split chart series and generated pivot columns use the original measure's field format.
 
 Pass formats as data; never interpolate them into SQL, JavaScript, or HTML.
 Run `dac validate` after editing YAML or TSX formats.

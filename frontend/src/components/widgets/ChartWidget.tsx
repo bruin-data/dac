@@ -1297,7 +1297,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
   const leftAxisId = hasDual ? "left" : undefined;
   // Each tooltip row formats against its owning axis, so a right-axis % value
   // never borrows the left axis' $ format. A bubble's size has no axis format.
-  const valueFormatterFor = (dataKey: unknown) => widget.size && dataKey === widget.size ? formatTooltipValue : buildAxisFormatter(
+  const valueFormatterFor = (dataKey: unknown) => widget.color?.field ? yTooltipValue : widget.size && dataKey === widget.size ? formatTooltipValue : buildAxisFormatter(
     dataKey === xKey ? widget.x : (axisOf(String(dataKey)) ?? widget.value), formatTooltipValue, String(dataKey),
   );
   const rightYAxis = hasDual ? (
