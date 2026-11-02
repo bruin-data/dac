@@ -14,11 +14,49 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 
 Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), `file` (external `.sql` path), a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts), or `data` (inline static values — see [Inline data](#inline-data)). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
 
+## Number and currency formats
+
+Use a string or object in `value.format`, `x/y/y2.format`, or table `columns[].number`:
+
+```yaml
+value:
+  field: revenue
+  format: {currency: TRY, decimals: 2}
+```
+
+For `1234.5`, this shows `₺1,234.50` in English or `₺1.234,50` in Turkish.
+The viewer's locale controls separators and symbol placement.
+
+- `currency: TRY` implies `type: currency`. Use `type: number` or `decimal` for plain numbers; `{type: percentage, decimals: 0}` displays `0.12` as `12%` in English.
+- `decimals: 0` removes fractional digits. Allowed: 0–100; omit for Intl defaults. Model metrics currently treat zero as unset, so set zero on the widget when whole numbers are required.
+- Currency codes must have three uppercase letters, e.g. `TRY`, `EUR`, `USD`; validation checks their shape. Model metric codes are case-insensitive (`usd` becomes `USD`), and a model format that is still invalid is ignored. If no symbol is available, the code is shown, e.g. `VES 1,234.50`. `{type: currency}` without a code shows a plain number.
+- Omit the widget format to use the model's format. Set it explicitly to override the model; SQL widgets can use objects without a model.
+- Chart axis ticks show object formats compactly (`₺1.2M`); tooltips, metric values and table cells show them in full.
+- Pivot values keep their field's format for `sum`, `average`, `min`, `max`, `median`, `stdev` and `stdevp`. Counts show whole numbers; `var`, `varp` and `product` show plain numbers.
+- Existing strings work: `",.2f"`, `"$,.2f"`, `".1%"`; dates use strings such as `"%b %Y"`. Table `number: currency` keeps `$` unless the model supplies a currency code. Table `format: [...]` still controls colors.
+
+For different formats on the same axis:
+
+```yaml
+y:
+  field: [revenue, margin]
+  format:
+    fields:
+      revenue: {currency: TRY, decimals: 2}
+      margin: {type: percentage, decimals: 1}
+```
+
+Fields left out of `fields` keep their model format.
+Color-split chart series and generated pivot columns use the original measure's field format.
+
+Pass formats as data; never interpolate them into SQL, JavaScript, or HTML.
+Run `dac validate` after editing YAML or TSX formats.
+
 ## Metric
 
 Metric widgets display a single value. The value is configured with a `value`
 encoding — which column to read, its type, and a [d3-format](https://d3js.org/d3-format)
-string for display.
+string or a structured numeric format object for display.
 
 ```yaml
 - name: Total Revenue
@@ -65,10 +103,10 @@ Metric-specific fields:
 | `value` | object | Value encoding: `field` (required), `type`, and `format` |
 | `value.field` | string | Result column to display |
 | `value.type` | string | `number`, `date`, or `category` |
-| `value.format` | string | [d3-format](https://d3js.org/d3-format) string (numbers, e.g. `"$,.2f"`, `".0%"`) or d3-time-format string (dates, e.g. `"%b %Y"`) |
+| `value.format` | string \| object | [Number format object](#number-and-currency-formats), [d3-format](https://d3js.org/d3-format) string (numbers, e.g. `"$,.2f"`, `".0%"`), or d3-time-format string (dates, e.g. `"%b %Y"`) |
 | `metric` | string | Semantic metric name |
 
-> **Note:** Currency and unit affixes live in the format string — `$` is a d3-format
+> **Note:** In legacy string formats, currency and unit affixes live in the format string — `$` is a d3-format
 > prefix (`"$,.2f"`) and `%` comes from the percent type (`".0%"` renders `0.12` as
 > `12%`). There are no separate `prefix`/`suffix` fields.
 
@@ -128,7 +166,7 @@ SQL-backed example:
 | `field` | string \| string[] | SQL column(s) to plot. Required. |
 | `type` | string | `number`, `date`, or `category`. Selects the axis scale and the format language (`date` uses d3-time-format, otherwise d3-format). |
 | `title` | string | Human-readable axis label rendered next to the axis. |
-| `format` | string | d3-format / d3-time-format string for tick labels, e.g. `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`. |
+| `format` | string \| object | Structured numeric format object or d3-format / d3-time-format string for tick labels, e.g. `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`. |
 | `beginAtZero` | boolean | Anchor a line/area value axis at 0 so series scale honestly instead of auto-zooming. Opt-in (default auto-scales). |
 | `markers` | boolean | Show point markers on sparse line/area series. Default `true`; set `false` to hide the dots. |
 | `curve` | string | Chart-wide line interpolation: `smooth`, `straight`, or `stepline`. Use `straight` for period totals so the line doesn't imply movement between points. |
@@ -138,7 +176,7 @@ Per-series style overrides live in a **widget-level `series`** map (a sibling of
 
 Label/value charts (`pie`, `treemap`, `funnel`) have no y-column series — style their **slices** with a widget-level **`slices`** map keyed by the slice's data label: `slices: { Enterprise: { color: "#8B5CF6", label: "Enterprise (2026)" } }`. `color` overrides the palette; `label` renames the displayed slice. Both optional.
 
-Without `format`, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, and `dash` (on `y`) plus the widget-level `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
+Without a widget or model format, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, and `dash` (on `y`) plus the widget-level `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
 
 ### Second value axis (`y2`)
 
@@ -316,6 +354,8 @@ DAC executes the widget's `sql`, named `query`, semantic query, or inline `data`
 
 For a single or layered view, DAC supplies responsive width, row-derived height, and fit autosizing when the spec does not set them. Explicit `width`, `height`, `autosize`, and `config` values win. DAC also supplies theme-aware axes, legends, tooltips, typography, and the `chart-1` through `chart-8` categorical palette; values in `spec.config` override those defaults.
 
+Metric fields in the spec that have a widget or model format (a semantic widget's `y` format, inherited from the model when omitted) use it automatically: axes and legends show it compactly (`₺1.2M`), tooltips and text marks in full. Counts, variances, products and normalized stacks keep Vega-Lite's defaults. A `format` or `formatType` set in the spec wins: on the field, its `axis` or `legend`, in `config` (including `config.numberFormat`).
+
 PNG and PDF exports wait for Vega-Lite's asynchronous render to finish before capturing the widget or dashboard.
 
 See `examples/basic-yaml/dashboards/vega-lite.yml` for a Sankey-style customer journey built from curved weighted ribbons, layered confidence intervals, independent dual axes, a lollipop chart, and a SQL-backed revenue heatmap with centered, contrast-aware value labels.
@@ -372,7 +412,7 @@ Table column fields:
 | `name` | string | Result column name (must match the query output). |
 | `label` | string | Display header (defaults to `name`) |
 | `type` | string | Cell rendering: `text` (default), `image`, or `sparkline`. `image` renders an absolute `https://` URL on another origin, without embedded credentials, as a thumbnail and leaves any other value as text; `sparkline` renders structured numeric series data with point tooltips (plain tables only; not `pivot_table`). |
-| `number` | string | Value formatting for numbers: `currency`, `number`, or a d3-format string. For a sparkline it is a backwards-compatible fallback for `y.format`. |
+| `number` | string \| object | Value formatting for numbers: a structured numeric format object, `currency`, `number`, or a d3-format string. For a sparkline it is a backwards-compatible fallback for `y.format`. |
 | `x` | object | Sparkline point-key and tooltip encoding. Supports `field`, `type` (`date`, `number`, or `category`), and `format`. |
 | `y` | object | Sparkline point-key, tooltip, and scale encoding. Supports `field`, `type: number`, `format`, and `beginAtZero`. |
 | `align` | string | Text alignment override: `left`, `center`, or `right`. Applies to the column header and its body cells. Use it to right-align a text value like `£177K` that isn't detected as numeric. |
@@ -569,7 +609,7 @@ axis, and not on both (that produces a near-empty diagonal).
 ## Conditional formatting
 
 A column sets value display with `number` and coloring with `format`. `number`
-is `currency`, `number`, or a d3-format string. `format` is an **ordered list of
+is a structured numeric format object, `currency`, `number`, or a d3-format string. `format` is an **ordered list of
 layers**, and for each cell the **first layer that matches wins**.
 
 `format` is polymorphic for backward compatibility: a scalar string (e.g.
@@ -592,7 +632,7 @@ the condition; without `if`, the layer styles every cell.
 
 | Key | What it does |
 |-----|--------------|
-| `number` | Value display: `currency`, `number`, or a d3-format string. |
+| `number` | Value display: a structured numeric format object, `currency`, `number`, or a d3-format string. |
 | `align` | Text alignment: `left`, `center`, or `right` (aligns the header and body cells). |
 | `border` | Non-colour vertical border on the column's `left`, `right`, or `both` edge, to separate column groups (plain tables only; not `pivot_table`). |
 | `like` | Mirror another column's coloring, driven by that column's per-row value (keeps own `number`). |

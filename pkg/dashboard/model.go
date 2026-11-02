@@ -189,6 +189,10 @@ type Widget struct {
 
 	// Tabs holds the sub-views of a `type: tabs` container.
 	Tabs []Widget `yaml:"tabs,omitempty" json:"tabs,omitempty"`
+
+	// inheritedValue marks a value encoding added only to carry a format, so
+	// validation still checks the value the author wrote.
+	inheritedValue bool
 }
 
 // BoundEncoding is a CI bound (yMin/yMax): a single column name (scalar form) or a
@@ -253,7 +257,7 @@ type TableColumn struct {
 	Name      string        `yaml:"name" json:"name"`
 	Label     string        `yaml:"label,omitempty" json:"label,omitempty"`
 	Type      string        `yaml:"type,omitempty" json:"type,omitempty"`           // cell rendering: text (default) | image | sparkline
-	Number    string        `yaml:"number,omitempty" json:"number,omitempty"`       // value display: currency | number | d3-format spec
+	Number    any           `yaml:"number,omitempty" json:"number,omitempty"`       // value display: currency | number | d3-format spec
 	X         *AxisEncoding `yaml:"x,omitempty" json:"x,omitempty"`                 // sparkline point x key/type/format
 	Y         *AxisEncoding `yaml:"y,omitempty" json:"y,omitempty"`                 // sparkline point y key/type/format/domain
 	Like      string        `yaml:"like,omitempty" json:"like,omitempty"`           // mirror another column's coloring + per-row value
@@ -302,7 +306,7 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 		Name      string        `yaml:"name"`
 		Label     string        `yaml:"label,omitempty"`
 		Type      string        `yaml:"type,omitempty"`
-		Number    string        `yaml:"number,omitempty"`
+		Number    yaml.Node     `yaml:"number,omitempty"`
 		X         *AxisEncoding `yaml:"x,omitempty"`
 		Y         *AxisEncoding `yaml:"y,omitempty"`
 		Like      string        `yaml:"like,omitempty"`
@@ -317,7 +321,11 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 	if err := node.Decode(&tmp); err != nil {
 		return err
 	}
-	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Type: tmp.Type, Number: tmp.Number, X: tmp.X, Y: tmp.Y, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align, Border: tmp.Border, Frozen: tmp.Frozen, Group: tmp.Group, Collapsed: tmp.Collapsed}
+	number, err := decodeFormat(&tmp.Number)
+	if err != nil {
+		return err
+	}
+	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Type: tmp.Type, Number: number, X: tmp.X, Y: tmp.Y, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align, Border: tmp.Border, Frozen: tmp.Frozen, Group: tmp.Group, Collapsed: tmp.Collapsed}
 
 	// Follow a YAML alias to its target, then: a scalar is the legacy value-display
 	// shorthand (folds into `number`); a list is the style layers.
@@ -327,8 +335,8 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 	}
 	switch f.Kind {
 	case yaml.ScalarNode:
-		if c.Number == "" {
-			c.Number = f.Value
+		if emptyFormat(c.Number) {
+			c.Number = formatOrNil(f.Value)
 		}
 	case yaml.SequenceNode:
 		return f.Decode(&c.Format)
@@ -650,7 +658,7 @@ type AxisEncoding struct {
 	Field  any    `yaml:"field" json:"field"`
 	Type   string `yaml:"type,omitempty" json:"type,omitempty"`
 	Title  string `yaml:"title,omitempty" json:"title,omitempty"`
-	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+	Format any    `yaml:"format,omitempty" json:"format,omitempty"`
 	// BeginAtZero anchors a line/area chart's value axis at 0 (opt-in).
 	BeginAtZero *bool `yaml:"beginAtZero,omitempty" json:"beginAtZero,omitempty"`
 	// Markers toggles point markers on line/area charts (default on; false hides).
@@ -708,7 +716,7 @@ func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
 		Field       yaml.Node `yaml:"field"`
 		Type        string    `yaml:"type,omitempty"`
 		Title       string    `yaml:"title,omitempty"`
-		Format      string    `yaml:"format,omitempty"`
+		Format      yaml.Node `yaml:"format,omitempty"`
 		BeginAtZero *bool     `yaml:"beginAtZero,omitempty"`
 		Markers     *bool     `yaml:"markers,omitempty"`
 		Curve       string    `yaml:"curve,omitempty"`
@@ -718,9 +726,13 @@ func (a *AxisEncoding) UnmarshalYAML(node *yaml.Node) error {
 	if err := node.Decode(&tmp); err != nil {
 		return err
 	}
+	format, err := decodeFormat(&tmp.Format)
+	if err != nil {
+		return err
+	}
 	a.Type = tmp.Type
 	a.Title = tmp.Title
-	a.Format = tmp.Format
+	a.Format = format
 	a.BeginAtZero = tmp.BeginAtZero
 	a.Markers = tmp.Markers
 	a.Curve = tmp.Curve
@@ -754,12 +766,12 @@ func (a *AxisEncoding) MarshalYAML() (any, error) {
 		Field       any    `yaml:"field"`
 		Type        string `yaml:"type,omitempty"`
 		Title       string `yaml:"title,omitempty"`
-		Format      string `yaml:"format,omitempty"`
+		Format      any    `yaml:"format,omitempty"`
 		BeginAtZero *bool  `yaml:"beginAtZero,omitempty"`
 		Markers     *bool  `yaml:"markers,omitempty"`
 		Curve       string `yaml:"curve,omitempty"`
 		Dash        string `yaml:"dash,omitempty"`
-	}{a.Field, a.Type, a.Title, a.Format, a.BeginAtZero, a.Markers, a.Curve, a.Dash}, nil
+	}{a.Field, a.Type, a.Title, formatOrNil(a.Format), a.BeginAtZero, a.Markers, a.Curve, a.Dash}, nil
 }
 
 func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
@@ -774,7 +786,7 @@ func (a *AxisEncoding) UnmarshalJSON(data []byte) error {
 		Field       json.RawMessage `json:"field"`
 		Type        string          `json:"type,omitempty"`
 		Title       string          `json:"title,omitempty"`
-		Format      string          `json:"format,omitempty"`
+		Format      any             `json:"format,omitempty"`
 		BeginAtZero *bool           `json:"beginAtZero,omitempty"`
 		Markers     *bool           `json:"markers,omitempty"`
 		Curve       string          `json:"curve,omitempty"`
@@ -818,12 +830,12 @@ func (a *AxisEncoding) MarshalJSON() ([]byte, error) {
 		Field       any    `json:"field"`
 		Type        string `json:"type,omitempty"`
 		Title       string `json:"title,omitempty"`
-		Format      string `json:"format,omitempty"`
+		Format      any    `json:"format,omitempty"`
 		BeginAtZero *bool  `json:"beginAtZero,omitempty"`
 		Markers     *bool  `json:"markers,omitempty"`
 		Curve       string `json:"curve,omitempty"`
 		Dash        string `json:"dash,omitempty"`
-	}{a.Field, a.Type, a.Title, a.Format, a.BeginAtZero, a.Markers, a.Curve, a.Dash})
+	}{a.Field, a.Type, a.Title, formatOrNil(a.Format), a.BeginAtZero, a.Markers, a.Curve, a.Dash})
 }
 
 func newAxisField(s string) *AxisEncoding {
@@ -843,7 +855,7 @@ func newAxisFields(list []string) *AxisEncoding {
 type ValueEncoding struct {
 	Field  string `yaml:"field" json:"field"`
 	Type   string `yaml:"type,omitempty" json:"type,omitempty"`
-	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+	Format any    `yaml:"format,omitempty" json:"format,omitempty"`
 }
 
 func (v *ValueEncoding) FieldString() string {
@@ -862,9 +874,9 @@ func (v *ValueEncoding) UnmarshalYAML(node *yaml.Node) error {
 		return fmt.Errorf("%s", valueEncodingHint)
 	}
 	type valueFields struct {
-		Field  string `yaml:"field"`
-		Type   string `yaml:"type,omitempty"`
-		Format string `yaml:"format,omitempty"`
+		Field  string    `yaml:"field"`
+		Type   string    `yaml:"type,omitempty"`
+		Format yaml.Node `yaml:"format,omitempty"`
 	}
 	var tmp valueFields
 	if err := node.Decode(&tmp); err != nil {
@@ -873,9 +885,13 @@ func (v *ValueEncoding) UnmarshalYAML(node *yaml.Node) error {
 	if tmp.Field == "" {
 		return fmt.Errorf("value encoding: field is required")
 	}
+	format, err := decodeFormat(&tmp.Format)
+	if err != nil {
+		return err
+	}
 	v.Field = tmp.Field
 	v.Type = tmp.Type
-	v.Format = tmp.Format
+	v.Format = format
 	return nil
 }
 
@@ -886,8 +902,8 @@ func (v *ValueEncoding) MarshalYAML() (any, error) {
 	return struct {
 		Field  string `yaml:"field"`
 		Type   string `yaml:"type,omitempty"`
-		Format string `yaml:"format,omitempty"`
-	}{v.Field, v.Type, v.Format}, nil
+		Format any    `yaml:"format,omitempty"`
+	}{v.Field, v.Type, formatOrNil(v.Format)}, nil
 }
 
 func (v *ValueEncoding) UnmarshalJSON(data []byte) error {
@@ -901,7 +917,7 @@ func (v *ValueEncoding) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Field  string `json:"field"`
 		Type   string `json:"type,omitempty"`
-		Format string `json:"format,omitempty"`
+		Format any    `json:"format,omitempty"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -922,8 +938,8 @@ func (v *ValueEncoding) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Field  string `json:"field"`
 		Type   string `json:"type,omitempty"`
-		Format string `json:"format,omitempty"`
-	}{v.Field, v.Type, v.Format})
+		Format any    `json:"format,omitempty"`
+	}{v.Field, v.Type, formatOrNil(v.Format)})
 }
 
 type ColorEncoding struct {

@@ -2,6 +2,7 @@
 name: create-dashboard
 description: Create dac dashboards by writing YAML or TSX definition files. Use when the user wants to create, modify, or understand dashboard files, widget configuration, filters, query templating, or CLI usage. TSX dashboards enable loops, variables, custom components, and data-driven layouts impossible in YAML.
 argument-hint: "[description of the dashboard to create]"
+version: 13
 ---
 
 # Create Dashboard
@@ -358,6 +359,43 @@ Every widget except `text` and `divider` needs a query source. **Priority order:
 
 (In TSX, `include("path/to/query.sql")` reads a .sql file into an inline `sql` string at load time.)
 
+### Number and Currency Formats
+
+Use a string or object in `value.format`, `x/y/y2.format`, or table `columns[].number`:
+
+```yaml
+value:
+  field: revenue
+  format: {currency: TRY, decimals: 2}
+```
+
+For `1234.5`, this shows `₺1,234.50` in English or `₺1.234,50` in Turkish.
+The viewer's locale controls separators and symbol placement.
+
+- `currency: TRY` implies `type: currency`. Use `type: number` or `decimal` for plain numbers; `{type: percentage, decimals: 0}` displays `0.12` as `12%` in English.
+- `decimals: 0` removes fractional digits. Allowed: 0–100; omit for Intl defaults. Model metrics currently treat zero as unset, so set zero on the widget when whole numbers are required.
+- Currency codes must have three uppercase letters, e.g. `TRY`, `EUR`, `USD`; validation checks their shape. Model metric codes are case-insensitive (`usd` becomes `USD`), and a model format that is still invalid is ignored. If no symbol is available, the code is shown, e.g. `VES 1,234.50`. `{type: currency}` without a code shows a plain number.
+- Omit the widget format to use the model's format. Set it explicitly to override the model; SQL widgets can use objects without a model.
+- Chart axis ticks show object formats compactly (`₺1.2M`); tooltips, metric values and table cells show them in full.
+- Pivot values keep their field's format for `sum`, `average`, `min`, `max`, `median`, `stdev` and `stdevp`. Counts show whole numbers; `var`, `varp` and `product` show plain numbers.
+- Existing strings work: `",.2f"`, `"$,.2f"`, `".1%"`; dates use strings such as `"%b %Y"`. Table `number: currency` keeps `$` unless the model supplies a currency code. Table `format: [...]` still controls colors.
+
+For different formats on the same axis:
+
+```yaml
+y:
+  field: [revenue, margin]
+  format:
+    fields:
+      revenue: {currency: TRY, decimals: 2}
+      margin: {type: percentage, decimals: 1}
+```
+
+Fields left out of `fields` keep their model format.
+
+Pass formats as data; never interpolate them into SQL, JavaScript, or HTML.
+Run `dac validate` after editing YAML or TSX formats.
+
 ### Metric Widget
 
 Single KPI number card. Two modes: **declarative** (using top-level metrics) or **query-based** (using SQL).
@@ -381,7 +419,7 @@ The `value` encoding controls how the number is displayed:
 
 - `value.field` — REQUIRED: which result column holds the number.
 - `value.type` — `number`, `date`, or `category`.
-- `value.format` — optional [d3-format](https://github.com/d3/d3-format) string. Currency and percent are expressed in the format string itself — there are no `prefix`/`suffix` fields. Examples: `",.0f"` (integer with thousands separators), `"$,.2f"` (currency), `".1%"` (percent).
+- `value.format` — optional structured number/currency format object, or a legacy [d3-format](https://github.com/d3/d3-format) string. See [Number and Currency Formats](#number-and-currency-formats). Legacy string examples: `",.0f"` (integer with thousands separators), `"$,.2f"` (currency), `".1%"` (percent).
 
 `value` is always an object; `field` is required, `type` and `format` are optional.
 
@@ -453,7 +491,7 @@ Reference top-level dimensions and metrics. SQL is auto-generated with GROUP BY,
 
 - `type` — `number` | `date` | `category`. Picks the axis scale and format language (`date` → d3-time-format, otherwise d3-format).
 - `title` — human-readable axis label.
-- `format` — d3-format / d3-time-format string for tick labels: `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`.
+- `format` — structured number/currency format object or d3-format / d3-time-format string for tick labels: `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`.
 
 Line/area (and combo) charts also accept these on `y`:
 
@@ -799,6 +837,8 @@ Use `chart: vega-lite` with a `spec` object for layered, faceted, concatenated, 
 
 `spec.data` is optional and defaults to `{ name: dac }`. If provided, it must use that name. `data.url` and `datasets.dac` are invalid: load primary data through DAC `sql`, `query`, semantic fields, or illustrative inline `data`. DAC supplies theme and responsive sizing defaults; explicit Vega-Lite `config`, `width`, `height`, and `autosize` values override them. Image marks (`mark: image`) draw only absolute `https://` URLs on another origin without embedded credentials; other image URLs are skipped.
 
+Metric fields in the spec that have a widget or model format (a semantic widget's `y` format, inherited from the model when omitted) use it automatically: axes and legends show it compactly (`₺1.2M`), tooltips and text marks in full. Counts, variances, products and normalized stacks keep Vega-Lite's defaults. A `format` or `formatType` set in the spec wins: on the field, its `axis` or `legend`, in `config` (including `config.numberFormat`).
+
 ### Table Widget
 
 Data table with optional column configuration.
@@ -823,7 +863,7 @@ Data table with optional column configuration.
 
 If `columns` is omitted, all result columns are shown with their SQL names as headers.
 
-**Column rendering and conditional formatting.** A `table` column takes `name`, `label`, `type` (`text` default, `image`, or `sparkline`), `number` (value format: `number`, `currency`, or a d3-format string), sparkline-only `x`/`y` encodings, `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, `frozen`, `group`, `collapsed`, and `format`. Image columns render only absolute `https://` URLs on another origin without embedded credentials; other values stay as text. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
+**Column rendering and conditional formatting.** A `table` column takes `name`, `label`, `type` (`text` default, `image`, or `sparkline`), `number` (value format: `number`, `currency`, a d3-format string, or a structured number/currency format object), sparkline-only `x`/`y` encodings, `align` (`left`/`center`/`right` — overrides the type-inferred alignment of the header and body cells, e.g. to right-align a text value like `£177K`), `like`, `hidden`, `frozen`, `group`, `collapsed`, and `format`. Image columns render only absolute `https://` URLs on another origin without embedded credentials; other values stay as text. `format` is an **ordered list of layers**; for each cell the **first layer that matches wins**. A scalar `format` string (e.g. `format: currency`) is also accepted as a legacy alias for `number` — prefer `number` in new dashboards.
 
 **Sparkline table columns.** Use `type: sparkline` with required `x.field` and `y.field`. Cells accept named point objects or pairs in `[x, y]` order, either as native arrays or as a JSON array string (up to 256 KB; for warehouses that return aggregated JSON as text). Points use array order, cells share a Y domain, and at most 100 points are drawn. Sparkline columns are not sortable and reject `format` layers/`like`; other columns cannot target them with `like` or `{ column: ... }` (a series has no single value). Not supported on `pivot_table`.
 

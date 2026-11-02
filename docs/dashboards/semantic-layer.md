@@ -120,9 +120,9 @@ Metrics are aggregate expressions. They come in three flavors:
 | `name` | string | Metric name |
 | `expression` | string | SQL aggregate or derived expression |
 | `filter` | string | Optional SQL predicate applied to only this metric |
-| `format.type` | string | `number`, `currency`, `percentage`, or `decimal` |
+| `format.type` | string | `number`, `currency`, `percentage` (expects a ratio, `0.12` → `12%`), or `decimal` |
 | `format.currency` | string | Currency code for currency values |
-| `format.decimals` | integer | Decimal precision |
+| `format.decimals` | integer | Decimal precision (`0` is treated as unset) |
 | `window.type` | string | `running_total`, `lag`, `lead`, `rank`, or `percent_of_total` |
 | `window.order_by` | string | Dimension to order the window by |
 | `window.partition_by` | string[] | Dimensions to partition the window by |
@@ -131,6 +131,20 @@ Metrics are aggregate expressions. They come in three flavors:
 | `description` | string | Optional description |
 | `hidden` | bool | Hide from UI consumers |
 | `group` | string | Optional grouping label |
+
+#### Display formats
+
+Set the format on the model metric:
+
+```yaml
+metrics:
+  - name: revenue
+    expression: sum(amount)
+    format: {type: currency, currency: TRY, decimals: 2}
+```
+
+Widgets using `revenue` inherit this format: `1234.5` displays as `₺1.234,50`
+in Turkish. Set a widget format to override it. See [widget formats](/dashboards/widgets#number-and-currency-formats) for more examples.
 
 #### Expression Rules
 

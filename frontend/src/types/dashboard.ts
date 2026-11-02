@@ -158,7 +158,7 @@ export interface TableColumn {
   /** Cell rendering: text, an image URL, or a structured numeric sparkline series. */
   type?: 'text' | 'image' | 'sparkline';
   /** Value display: `currency`, `number`, or a d3-format spec. */
-  number?: string;
+  number?: DisplayFormat;
   /** Required for sparkline columns: point x encoding. */
   x?: AxisEncoding;
   /** Required for sparkline columns: point y encoding. */
@@ -250,7 +250,7 @@ export interface AxisEncoding {
   field: string | string[];
   type?: "number" | "date" | "category";
   title?: string;  // human-readable axis label
-  format?: string; // d3-format / d3-time-format string for tick labels
+  format?: DisplayFormat; // d3-format / d3-time-format string for tick labels
   beginAtZero?: boolean; // anchor a line/area value axis at 0
   markers?: boolean; // show point markers on line/area (default true)
   curve?: "smooth" | "straight" | "stepline"; // chart-wide line interpolation
@@ -279,7 +279,7 @@ export interface ColorEncoding {
 export interface ValueEncoding {
   field: string;
   type?: "number" | "date" | "category";
-  format?: string; // d3-format / d3-time-format string, e.g. "$,.2f", ".0%", "%b %Y"
+  format?: DisplayFormat; // d3-format / d3-time-format string, e.g. "$,.2f", ".0%", "%b %Y"
 }
 
 export interface SemanticDimensionRef {
@@ -304,6 +304,14 @@ export interface WidgetData {
   rows: unknown[][];
   query?: string;
   error?: string;
+}
+
+export type DisplayFormat = string | SemanticFormat | { fields: Record<string, SemanticFormat> };
+
+export interface SemanticFormat {
+  type?: "number" | "currency" | "percentage" | "decimal";
+  currency?: string;
+  decimals?: number;
 }
 
 export interface BatchDataResponse {
