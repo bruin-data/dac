@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { buildAxisFormatter } from "../../lib/format";
 import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
@@ -429,6 +430,48 @@ function DateRangeFilter({
 interface Option {
   label: string;
   value: string;
+  metric?: string;
+}
+
+/** Metrics are display-only. Selection, search and URLs keep the option value. */
+function filterMetricText(filter: Filter, value: string): string | undefined {
+  const options = filter.options;
+  const metrics = options?.metric_values;
+  if (!metrics || !Object.prototype.hasOwnProperty.call(metrics, value)) return undefined;
+  const raw = metrics[value];
+  if (raw == null) return "—";
+  const metric = typeof raw === "string" && raw.trim() !== "" ? Number(raw) : raw;
+  if (typeof metric !== "number") return String(raw);
+  if (!Number.isFinite(metric)) return typeof raw === "string" ? raw : "—";
+  const encoding = options?.metric;
+  if (encoding && typeof encoding !== "string" && encoding.format) {
+    return buildAxisFormatter(encoding, String)(metric);
+  }
+  const format = options?.metric_format;
+  if (format) {
+    // Models omit zero decimals, so unset decimals keep Intl's default precision.
+    const decimals = format.decimals && format.decimals > 0 ? Math.min(20, format.decimals) : undefined;
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: format.type === "currency" ? "currency" : format.type === "percentage" ? "percent" : "decimal",
+        ...(format.type === "currency" ? { currency: format.currency || "USD" } : {}),
+        ...(decimals ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals } : {}),
+      }).format(metric);
+    } catch { return String(metric); }
+  }
+  return String(raw);
+}
+
+function selectOptions(filter: Filter): Option[] {
+  return (filter.options?.values ?? []).map((value) => ({ label: value, value, metric: filterMetricText(filter, value) }));
+}
+
+function optionLabel(option: Option, context: { context: "menu" | "value" }) {
+  if (context.context !== "menu" || option.metric === undefined) return option.label;
+  return <span className="flex w-full items-center justify-between gap-5">
+    <span className="min-w-0 flex-1 truncate" title={option.label}>{option.label}</span>
+    <span className="max-w-[45%] shrink-0 truncate tabular-nums text-[var(--dac-text-muted)]" title={option.metric}>{option.metric}</span>
+  </span>;
 }
 
 /** Keep selected values that aren't in the loaded options visible in the menu. */
@@ -448,7 +491,7 @@ function SingleSelectFilter({
   onChange: (value: unknown) => void;
   label: string;
 }) {
-  const options: Option[] = (filter.options?.values ?? []).map((v) => ({ label: v, value: v }));
+  const options = selectOptions(filter);
   const current = value ?? filter.default;
   const selected = current != null && current !== ""
     ? options.find((o) => o.value === String(current)) ?? { label: String(current), value: String(current) }
@@ -465,6 +508,7 @@ function SingleSelectFilter({
         {label}
       </label>
       <Select<Option, false>
+        formatOptionLabel={optionLabel}
         inputId={inputId}
         classNamePrefix="dac-select"
         aria-label={label}
@@ -474,14 +518,14 @@ function SingleSelectFilter({
         options={menuOptions}
         value={selected}
         onChange={(opt) => onChange(opt ? opt.value : "")}
-        isClearable={!!filter.options?.query}
+        isClearable={!!(filter.options?.query || filter.options?.dimension)}
         placeholder="Select..."
         isSearchable
         menuPortalTarget={popoverPortalTarget() as HTMLElement}
         menuPosition="fixed"
         unstyled
         classNames={selectClassNames}
-        styles={selectStyles}
+        styles={filterSelectStyles(menuOptions)}
       />
       {filter.options?.error && (
         <span role="alert" title={filter.options.error} className="text-[11px] text-[var(--dac-error)]">
@@ -503,7 +547,7 @@ function MultiSelectFilter({
   onChange: (value: unknown) => void;
   label: string;
 }) {
-  const options: Option[] = (filter.options?.values ?? []).map((v) => ({ label: v, value: v }));
+  const options = selectOptions(filter);
   const selected = Array.isArray(value)
     ? value.map((v) => options.find((o) => o.value === String(v)) ?? { label: String(v), value: String(v) })
     : [];
@@ -519,6 +563,7 @@ function MultiSelectFilter({
         {label}
       </label>
       <Select<Option, true>
+        formatOptionLabel={optionLabel}
         inputId={inputId}
         classNamePrefix="dac-select"
         aria-label={label}
@@ -539,7 +584,7 @@ function MultiSelectFilter({
         components={{ ValueContainer: CompactValueContainer }}
         unstyled
         classNames={selectClassNames}
-        styles={selectStyles}
+        styles={filterSelectStyles(menuOptions)}
       />
       {filter.options?.error && (
         <span role="alert" title={filter.options.error} className="text-[11px] text-[var(--dac-error)]">
@@ -640,3 +685,15 @@ const selectStyles = {
   }),
   menuPortal: (base: Record<string, unknown>) => ({ ...base, zIndex: 9999 }),
 };
+
+function filterSelectStyles(options: Option[]) {
+  if (!options.some((option) => option.metric !== undefined)) return selectStyles;
+  return {
+    ...selectStyles,
+    menuPortal: (base: Record<string, unknown>) => {
+      const width = Math.min(Math.max(Number(base.width), 220), window.innerWidth - 16);
+      const left = Math.max(8, Math.min(Number(base.left), window.innerWidth - width - 8));
+      return { ...base, zIndex: 9999, width, left };
+    },
+  };
+}

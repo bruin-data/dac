@@ -1424,3 +1424,90 @@ func TestValidate_WidgetHeightType(t *testing.T) {
 	assertErr(t, err)
 	assertValidationContains(t, err, "height must be a number of pixels or a CSS length")
 }
+
+func TestFilterOptionDefinitions(t *testing.T) {
+	model := []byte(`name: sales
+source: {table: sales}
+dimensions:
+  - {name: region, type: string}
+metrics:
+  - {name: revenue, expression: "sum(amount)"}
+`)
+	for _, tc := range []struct {
+		name, options string
+		valid         bool
+	}{
+		{"query metric", `query: SELECT region, sum(amount) AS total FROM sales GROUP BY region
+      metric: {field: total, format: "$,.0f"}`, true},
+		{"model metric", `dimension: region
+      metric: revenue`, true},
+		{"dimension only", `dimension: region`, true},
+		{"filter model override is unsupported", `model: sales
+      dimension: region
+      metric: revenue`, false},
+		{"missing model metric", `dimension: region
+      metric: missing`, false},
+		{"missing dimension", `dimension: missing
+      metric: revenue`, false},
+		{"query metric name", `query: SELECT region FROM sales
+      metric: revenue`, false},
+		{"model result encoding", `dimension: region
+      metric: {field: revenue}`, true},
+		{"model format override", `dimension: region
+      metric: {field: revenue, format: "$,.0f"}`, true},
+		{"missing model metric field", `dimension: region
+      metric: {field: missing}`, false},
+		{"options predicates are unsupported", `dimension: region
+      filters: []`, false},
+		{"mixed sources", `dimension: region
+      query: SELECT region FROM sales`, false},
+		{"static metric configuration", `values: [Europe]
+      metric: {field: revenue}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := []byte("name: Test\nmodel: sales\nfilters:\n  - name: region\n    type: select\n    options:\n      " + tc.options + "\nrows:\n  - widgets:\n      - {name: Help, type: text, content: example}\n")
+			err := ValidateDefinition(raw, map[string][]byte{"sales": model})
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v, error=%v", tc.valid, err)
+			}
+		})
+	}
+	if err := ValidateDefinition([]byte("name: Test\nfilters:\n  - name: region\n    type: select\n    options: {dimension: region}\nrows:\n  - widgets:\n      - {name: Help, type: text, content: example}\n"), nil); err == nil {
+		t.Fatal("expected missing model error")
+	}
+}
+
+func TestTSXFilterMetrics(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "semantic"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "semantic", "sales.yml"), []byte("name: sales\nsource: {table: sales}\ndimensions: [{name: region, type: string}]\nmetrics: [{name: revenue, expression: 'sum(amount)'}]\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, options string
+		valid         bool
+	}{
+		{"sql", `{query: "SELECT region, sum(amount) AS total FROM sales GROUP BY region", metric: {field: "total", format: "$,.0f"}}`, true},
+		{"model", `{dimension: "region", metric: "revenue"}`, true},
+		{"model format override", `{dimension: "region", metric: {field: "revenue", format: "$,.0f"}}`, true},
+		{"bad metric shape", `{dimension: "region", metric: true}`, false},
+		{"unknown metric key", `{dimension: "region", metric: {field: "revenue", fromat: "$"}}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join(dir, "test.dashboard.tsx")
+			content := `export default <Dashboard name="TSX" model="sales"><Filter name="region" type="select" options={` + tc.options + `} /><Row><Text name="Help" content="example" /></Row></Dashboard>;`
+			if err := os.WriteFile(file, []byte(content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			d, err := LoadTSXFile(file)
+			if err == nil {
+				err = Validate(d)
+			}
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v error=%v", tc.valid, err)
+			}
+		})
+	}
+}

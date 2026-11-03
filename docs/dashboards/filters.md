@@ -53,6 +53,38 @@ Dropdown options can depend on other filters, such as showing cities for the sel
       query: SELECT DISTINCT city FROM orders WHERE region = '{{ filters.region }}' ORDER BY 1
 ```
 
+#### Metrics beside options
+
+SQL calculates the metric; the filter bar uses `options.metric` to select and format its result column:
+
+```yaml
+options:
+  query: |
+    SELECT region, SUM(amount) AS total_sales
+    FROM sales GROUP BY region
+  metric:
+    field: total_sales
+    format: "$,.0f"
+```
+
+The dropdown shows `Europe  $530`; selecting it still submits `Europe`. The first SQL column supplies option values. Omit `metric` for plain options.
+
+For a [semantic model](/dashboards/semantic-layer), reference its dimension and metric instead:
+
+```yaml
+model: sales
+filters:
+  - name: region
+    type: select
+    options:
+      dimension: region
+      metric:
+        field: total_sales
+        format: "$,.0f"
+```
+
+Filter options use the dashboard's model and the same query engine as widgets. Use `metric: total_sales` to inherit its format, or `{field, format}` to override the display format for this filter. Use one option source: `values`, `query`, or `dimension`. SQL option queries can reference other controls explicitly; model options do not change with other filters.
+
 ### Date Range
 
 A date picker with start and end dates. Supports presets for common ranges.
@@ -252,11 +284,13 @@ WHERE customer_name LIKE '%{{ filters.search }}%'
 | `options.values` | string[] | No | Static list of options (select) |
 | `options.query` | string | No | SQL whose first column populates options (select); skipped when `options.values` is non-empty |
 | `options.connection` | string | No | Connection for the options query; defaults to the dashboard connection |
+| `options.dimension` | string | No | Model dimension supplying query-generated choices; excludes `query` and `values` |
+| `options.metric` | string or object | No | Model metric name, or `{field, format?}` for a SQL column or model metric with optional format override |
 | `options.presets` | string[] | No | Which date presets to show (date-range) |
 
 ## Server Validation and SQL Safety
 
-Batch, streaming, and individual widget queries validate request values and resolved defaults before executing widget SQL. CLI queries and exports use the same validation. Invalid values return HTTP 400. Unknown filter names, wrong JSON types, invalid calendar dates, reversed date ranges, and selections outside a static `options.values` list are rejected. Number filters require finite JSON numbers, not numeric strings. An empty string or `null` for a single-value filter means the input was cleared and is passed through as empty, so guard optional filters with `{% if filters.<name> %}`. Multi-selects require arrays of strings; date ranges require exactly `start` and `end`. Selects with non-empty static values enforce that list even when a query is also supplied. Query-driven selects without a non-empty static list accept strings; their query results are not used as a server-side allowlist.
+Batch, streaming, and individual widget queries validate request values and resolved defaults before executing widget SQL. CLI queries and exports use the same validation. Invalid values return HTTP 400. Unknown filter names, wrong JSON types, invalid calendar dates, reversed date ranges, and selections outside a static `options.values` list are rejected. Number filters require finite JSON numbers, not numeric strings. An empty string or `null` for a single-value filter means the input was cleared and is passed through as empty, so guard optional filters with `{% if filters.<name> %}`. Multi-selects require arrays of strings; date ranges require exactly `start` and `end`. Selects with non-empty static values enforce that list even when a query is also supplied. Query-driven and model-backed (`options.dimension`) selects without a non-empty static list accept strings; their option results are not used as a server-side allowlist.
 
 Text, date, and select values must be interpolated inside ordinary single-quoted SQL literals, as shown above. Only numeric outputs can appear unquoted. Filters cannot supply table names, column names, comments, or arbitrary SQL fragments. Jinja conditionals and loops still work, as does the documented multi-select `join("','")` pattern.
 

@@ -1,4 +1,4 @@
-import type { DashboardSummary, Dashboard, BatchDataResponse, WidgetData } from "../types/dashboard";
+import type { DashboardSummary, Dashboard, BatchDataResponse, WidgetData, ResolvedFilterOptions } from "../types/dashboard";
 import type { Theme } from "../types/theme";
 
 // Embed injects the dac-serve URL; else relative. Read lazily so importing this module never touches `window`.
@@ -67,8 +67,8 @@ export async function fetchFilterOptions(
   dashboardName: string,
   filterName: string,
   filters?: Record<string, unknown>,
-): Promise<string[]> {
-  const data = await fetchJSON<{ values: string[] }>(
+): Promise<ResolvedFilterOptions> {
+  const data = await fetchJSON<ResolvedFilterOptions>(
     `${apiBase()}/dashboards/${encodeURIComponent(dashboardName)}/filters/${encodeURIComponent(filterName)}/options`,
     {
       method: "POST",
@@ -76,7 +76,7 @@ export async function fetchFilterOptions(
       body: JSON.stringify({ filters: filters ?? {} }),
     },
   );
-  return data.values;
+  return data;
 }
 
 export async function fetchDashboardData(

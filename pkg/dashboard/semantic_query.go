@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"fmt"
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
@@ -150,4 +151,21 @@ func toSemanticSorts(sortSpecs []SemanticSort) []sem.SortSpec {
 		})
 	}
 	return out
+}
+
+// ResolveFilterSemanticJob uses the same engine and model aliases as widgets.
+func (d *Dashboard) ResolveFilterSemanticJob(options *FilterOptions) (*SemanticJob, error) {
+	w := &Widget{
+		Dimension:  options.Dimension,
+		Connection: options.Connection,
+		Sort:       []SemanticSort{{Name: options.Dimension, Direction: "asc"}},
+	}
+	if options.Metric != nil {
+		w.MetricRef = cmp.Or(options.Metric.Name, options.Metric.Field)
+	}
+	job, _, err := d.ResolveWidgetSemanticJob(w)
+	if err == nil && job == nil {
+		err = fmt.Errorf("options.dimension requires a semantic model")
+	}
+	return job, err
 }

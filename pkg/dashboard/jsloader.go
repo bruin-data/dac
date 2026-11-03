@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/bruin-data/dac/schemas"
@@ -488,6 +489,14 @@ func vnodeToFilter(n *vnode) Filter {
 			if p, ok := m["presets"]; ok {
 				fo.Presets = asStringSlice(p)
 			}
+			fo.Dimension = asString(m["dimension"])
+			if metric, ok := m["metric"].(string); ok {
+				fo.Metric = &FilterOptionMetric{Name: metric}
+			} else if metric, ok := m["metric"].(map[string]interface{}); ok && onlyKeys(metric, "field", "format") {
+				fo.Metric = &FilterOptionMetric{Field: asString(metric["field"]), Format: asString(metric["format"])}
+			} else if m["metric"] != nil {
+				fo.Metric = &FilterOptionMetric{} // Validation reports unsupported metric shapes.
+			}
 			f.Options = fo
 		}
 	}
@@ -605,6 +614,16 @@ func widgetType(tag string) string {
 }
 
 // Type conversion helpers.
+
+// onlyKeys reports whether m has no keys outside allowed.
+func onlyKeys(m map[string]interface{}, allowed ...string) bool {
+	for k := range m {
+		if !slices.Contains(allowed, k) {
+			return false
+		}
+	}
+	return true
+}
 
 func asString(v interface{}) string {
 	if v == nil {

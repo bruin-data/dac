@@ -46,16 +46,25 @@ func (s *Server) handleFilterOptions(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "options are only available for select filters")
 			return
 		}
-		optionsDashboard := &dashboard.Dashboard{Connection: d.Connection, Filters: []dashboard.Filter{filter}}
-		if err := ResolveFilterOptions(r.Context(), s.backend, optionsDashboard, filters); err != nil {
+		optionsDashboard := *d
+		optionsDashboard.Filters = []dashboard.Filter{filter}
+		if err := ResolveFilterOptions(r.Context(), s.backend, &optionsDashboard, filters); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		values := []string{}
-		if options := optionsDashboard.Filters[0].Options; options != nil && options.Values != nil {
-			values = options.Values
+		response := map[string]any{"values": []string{}}
+		if options := optionsDashboard.Filters[0].Options; options != nil {
+			if options.Values != nil {
+				response["values"] = options.Values
+			}
+			if options.MetricValues != nil {
+				response["metric_values"] = options.MetricValues
+			}
+			if options.MetricFormat != nil {
+				response["metric_format"] = options.MetricFormat
+			}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"values": values})
+		writeJSON(w, http.StatusOK, response)
 		return
 	}
 	writeError(w, http.StatusNotFound, "filter not found")

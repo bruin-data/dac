@@ -59,10 +59,63 @@ type Filter struct {
 }
 
 type FilterOptions struct {
-	Values     []string `yaml:"values,omitempty" json:"values,omitempty"`
-	Query      string   `yaml:"query,omitempty" json:"query,omitempty"`
-	Connection string   `yaml:"connection,omitempty" json:"connection,omitempty"`
-	Presets    []string `yaml:"presets,omitempty" json:"presets,omitempty"` // date-range: which presets to show
+	Values     []string            `yaml:"values,omitempty" json:"values,omitempty"`
+	Query      string              `yaml:"query,omitempty" json:"query,omitempty"`
+	Connection string              `yaml:"connection,omitempty" json:"connection,omitempty"`
+	Presets    []string            `yaml:"presets,omitempty" json:"presets,omitempty"` // date-range: which presets to show
+	Dimension  string              `yaml:"dimension,omitempty" json:"dimension,omitempty"`
+	Metric     *FilterOptionMetric `yaml:"metric,omitempty" json:"metric,omitempty"`
+	// Resolved display metadata never participates in filter values or SQL.
+	MetricValues map[string]any `yaml:"-" json:"metric_values,omitempty"`
+	MetricFormat *sem.Format    `yaml:"-" json:"metric_format,omitempty"`
+}
+
+// FilterOptionMetric selects a SQL result column or model metric with an optional display format.
+type FilterOptionMetric struct {
+	Name   string `yaml:"-" json:"-"`
+	Field  string `yaml:"field,omitempty" json:"field,omitempty"`
+	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+}
+
+func (m *FilterOptionMetric) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode && node.Tag == "!!str" {
+		m.Name = node.Value
+		return nil
+	}
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("options.metric must be a model metric name or {field, format}")
+	}
+	for i := 0; i < len(node.Content); i += 2 {
+		if node.Content[i].Value != "field" && node.Content[i].Value != "format" {
+			return fmt.Errorf("unknown options.metric field %q", node.Content[i].Value)
+		}
+	}
+	type encoding FilterOptionMetric
+	return node.Decode((*encoding)(m))
+}
+
+func (m *FilterOptionMetric) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		return json.Unmarshal(data, &m.Name)
+	}
+	type encoding FilterOptionMetric
+	return json.Unmarshal(data, (*encoding)(m))
+}
+
+func (m FilterOptionMetric) MarshalJSON() ([]byte, error) {
+	if m.Name != "" {
+		return json.Marshal(m.Name)
+	}
+	type encoding FilterOptionMetric
+	return json.Marshal(encoding(m))
+}
+
+func (m FilterOptionMetric) MarshalYAML() (any, error) {
+	if m.Name != "" {
+		return m.Name, nil
+	}
+	type encoding FilterOptionMetric
+	return encoding(m), nil
 }
 
 // Note is a top-level annotation matched to rows/points by its dimensions.

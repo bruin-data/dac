@@ -141,6 +141,9 @@ func Validate(d *Dashboard) error {
 	// Validate filters.
 	for i, f := range d.Filters {
 		prefix := fmt.Sprintf("filter %d (%q)", i+1, f.Name)
+		for _, err := range validateFilterOptions(d, f) {
+			errs = append(errs, prefix+": "+err)
+		}
 		if f.Col != nil && (*f.Col < 1 || *f.Col > 12) {
 			errs = append(errs, fmt.Sprintf("%s: col must be an integer from 1 to 12", prefix))
 		}
@@ -219,6 +222,39 @@ func Validate(d *Dashboard) error {
 		return &ValidationError{Dashboard: d.Name, Errors: errs}
 	}
 	return nil
+}
+
+func validateFilterOptions(d *Dashboard, f Filter) []string {
+	o := f.Options
+	if o == nil {
+		return nil
+	}
+	var errs []string
+	if (o.Dimension != "" || o.Metric != nil) && f.Type != "select" {
+		errs = append(errs, "model options and metrics are only supported on select filters")
+	}
+	if o.Dimension != "" {
+		if o.Query != "" || len(o.Values) > 0 {
+			errs = append(errs, "options.dimension cannot be combined with query or values")
+		}
+		if o.Metric != nil && o.Metric.Name == "" && o.Metric.Field == "" {
+			errs = append(errs, "model options.metric requires a metric name or field")
+		}
+		if len(errs) == 0 {
+			job, err := d.ResolveFilterSemanticJob(o)
+			if err == nil {
+				err = validateSemanticJob(job)
+			}
+			if err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+	} else {
+		if o.Metric != nil && (o.Query == "" || len(o.Values) > 0 || o.Metric.Field == "" || o.Metric.Name != "") {
+			errs = append(errs, "query options.metric requires options.query and a field; it cannot be combined with static values")
+		}
+	}
+	return errs
 }
 
 // noteLookup holds the dashboard's note ids and caches one semantic engine per
