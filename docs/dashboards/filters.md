@@ -67,7 +67,7 @@ options:
     format: "$,.0f"
 ```
 
-The dropdown shows `Europe  $530`; selecting it still submits `Europe`. The first SQL column supplies option values. Omit `metric` for plain options.
+The dropdown shows `Europe  $530`; selecting it still submits `Europe`. Model precision is preserved, including `decimals: 0`. The first SQL column supplies option values. Omit `metric` for plain options.
 
 For a [semantic model](/dashboards/semantic-layer), reference its dimension and metric instead:
 

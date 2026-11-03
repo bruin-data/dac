@@ -87,3 +87,40 @@ func TestCompileSemanticJob_SingleModelNoJoin(t *testing.T) {
 		t.Fatalf("did not expect column renames for a single-model query, got: %v", renames)
 	}
 }
+
+// TestCompileSemanticJob_UnqualifiedJoinedGranularity verifies an unqualified
+// time dimension from a joined model maps its granularity alias back too.
+func TestCompileSemanticJob_UnqualifiedJoinedGranularity(t *testing.T) {
+	customers := &sem.Model{
+		Name:       "customers",
+		Source:     sem.Source{Table: "public.customers"},
+		PrimaryKey: "customer_id",
+		Dimensions: []sem.Dimension{{Name: "signup_date", Type: "time", Granularities: map[string]string{"month": "date_trunc('month', signup_date)"}}},
+	}
+	orders := &sem.Model{
+		Name:    "orders",
+		Source:  sem.Source{Table: "public.orders"},
+		Joins:   []sem.Join{{Name: "customers", Relationship: "many_to_one", ForeignKey: "customer_id"}},
+		Metrics: []sem.Metric{{Name: "revenue", Expression: "sum(amount)"}},
+	}
+	job := &dashboard.SemanticJob{
+		Model:     orders,
+		ModelName: "orders",
+		Models:    map[string]*sem.Model{"orders": orders, "customers": customers},
+		Query: sem.Query{
+			Dimensions: []sem.DimensionRef{{Name: "signup_date", Granularity: "month"}},
+			Metrics:    []string{"revenue"},
+		},
+	}
+
+	sql, _, renames, err := compileSemanticJob(job, nil)
+	if err != nil {
+		t.Fatalf("compile job: %v", err)
+	}
+	if !strings.Contains(sql, "signup_date_month") {
+		t.Fatalf("expected engine alias signup_date_month, got: %s", sql)
+	}
+	if got := renames["signup_date_month"]; got != "signup_date" {
+		t.Fatalf("expected rename signup_date_month -> signup_date, got %q (%v)", got, renames)
+	}
+}

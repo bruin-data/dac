@@ -327,7 +327,7 @@ func semanticModelHasNote(model *sem.Model, id string) bool {
 // validateWidgetContent validates a widget's type-specific fields, spec, inline
 // data, and pivot. Shared by top-level widgets and by each tab.
 func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
-	var errs []string
+	errs := validateWidgetFormats(prefix, w)
 
 	if w.Type == "" {
 		errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
@@ -786,19 +786,26 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		return errs
 	}
 
+	// A value added only to carry an inherited format doesn't satisfy "value is
+	// required": validation must not depend on whether the model has formats.
+	valueField := w.ValueField()
+	if w.inheritedValue {
+		valueField = ""
+	}
+
 	switch w.Chart {
 	case "pie", "funnel", "treemap":
 		// label + value columns
 		if w.Label == "" {
 			errs = append(errs, fmt.Sprintf("%s: label is required for %s charts", prefix, w.Chart))
 		}
-		if w.ValueField() == "" {
+		if valueField == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for %s charts", prefix, w.Chart))
 		}
 
 	case "gauge":
 		// value column (current); target is optional
-		if w.ValueField() == "" {
+		if valueField == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for gauge charts", prefix))
 		}
 
@@ -828,7 +835,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if w.Target == "" {
 			errs = append(errs, fmt.Sprintf("%s: target is required for sankey charts", prefix))
 		}
-		if w.ValueField() == "" {
+		if valueField == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for sankey charts", prefix))
 		}
 
@@ -840,7 +847,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if len(w.YFields()) == 0 {
 			errs = append(errs, fmt.Sprintf("%s: y is required for heatmap charts", prefix))
 		}
-		if w.ValueField() == "" {
+		if valueField == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for heatmap charts", prefix))
 		}
 
@@ -849,7 +856,7 @@ func validateChartWidget(prefix string, w *Widget, d *Dashboard) []string {
 		if w.XField() == "" {
 			errs = append(errs, fmt.Sprintf("%s: x (date column) is required for calendar charts", prefix))
 		}
-		if w.ValueField() == "" {
+		if valueField == "" {
 			errs = append(errs, fmt.Sprintf("%s: value is required for calendar charts", prefix))
 		}
 

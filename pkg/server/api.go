@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/bruin-data/dac/pkg/dashboard"
@@ -22,7 +23,7 @@ type WidgetJob struct {
 	// InlineData, when set, is returned directly without executing SQL — the
 	// widget carries static data and needs no connection.
 	InlineData *dashboard.WidgetData
-	// ColumnRenames maps an executed result column name to the name the
+	// ColumnRenames maps a lowercase executed result column name to the name the
 	// dashboard references it by. Semantic joins sanitize qualified dimension
 	// names (e.g. "customers.country" -> "customers_country"); this restores
 	// the dashboard-facing name so widgets resolve the column.
@@ -362,7 +363,8 @@ func ExecuteWidgetQuery(ctx context.Context, backend query.Backend, j WidgetJob)
 	}
 	for _, col := range qr.Columns {
 		name := col.Name
-		if renamed, ok := j.ColumnRenames[name]; ok {
+		// Keys are lowercase: warehouses such as Snowflake uppercase unquoted aliases.
+		if renamed, ok := j.ColumnRenames[strings.ToLower(name)]; ok {
 			name = renamed
 		}
 		wr.Columns = append(wr.Columns, struct {

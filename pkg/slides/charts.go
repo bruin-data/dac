@@ -75,6 +75,7 @@ func renderBarChart(w *dashboard.Widget, data *server.WidgetQueryResult) ([]byte
 		Width:  800,
 		Height: 500,
 		Bars:   bars,
+		YAxis:  chart.YAxis{ValueFormatter: chartFormatter(w, data.Columns[yCol].Name)},
 	}
 
 	var buf bytes.Buffer
@@ -117,6 +118,7 @@ func renderLineChart(w *dashboard.Widget, data *server.WidgetQueryResult) ([]byt
 		Width:  800,
 		Height: 500,
 		XAxis:  chart.XAxis{Ticks: ticks},
+		YAxis:  chart.YAxis{ValueFormatter: chartFormatter(w, data.Columns[yCol].Name)},
 		Series: []chart.Series{series},
 	}
 
@@ -125,6 +127,23 @@ func renderLineChart(w *dashboard.Widget, data *server.WidgetQueryResult) ([]byt
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+func chartFormatter(w *dashboard.Widget, field string) chart.ValueFormatter {
+	return func(raw interface{}) string {
+		if w.Y != nil {
+			spec, format := dashboard.ParseDisplayFormat(w.Y.Format, field)
+			if spec != "" {
+				return formatD3Number(spec, toFloat64(raw))
+			}
+			if format != nil {
+				if text, ok := formatSemanticNumber(toFloat64(raw), *format, true); ok {
+					return text
+				}
+			}
+		}
+		return chart.FloatValueFormatter(raw)
+	}
 }
 
 // chartXY returns the x and first y column indices for a chart widget.

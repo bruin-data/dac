@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { format as d3Format } from "d3-format";
-import type { AxisEncoding, FormatLayer, Widget, WidgetData } from "../../types/dashboard";
-import { axisField, buildAxisFormatter } from "../../lib/format";
+import type { AxisEncoding, DisplayFormat, FormatLayer, Widget, WidgetData } from "../../types/dashboard";
+import { axisField, buildAxisFormatter, buildTableNumberFormatter } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
 import { cellStyle, isGradient, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
-import { pivotData } from "./pivot";
+import { pivotData, pivotFormats } from "./pivot";
 import { SparklineCell } from "./SparklineCell";
 import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
@@ -30,7 +29,7 @@ interface TableColumn {
   name: string;
   label: string;
   type?: "text" | "image" | "sparkline"; // structured sparkline data or ordinary cell rendering
-  number?: string; // value display (currency | number | d3-format)
+  number?: DisplayFormat; // value display (currency | number | d3-format)
   x?: AxisEncoding; // sparkline point x key/type/format
   y?: AxisEncoding; // sparkline point y key/type/format/domain
   align?: "left" | "center" | "right"; // text-alignment override (header + body)
@@ -43,6 +42,12 @@ interface TableColumn {
 
 // Effective column alignment (header + body): an explicit `align` override wins,
 // else numbers fall right and text left. Returns the text- and justify- classes.
+// Exact match first; fall back to case-insensitive for uppercasing warehouses.
+function resultIndex(columns: { name: string }[], name: string) {
+  const exact = columns.findIndex((c) => c.name === name);
+  return exact >= 0 ? exact : columns.findIndex((c) => c.name.toLowerCase() === name.toLowerCase());
+}
+
 function alignClasses(align: TableColumn["align"], numeric: boolean) {
   const a = align === "left" || align === "center" || align === "right" ? align : numeric ? "right" : "left";
   return {
@@ -87,7 +92,7 @@ export function TableWidget({ widget, data }: Props) {
     return pivotData(data.columns.map((c) => c.name), data.rows ?? [], widget.pivot);
   }, [widget.pivot, data]);
   const effData: WidgetData | undefined = useMemo(
-    () => (pivot ? { columns: pivot.columns.map((name) => ({ name })), rows: pivot.rows } : data),
+    () => (pivot ? { ...data, columns: pivot.columns.map((name) => ({ name })), rows: pivot.rows } : data),
     [pivot, data],
   );
 
@@ -95,6 +100,9 @@ export function TableWidget({ widget, data }: Props) {
     if (!effData?.columns) return [];
 
     const meta = new Map((widget.columns ?? []).map((c) => [c.name, c]));
+    // Model defaults for generated pivot columns, carried from each value's field.
+    const formats = pivot && widget.pivot ? pivotFormats(pivot, widget.pivot, widget.columns) : undefined;
+    const sources = new Set((data?.columns ?? []).map((c) => c.name.toLowerCase()));
     const isFrozen = (name: string) => {
       const pinSource = columnGroupsByMember.get(name)?.summary ?? name;
       return !pivot && (pinOverrides.get(pinSource) ?? meta.get(pinSource)?.frozen ?? false);
@@ -105,11 +113,14 @@ export function TableWidget({ widget, data }: Props) {
       pivot || !widget.columns?.length
         ? effData.columns.map((col, idx) => {
             const m = meta.get(col.name);
+            // A measure header that matches a source field (a value labelled `revenue`)
+            // takes its value's format, not that field's: a count of revenue is not money.
+            const borrowed = pivot?.columnValues[idx] != null && sources.has(col.name.toLowerCase());
             return {
               name: col.name,
               label: m?.label || col.name,
               type: m?.type,
-              number: m?.number,
+              number: (borrowed ? undefined : m?.number) || formats?.[col.name] || undefined,
               x: m?.x,
               y: m?.y,
               align: m?.align,
@@ -125,7 +136,7 @@ export function TableWidget({ widget, data }: Props) {
             name: col.name,
             label: col.label || col.name,
             type: col.type,
-            number: col.number,
+            number: col.number || undefined,
             x: col.x,
             y: col.y,
             align: col.align,
@@ -134,7 +145,7 @@ export function TableWidget({ widget, data }: Props) {
             hidden: isHidden(col.name),
             frozen: isFrozen(col.name),
             format: col.format,
-            idx: effData.columns.findIndex((c) => c.name === col.name),
+            idx: resultIndex(effData.columns, col.name),
           }));
 
     // `like`: adopt the source column's coloring driven by its per-row value,
@@ -165,7 +176,7 @@ export function TableWidget({ widget, data }: Props) {
     if (pivot) return resolved;
     const frozen = resolved.filter((c) => c.frozen);
     return frozen.length ? [...frozen, ...resolved.filter((c) => !c.frozen)] : resolved;
-  }, [widget.columns, effData?.columns, pivot, pinOverrides, columnGroupsByMember]);
+  }, [widget.columns, widget.pivot, data?.columns, effData?.columns, pivot, pinOverrides, columnGroupsByMember]);
 
   const columns = useMemo(() => {
     if (pivot || !columnGroups.length) return allColumns;
@@ -608,18 +619,16 @@ export function TableWidget({ widget, data }: Props) {
     return map;
   }, [columns, rows, tokens]);
 
-  // Compile each column's d3-format spec once (currency/number are handled
-  // separately). Invalid specs are skipped so cells fall back to raw text.
+  // Build each column's formatter once.
   const numberFormatters = useMemo(() => {
-    const m = new Map<string, (n: number) => string>();
+    const m = new Map<string, (val: unknown) => string>();
     for (const col of columns) {
-      const fmt = col.number;
-      if (!fmt || fmt === "currency" || fmt === "number") continue;
-      try {
-        m.set(col.name, d3Format(fmt));
-      } catch {
-        // Invalid d3-format spec: leave unset; formatCell renders raw text.
-      }
+      const format = col.number;
+      // Legacy shorthands keep formatCell's rendering, also on generated pivot columns.
+      const formatter = format === "currency" || format === "number"
+        ? (val: unknown) => formatCell(val, format)
+        : buildTableNumberFormatter(format, col.name);
+      if (formatter) m.set(col.name, formatter);
     }
     return m;
   }, [columns]);
@@ -1066,8 +1075,9 @@ function compareValues(a: unknown, b: unknown, numeric: boolean): number {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
 }
 
-function formatCell(value: unknown, format?: string, d3fmt?: (n: number) => string): string {
+function formatCell(value: unknown, format?: DisplayFormat, formatter?: (val: unknown) => string): string {
   if (value === null || value === undefined) return "—";
+  if (formatter && Number.isFinite(Number(value))) return formatter(value);
   if (format === "currency") {
     const num = Number(value);
     return isNaN(num) ? String(value) : `$${num.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
@@ -1075,11 +1085,6 @@ function formatCell(value: unknown, format?: string, d3fmt?: (n: number) => stri
   if (format === "number") {
     const num = Number(value);
     return isNaN(num) ? String(value) : num.toLocaleString();
-  }
-  if (d3fmt) {
-    // d3-format spec (e.g. "$,.2f", ".0%"); applies only to finite numbers.
-    const num = Number(value);
-    if (Number.isFinite(num)) return d3fmt(num);
   }
   const s = String(value);
   const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})T/);

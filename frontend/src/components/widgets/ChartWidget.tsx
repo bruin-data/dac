@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import type { TreemapNode } from "recharts";
 import type { ColorScale, SliceStyle, Widget, WidgetData } from "../../types/dashboard";
-import { axisField, axisFields, buildAxisFormatter, valueField } from "../../lib/format";
+import { axisField, axisFields, buildAxisFormatter, buildTickFormatter, valueField } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
 import { cellColor, resolveScale } from "./conditionalFormat";
 import { RowHeightContext } from "../../themes/RowContext";
@@ -231,6 +231,7 @@ function buildHistogramData(
   rawData: Record<string, unknown>[],
   column: string,
   binCount: number,
+  format = (value: number) => value.toFixed(1),
 ): { bin: string; count: number }[] {
   const values = rawData
     .map((d) => Number(d[column]))
@@ -247,7 +248,7 @@ function buildHistogramData(
     const lo = min + i * binWidth;
     const hi = lo + binWidth;
     bins.push({
-      bin: `${lo.toFixed(1)}–${hi.toFixed(1)}`,
+      bin: `${format(lo)}–${format(hi)}`,
       count: 0,
     });
   }
@@ -379,11 +380,13 @@ function CalendarHeatmap({
   valueKey,
   colors,
   axisColor,
+  valueFmt,
 }: {
   data: Record<string, unknown>[];
   dateKey: string;
   valueKey: string;
   colors: string[];
+  valueFmt: (val: unknown) => string;
   axisColor: string;
 }) {
   const [hover, setHover] = useState<{ x: number; y: number; date: string; value: number } | null>(null);
@@ -471,7 +474,7 @@ function CalendarHeatmap({
         );
       })}
       {hover && (
-        <SvgTooltip x={hover.x} y={hover.y} lines={[hover.date, formatTooltipValue(hover.value)]} />
+        <SvgTooltip x={hover.x} y={hover.y} lines={[hover.date, valueFmt(hover.value)]} />
       )}
     </svg>
   );
@@ -704,6 +707,7 @@ function HeatmapChart({
 // --- Dumbbell rendering ---
 
 function DumbbellChart({
+  formatterFor,
   data,
   xKey,
   yFields,
@@ -711,6 +715,7 @@ function DumbbellChart({
   axisColor,
   gridColor,
 }: {
+  formatterFor: (field: string) => (val: unknown) => string;
   data: Record<string, unknown>[];
   xKey: string;
   yFields: string[];
@@ -754,8 +759,8 @@ function DumbbellChart({
               {item.label.slice(0, 10)}
             </text>
             <line x1={x1} x2={x2} y1={y} y2={y} stroke={increasing ? colors[0] : colors[3] ?? colors[0]} strokeWidth={2} />
-            <circle cx={x1} cy={y} r={4} fill={colors[1] ?? colors[0]} />
-            <circle cx={x2} cy={y} r={4} fill={increasing ? colors[0] : colors[3] ?? colors[0]} />
+            <circle cx={x1} cy={y} r={4} fill={colors[1] ?? colors[0]}><title>{formatterFor(startField)(item.start)}</title></circle>
+            <circle cx={x2} cy={y} r={4} fill={increasing ? colors[0] : colors[3] ?? colors[0]}><title>{formatterFor(endField)(item.end)}</title></circle>
           </g>
         );
       })}
@@ -837,10 +842,12 @@ function GaugeChart({
   colors,
   axisColor,
   gridColor,
+  valueFmt,
 }: {
   current: number;
   target: number;
   colors: string[];
+  valueFmt: (val: unknown) => string;
   axisColor: string;
   gridColor: string;
 }) {
@@ -883,11 +890,11 @@ function GaugeChart({
       )}
       <text x={cx} y={cy - 18} textAnchor="middle"
         fill="var(--dac-text-primary)" fontSize={26} fontWeight={600} fontFamily='"Geist", system-ui'>
-        {formatTooltipValue(current)}
+        {valueFmt(current)}
       </text>
       <text x={cx} y={cy + 2} textAnchor="middle"
         fill={axisColor} fontSize={11} fontFamily='"Geist", system-ui'>
-        {pct}% of {formatTooltipValue(safeTarget)}
+        {pct}% of {valueFmt(safeTarget)}
       </text>
     </svg>
   );
@@ -905,6 +912,8 @@ function CandlestickChart({
   colors,
   axisColor,
   gridColor,
+  valueFmt,
+  tickFmt,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
@@ -913,6 +922,8 @@ function CandlestickChart({
   lowKey: string;
   closeKey: string;
   colors: string[];
+  valueFmt: (val: unknown) => string;
+  tickFmt: (val: unknown) => string;
   axisColor: string;
   gridColor: string;
 }) {
@@ -970,7 +981,7 @@ function CandlestickChart({
               stroke={gridColor} strokeOpacity={0.5} strokeDasharray="3 3" />
             <text x={padL - 6} y={y + 3} textAnchor="end"
               fill={axisColor} fontSize={11} fontFamily='"Geist", system-ui'>
-              {formatYTick(v)}
+              {tickFmt(v)}
             </text>
           </g>
         );
@@ -1005,8 +1016,8 @@ function CandlestickChart({
         <SvgTooltip x={hover.x + bodyW / 2} y={hover.y}
           lines={[
             formatAxisTick(hover.label),
-            `O ${formatTooltipValue(hover.open)}  H ${formatTooltipValue(hover.high)}`,
-            `L ${formatTooltipValue(hover.low)}  C ${formatTooltipValue(hover.close)}`,
+            `O ${valueFmt(hover.open)}  H ${valueFmt(hover.high)}`,
+            `L ${valueFmt(hover.low)}  C ${valueFmt(hover.close)}`,
           ]} />
       )}
     </svg>
@@ -1250,8 +1261,13 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
 
   const xKey = axisField(widget.x);
   const yKeys = axisFields(widget.y);
+  // A heatmap's y is a category dimension, never the cell value.
+  const valueKey = valueField(widget.value) || (widget.chart === "heatmap" ? undefined : yKeys[0]) || widget.metrics?.[0] || widget.metric || "value";
+  const valueFmt = buildAxisFormatter(widget.value ?? { field: valueKey }, formatTooltipValue);
   const xTick = buildAxisFormatter(widget.x, formatAxisTick);
-  const yTick = buildAxisFormatter(widget.y, formatYTick);
+  // Numeric x ticks (scatter, bubble) stay compact; xTick also labels tooltips.
+  const xNumberTick = buildTickFormatter(widget.x, formatAxisTick);
+  const yTick = buildTickFormatter(widget.y, formatYTick);
   const yTooltipValue = buildAxisFormatter(widget.y, formatTooltipValue);
   // The title renders at the bottom edge of a taller x-axis band so it never
   // collides with a legend rendered below the plot.
@@ -1276,15 +1292,14 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     width: "auto" as const,
   };
 
-  const y2Tick = buildAxisFormatter(widget.y2, formatYTick);
-  const y2TooltipValue = buildAxisFormatter(widget.y2, formatTooltipValue);
+  const y2Tick = buildTickFormatter(widget.y2, formatYTick);
   const y2Domain: [number, string] | undefined = widget.y2?.beginAtZero ? [0, "auto"] : undefined;
   const leftAxisId = hasDual ? "left" : undefined;
   // Each tooltip row formats against its owning axis, so a right-axis % value
-  // never borrows the left axis' $ format.
-  const valueFormatterFor = hasDual
-    ? (dataKey: unknown) => (rightSet.has(String(dataKey)) ? y2TooltipValue : yTooltipValue)
-    : undefined;
+  // never borrows the left axis' $ format. A bubble's size has no axis format.
+  const valueFormatterFor = (dataKey: unknown) => widget.color?.field ? yTooltipValue : widget.size && dataKey === widget.size ? formatTooltipValue : buildAxisFormatter(
+    dataKey === xKey ? widget.x : (axisOf(String(dataKey)) ?? widget.value), formatTooltipValue, String(dataKey),
+  );
   const rightYAxis = hasDual ? (
     <YAxis
       yAxisId="right"
@@ -1403,7 +1418,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 {rightYAxis}
               </>
             )}
-            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} valueFormatterFor={valueFormatterFor} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
+            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} valueFormatterFor={widget.normalized ? undefined : valueFormatterFor} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
             {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {series.map((field, i) => (
               <Bar
@@ -1479,7 +1494,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     }
 
     case "pie": {
-      const nameKey = widget.label || "label";
+      const nameKey = widget.label || xKey || "label";
       // Rename only at the display layer (label/legend/tooltip) so the underlying
       // data is never mutated; Cells key colours off the raw label.
       return (
@@ -1487,7 +1502,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <PieChart>
             <Pie
               data={chartData}
-              dataKey={valueField(widget.value) || "value"}
+              dataKey={valueKey}
               nameKey={nameKey}
               cx="50%"
               cy="45%"
@@ -1505,7 +1520,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 <Cell key={i} fill={sliceColor(row[nameKey], i)} />
               ))}
             </Pie>
-            <Tooltip content={<CustomTooltip nameFormatter={sliceLabel} />} />
+            <Tooltip content={<CustomTooltip nameFormatter={sliceLabel} valueFormatter={valueFmt} />} />
             <Legend wrapperStyle={AXIS_STYLE} iconSize={7} formatter={(value) => sliceLabel(value)} />
           </PieChart>
         </ResponsiveContainer>
@@ -1524,7 +1539,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           <ScatterChart margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} name={widget.x?.title ?? xKey} {...commonAxisProps} dy={6}
-              tickFormatter={xTick} {...xLabelProps}
+              tickFormatter={xIsNumeric ? xNumberTick : xTick} {...xLabelProps}
               type={xIsNumeric ? "number" : "category"} allowDuplicatedCategory={false} />
             <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]}
               {...(yIsNumeric ? autoWidthYAxisProps : commonAxisProps)}
@@ -1549,7 +1564,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} name={widget.x?.title ?? xKey} {...commonAxisProps} dy={6}
               type={xIsNumeric ? "number" : "category"} allowDuplicatedCategory={false}
-              tickFormatter={xTick} {...xLabelProps} />
+              tickFormatter={xIsNumeric ? xNumberTick : xTick} {...xLabelProps} />
             <YAxis dataKey={yKeys[0]} name={widget.y?.title ?? yKeys[0]}
               {...(yIsNumeric ? autoWidthYAxisProps : commonAxisProps)}
               tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
@@ -1603,7 +1618,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     }
 
     case "histogram": {
-      const histData = buildHistogramData(chartData, xKey!, widget.bins || 10);
+      const histData = buildHistogramData(chartData, xKey!, widget.bins || 10, widget.x?.format ? xTick : undefined);
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={histData} margin={cartesianMargin}>
@@ -1626,7 +1641,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <CartesianGrid {...gridProps} />
             <XAxis dataKey="category" {...commonAxisProps} dy={6} {...xLabelProps} />
             <YAxis {...autoWidthYAxisProps} tickFormatter={yTick} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={cartesianTooltip} />
             {/* Invisible base to offset */}
             <Bar dataKey="min" fill="transparent" stackId="box" isAnimationActive={false} />
             {/* Q1 to median */}
@@ -1642,14 +1657,14 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       return (
         <FunnelChart
           data={chartData}
-          labelKey={widget.label || "label"}
-          valueKey={valueField(widget.value) || "value"}
+          labelKey={widget.label || xKey || "label"}
+          valueKey={valueKey}
           colors={colors}
           slices={widget.slices}
           tokens={tokens}
           height={chartHeight}
           horizontal={widget.horizontal}
-          valueFmt={buildAxisFormatter(widget.value, formatTooltipValue)}
+          valueFmt={valueFmt}
         />
       );
 
@@ -1658,7 +1673,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
         chartData,
         widget.source || "source",
         widget.target || "target",
-        valueField(widget.value) || "value",
+        valueKey,
       );
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
@@ -1671,7 +1686,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             nodePadding={16}
             margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
           >
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip valueFormatter={valueFmt} />} />
           </Sankey>
         </ResponsiveContainer>
       );
@@ -1683,11 +1698,11 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           data={chartData}
           xKey={xKey!}
           yKey={yKeys[0] ?? "y"}
-          valueKey={valueField(widget.value) || "value"}
+          valueKey={valueKey}
           xTitle={widget.x?.title}
           axisColor={axisColor}
           showValues={widget.showValues}
-          valueFmt={buildAxisFormatter(widget.value, formatTooltipValue)}
+          valueFmt={valueFmt}
           colorScale={widget.colorScale}
           tokens={tokens}
         />
@@ -1698,7 +1713,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
         <CalendarHeatmap
           data={chartData}
           dateKey={xKey!}
-          valueKey={valueField(widget.value) || "value"}
+          valueFmt={valueFmt}
+          valueKey={valueKey}
           colors={colors}
           axisColor={axisColor}
         />
@@ -1780,6 +1796,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     case "dumbbell":
       return (
         <DumbbellChart
+          formatterFor={(field) => buildAxisFormatter(widget.y, formatTooltipValue, field)}
           data={chartData}
           xKey={xKey!}
           yFields={yKeys}
@@ -1790,7 +1807,6 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       );
 
     case "gauge": {
-      const valueKey = valueField(widget.value) || "value";
       const targetKey = widget.target;
       const first = chartData[0] ?? {};
       const current = Number(first[valueKey]) || 0;
@@ -1799,6 +1815,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
         <GaugeChart
           current={current}
           target={target}
+          valueFmt={valueFmt}
           colors={colors}
           axisColor={axisColor}
           gridColor={gridColor}
@@ -1807,8 +1824,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     }
 
     case "treemap": {
-      const labelKey = widget.label || "label";
-      const valueKey = valueField(widget.value) || "value";
+      const labelKey = widget.label || xKey || "label";
       const tmData = chartData.map((d, i) => ({
         name: sliceLabel(d[labelKey]),
         size: Number(d[valueKey]) || 0,
@@ -1824,7 +1840,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             content={TreemapCell}
             isAnimationActive={false}
           >
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip valueFormatter={valueFmt} />} />
           </Treemap>
         </ResponsiveContainer>
       );
@@ -1838,7 +1854,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <PolarGrid stroke={gridColor} strokeOpacity={0.5} />
             <PolarAngleAxis dataKey={xKey} tick={{ ...AXIS_STYLE, fill: axisColor }} />
             <PolarRadiusAxis tick={{ ...AXIS_STYLE, fill: axisColor }} axisLine={false} tickFormatter={yTick} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={cartesianTooltip} />
             {yFields.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {yFields.map((field, i) => (
               <Radar
@@ -1866,6 +1882,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           highKey={widget.high || "high"}
           lowKey={widget.low || "low"}
           closeKey={widget.close || "close"}
+          valueFmt={buildAxisFormatter(widget.y ?? { field: widget.close || "close" }, formatTooltipValue, widget.close || "close")}
+          tickFmt={buildTickFormatter(widget.y ?? { field: widget.close || "close" }, formatYTick, widget.close || "close")}
           colors={colors}
           axisColor={axisColor}
           gridColor={gridColor}

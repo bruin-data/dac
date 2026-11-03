@@ -86,14 +86,17 @@ rows:
 func TestModelFilterOptions(t *testing.T) {
 	model := &sem.Model{Name: "sales", Source: sem.Source{Table: "sales"}, Dimensions: []sem.Dimension{{Name: "region", Type: "string"}}, Metrics: []sem.Metric{{Name: "revenue", Expression: "sum(amount)", Format: &sem.Format{Type: "currency", Currency: "EUR", Decimals: 2}}}}
 	for _, tc := range []struct {
-		name   string
-		metric dashboard.FilterOptionMetric
+		name     string
+		metric   dashboard.FilterOptionMetric
+		decimals int
 	}{
-		{"inherited format", dashboard.FilterOptionMetric{Name: "revenue"}},
-		{"object inherits format", dashboard.FilterOptionMetric{Field: "revenue"}},
-		{"filter format override", dashboard.FilterOptionMetric{Field: "revenue", Format: "$,.0f"}},
+		{"inherited format", dashboard.FilterOptionMetric{Name: "revenue"}, 2},
+		{"object inherits format", dashboard.FilterOptionMetric{Field: "revenue"}, 2},
+		{"filter format override", dashboard.FilterOptionMetric{Field: "revenue", Format: "$,.0f"}, 2},
+		{"zero decimals survive JSON", dashboard.FilterOptionMetric{Name: "revenue"}, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			model.Metrics[0].Format.Decimals = tc.decimals
 			d := &dashboard.Dashboard{Connection: "warehouse", Model: "sales_alias", Models: map[string]string{"sales_alias": "sales"}, Filters: []dashboard.Filter{{Name: "region", Type: "select", Options: &dashboard.FilterOptions{Dimension: "region", Metric: &tc.metric}}}}
 			d.SetProjectContext("", map[string]*sem.Model{"sales": model}, nil)
 			b := &mockBackend{result: &query.QueryResult{Columns: []query.ColumnInfo{{Name: "region"}, {Name: "revenue"}}, Rows: [][]any{{"Europe", 530.0}, {"APAC", 850.0}}}}
@@ -104,8 +107,16 @@ func TestModelFilterOptions(t *testing.T) {
 			if !reflect.DeepEqual(o.Values, []string{"Europe", "APAC"}) || !reflect.DeepEqual(o.MetricValues, map[string]any{"Europe": 530.0, "APAC": 850.0}) {
 				t.Fatalf("options: %+v", o)
 			}
-			if o.MetricFormat == nil || o.MetricFormat.Currency != "EUR" || o.MetricFormat.Decimals != 2 || *o.Metric != tc.metric {
+			if o.MetricFormat == nil || o.MetricFormat.Currency != "EUR" || o.MetricFormat.Decimals == nil || *o.MetricFormat.Decimals != tc.decimals || *o.Metric != tc.metric {
 				t.Fatalf("model format or filter override changed: %+v", o)
+			}
+			data, err := json.Marshal(o.MetricFormat)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var format map[string]any
+			if err := json.Unmarshal(data, &format); err != nil || format["decimals"] != float64(tc.decimals) {
+				t.Fatalf("precision lost in JSON: %s (%v)", data, err)
 			}
 			if len(b.calls) != 1 || b.calls[0].Connection != "warehouse" {
 				t.Fatalf("calls: %+v", b.calls)

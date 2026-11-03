@@ -52,8 +52,10 @@ func resolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboa
 		sql, connection, _, err = compileSemanticJob(job, filters)
 		if o.Metric != nil {
 			for _, metric := range job.Model.Metrics {
-				if metric.Name == metricField {
-					o.MetricFormat = metric.Format
+				if metric.Name == metricField && metric.Format != nil {
+					o.MetricFormat = &dashboard.SemanticFormat{
+						Type: metric.Format.Type, Currency: metric.Format.Currency, Decimals: &metric.Format.Decimals,
+					}
 					break
 				}
 			}

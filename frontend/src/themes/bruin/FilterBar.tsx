@@ -449,13 +449,12 @@ function filterMetricText(filter: Filter, value: string): string | undefined {
   }
   const format = options?.metric_format;
   if (format) {
-    // Models omit zero decimals, so unset decimals keep Intl's default precision.
-    const decimals = format.decimals && format.decimals > 0 ? Math.min(20, format.decimals) : undefined;
+    const decimals = format.decimals == null ? undefined : Math.max(0, Math.min(20, format.decimals));
     try {
       return new Intl.NumberFormat("en-US", {
         style: format.type === "currency" ? "currency" : format.type === "percentage" ? "percent" : "decimal",
         ...(format.type === "currency" ? { currency: format.currency || "USD" } : {}),
-        ...(decimals ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals } : {}),
+        ...(decimals == null ? {} : { minimumFractionDigits: decimals, maximumFractionDigits: decimals }),
       }).format(metric);
     } catch { return String(metric); }
   }
