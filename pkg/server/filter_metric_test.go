@@ -93,6 +93,7 @@ func TestModelFilterOptions(t *testing.T) {
 		{"inherited format", dashboard.FilterOptionMetric{Name: "revenue"}, 2},
 		{"object inherits format", dashboard.FilterOptionMetric{Field: "revenue"}, 2},
 		{"filter format override", dashboard.FilterOptionMetric{Field: "revenue", Format: "$,.0f"}, 2},
+		{"structured format override", dashboard.FilterOptionMetric{Field: "revenue", Format: map[string]any{"type": "currency", "currency": "TRY", "decimals": 0}}, 2},
 		{"zero decimals survive JSON", dashboard.FilterOptionMetric{Name: "revenue"}, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -107,7 +108,7 @@ func TestModelFilterOptions(t *testing.T) {
 			if !reflect.DeepEqual(o.Values, []string{"Europe", "APAC"}) || !reflect.DeepEqual(o.MetricValues, map[string]any{"Europe": 530.0, "APAC": 850.0}) {
 				t.Fatalf("options: %+v", o)
 			}
-			if o.MetricFormat == nil || o.MetricFormat.Currency != "EUR" || o.MetricFormat.Decimals == nil || *o.MetricFormat.Decimals != tc.decimals || *o.Metric != tc.metric {
+			if o.MetricFormat == nil || o.MetricFormat.Currency != "EUR" || o.MetricFormat.Decimals == nil || *o.MetricFormat.Decimals != tc.decimals || !reflect.DeepEqual(*o.Metric, tc.metric) {
 				t.Fatalf("model format or filter override changed: %+v", o)
 			}
 			data, err := json.Marshal(o.MetricFormat)

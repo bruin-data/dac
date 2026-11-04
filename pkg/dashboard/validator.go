@@ -230,6 +230,11 @@ func validateFilterOptions(d *Dashboard, f Filter) []string {
 		return nil
 	}
 	var errs []string
+	if o.Metric != nil {
+		if err := validateDisplayFormat(o.Metric.Format); err != nil {
+			errs = append(errs, fmt.Sprintf("options.metric.format: %v", err))
+		}
+	}
 	if (o.Dimension != "" || o.Metric != nil) && f.Type != "select" {
 		errs = append(errs, "model options and metrics are only supported on select filters")
 	}

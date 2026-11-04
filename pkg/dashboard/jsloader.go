@@ -493,7 +493,7 @@ func vnodeToFilter(n *vnode) Filter {
 			if metric, ok := m["metric"].(string); ok {
 				fo.Metric = &FilterOptionMetric{Name: metric}
 			} else if metric, ok := m["metric"].(map[string]interface{}); ok && onlyKeys(metric, "field", "format") {
-				fo.Metric = &FilterOptionMetric{Field: asString(metric["field"]), Format: asString(metric["format"])}
+				fo.Metric = &FilterOptionMetric{Field: asString(metric["field"]), Format: metric["format"]}
 			} else if m["metric"] != nil {
 				fo.Metric = &FilterOptionMetric{} // Validation reports unsupported metric shapes.
 			}

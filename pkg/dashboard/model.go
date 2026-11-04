@@ -74,7 +74,7 @@ type FilterOptions struct {
 type FilterOptionMetric struct {
 	Name   string `yaml:"-" json:"-"`
 	Field  string `yaml:"field,omitempty" json:"field,omitempty"`
-	Format string `yaml:"format,omitempty" json:"format,omitempty"`
+	Format any    `yaml:"format,omitempty" json:"format,omitempty"`
 }
 
 func (m *FilterOptionMetric) UnmarshalYAML(node *yaml.Node) error {
@@ -90,8 +90,19 @@ func (m *FilterOptionMetric) UnmarshalYAML(node *yaml.Node) error {
 			return fmt.Errorf("unknown options.metric field %q", node.Content[i].Value)
 		}
 	}
-	type encoding FilterOptionMetric
-	return node.Decode((*encoding)(m))
+	var raw struct {
+		Field  string    `yaml:"field"`
+		Format yaml.Node `yaml:"format"`
+	}
+	if err := node.Decode(&raw); err != nil {
+		return err
+	}
+	format, err := decodeFormat(&raw.Format)
+	if err != nil {
+		return err
+	}
+	*m = FilterOptionMetric{Field: raw.Field, Format: format}
+	return nil
 }
 
 func (m *FilterOptionMetric) UnmarshalJSON(data []byte) error {

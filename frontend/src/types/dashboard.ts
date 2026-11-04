@@ -32,7 +32,7 @@ export interface Filter {
     connection?: string;
     presets?: string[];
     dimension?: string;
-    metric?: string | { field: string; format?: string };
+    metric?: string | { field: string; format?: DisplayFormat };
     metric_values?: Record<string, string | number | boolean | null>;
     metric_format?: FilterMetricFormat;
     // Client-only state for query-driven select controls.

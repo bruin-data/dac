@@ -64,10 +64,13 @@ options:
     FROM sales GROUP BY region
   metric:
     field: total_sales
-    format: "$,.0f"
+    format:
+      type: currency
+      currency: TRY
+      decimals: 0
 ```
 
-The dropdown shows `Europe  $530`; selecting it still submits `Europe`. Model precision is preserved, including `decimals: 0`. The first SQL column supplies option values. Omit `metric` for plain options.
+The dropdown shows `Europe  ₺530`; selecting it still submits `Europe`. `format` accepts a d3 string such as `"$,.0f"` or a number, currency or percentage object, including `decimals: 0`. The first SQL column supplies option values. Omit `metric` for plain options.
 
 For a [semantic model](/dashboards/semantic-layer), reference its dimension and metric instead:
 

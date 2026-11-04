@@ -119,7 +119,7 @@ Filter options support the same [metric and model configuration](/dashboards/fil
 <Filter name="region" type="select" multiple={true}
   options={{
     query: "SELECT region, SUM(amount) AS total_sales FROM sales GROUP BY region",
-    metric: { field: "total_sales", format: "$,.0f" },
+    metric: { field: "total_sales", format: { type: "currency", currency: "TRY", decimals: 0 } },
   }} />
 <Filter name="model_region" type="select"
   options={{ dimension: "region", metric: { field: "total_sales", format: "$,.0f" } }} />

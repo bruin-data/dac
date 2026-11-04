@@ -279,6 +279,9 @@ filters:
   - name: model_region
     type: select
     options: { dimension: region, metric: revenue }
+  - name: structured_format
+    type: select
+    options: { query: "SELECT region, 1 AS total FROM sales", metric: { field: total, format: { type: currency, currency: TRY, decimals: 0 } } }
   - name: empty_values
     type: select
     options: { dimension: region, values: [] }

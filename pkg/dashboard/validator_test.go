@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
+	"gopkg.in/yaml.v3"
 )
 
 // ---------------------------------------------------------------------------
@@ -1439,6 +1441,8 @@ metrics:
 	}{
 		{"query metric", `query: SELECT region, sum(amount) AS total FROM sales GROUP BY region
       metric: {field: total, format: "$,.0f"}`, true},
+		{"query structured format", `query: SELECT region, sum(amount) AS total FROM sales GROUP BY region
+      metric: {field: total, format: {type: currency, currency: TRY, decimals: 0}}`, true},
 		{"model metric", `dimension: region
       metric: revenue`, true},
 		{"dimension only", `dimension: region`, true},
@@ -1455,6 +1459,14 @@ metrics:
       metric: {field: revenue}`, true},
 		{"model format override", `dimension: region
       metric: {field: revenue, format: "$,.0f"}`, true},
+		{"model structured format override", `dimension: region
+      metric: {field: revenue, format: {type: currency, currency: TRY, decimals: 0}}`, true},
+		{"invalid currency", `dimension: region
+      metric: {field: revenue, format: {currency: INVALID}}`, false},
+		{"invalid precision", `dimension: region
+      metric: {field: revenue, format: {decimals: -1}}`, false},
+		{"unknown format property", `dimension: region
+      metric: {field: revenue, format: {currncy: TRY}}`, false},
 		{"missing model metric field", `dimension: region
       metric: {field: missing}`, false},
 		{"options predicates are unsupported", `dimension: region
@@ -1492,6 +1504,12 @@ func TestTSXFilterMetrics(t *testing.T) {
 		{"sql", `{query: "SELECT region, sum(amount) AS total FROM sales GROUP BY region", metric: {field: "total", format: "$,.0f"}}`, true},
 		{"model", `{dimension: "region", metric: "revenue"}`, true},
 		{"model format override", `{dimension: "region", metric: {field: "revenue", format: "$,.0f"}}`, true},
+		{"sql structured format", `{query: "SELECT region, sum(amount) AS total FROM sales GROUP BY region", metric: {field: "total", format: {type: "currency", currency: "TRY", decimals: 0}}}`, true},
+		{"model structured format", `{dimension: "region", metric: {field: "revenue", format: {type: "currency", currency: "TRY", decimals: 0}}}`, true},
+		{"invalid format type", `{dimension: "region", metric: {field: "revenue", format: true}}`, false},
+		{"invalid currency", `{dimension: "region", metric: {field: "revenue", format: {currency: "INVALID"}}}`, false},
+		{"invalid precision", `{dimension: "region", metric: {field: "revenue", format: {decimals: -1}}}`, false},
+		{"unknown format property", `{dimension: "region", metric: {field: "revenue", format: {currncy: "TRY"}}}`, false},
 		{"bad metric shape", `{dimension: "region", metric: true}`, false},
 		{"unknown metric key", `{dimension: "region", metric: {field: "revenue", fromat: "$"}}`, false},
 	} {
@@ -1507,6 +1525,56 @@ func TestTSXFilterMetrics(t *testing.T) {
 			}
 			if (err == nil) != tc.valid {
 				t.Fatalf("valid=%v error=%v", tc.valid, err)
+			}
+			if tc.valid && strings.Contains(tc.name, "structured format") {
+				_, format := ParseDisplayFormat(d.Filters[0].Options.Metric.Format, "")
+				if format == nil || format.Currency != "TRY" || format.Decimals == nil || *format.Decimals != 0 {
+					t.Fatalf("TSX format lost: %+v", d.Filters[0].Options.Metric)
+				}
+			}
+		})
+	}
+}
+
+func TestFilterMetricFormatRoundTrip(t *testing.T) {
+	for _, source := range []string{
+		`total_sales`,
+		`{field: total_sales, format: "$,.0f"}`,
+		`{field: total_sales, format: .2}`,
+		`{field: total_sales, format: {type: currency, currency: TRY, decimals: 0}}`,
+	} {
+		t.Run(source, func(t *testing.T) {
+			var metric FilterOptionMetric
+			assertNoErr(t, yaml.Unmarshal([]byte(source), &metric))
+			for _, useJSON := range []bool{false, true} {
+				var data []byte
+				var err error
+				var got FilterOptionMetric
+				if useJSON {
+					data, err = json.Marshal(metric)
+					assertNoErr(t, err)
+					err = json.Unmarshal(data, &got)
+				} else {
+					data, err = yaml.Marshal(metric)
+					assertNoErr(t, err)
+					err = yaml.Unmarshal(data, &got)
+				}
+				assertNoErr(t, err)
+				wantJSON, err := json.Marshal(metric)
+				assertNoErr(t, err)
+				gotJSON, err := json.Marshal(got)
+				assertNoErr(t, err)
+				if string(gotJSON) != string(wantJSON) {
+					t.Fatalf("format changed: %s -> %s", wantJSON, gotJSON)
+				}
+			}
+			if strings.Contains(source, "TRY") {
+				_, format := ParseDisplayFormat(metric.Format, "")
+				if format == nil || format.Currency != "TRY" || format.Decimals == nil || *format.Decimals != 0 {
+					t.Fatalf("zero precision lost: %+v", metric)
+				}
+			} else if strings.Contains(source, "format: .2") && metric.Format != ".2" {
+				t.Fatalf("unquoted d3 spec changed: %#v", metric.Format)
 			}
 		})
 	}
