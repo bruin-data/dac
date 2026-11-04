@@ -55,7 +55,7 @@ Dropdown options can depend on other filters, such as showing cities for the sel
 
 #### Metrics beside options
 
-SQL calculates the metric; the filter bar uses `options.metric` to select and format its result column:
+For SQL options with exactly two result columns, the first supplies choices and the second automatically supplies their metric. Set `options.metric` to choose a column or its display format:
 
 ```yaml
 options:
@@ -70,7 +70,7 @@ options:
       decimals: 0
 ```
 
-The dropdown shows `Europe  ₺530`; selecting it still submits `Europe`. `format` accepts a d3 string such as `"$,.0f"` or a number, currency or percentage object, including `decimals: 0`. The first SQL column supplies option values. Omit `metric` for plain options.
+The dropdown shows `Europe  ₺530`; selecting it still submits `Europe`. `format` accepts a d3 string such as `"$,.0f"` or a number, currency or percentage object, including `decimals: 0`. Return one SQL column for plain options. Queries with three or more columns require an explicit `metric` to display one.
 
 For a [semantic model](/dashboards/semantic-layer), reference its dimension and metric instead:
 

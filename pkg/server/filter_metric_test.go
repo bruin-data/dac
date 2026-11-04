@@ -142,3 +142,38 @@ func TestModelFilterOptionsWithoutMetric(t *testing.T) {
 		t.Fatalf("options: %+v", d.Filters[0].Options)
 	}
 }
+
+func TestQueryFilterOptionsDefaultMetric(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		columns []query.ColumnInfo
+		rows    [][]any
+		metrics map[string]any
+		wantErr bool
+	}{
+		{"one column stays plain", []query.ColumnInfo{{Name: "region"}}, [][]any{{"Europe"}}, nil, false},
+		{"two columns infer metric", []query.ColumnInfo{{Name: "region"}, {Name: "total_sales"}}, [][]any{{"Europe", 530.0}, {"Zero", 0.0}, {"Missing", nil}, {"Europe", 999.0}}, map[string]any{"Europe": 530.0, "Zero": 0.0, "Missing": nil}, false},
+		{"three columns stay plain", []query.ColumnInfo{{Name: "region"}, {Name: "label"}, {Name: "total_sales"}}, [][]any{{"Europe", "Europe sales", 530.0}}, nil, false},
+		{"empty results", []query.ColumnInfo{{Name: "region"}, {Name: "total_sales"}}, nil, map[string]any{}, false},
+		{"non-scalar metric fails", []query.ColumnInfo{{Name: "region"}, {Name: "total_sales"}}, [][]any{{"Europe", []any{1}}}, nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := &dashboard.Dashboard{Connection: "warehouse", Filters: []dashboard.Filter{{Name: "region", Type: "select", Options: &dashboard.FilterOptions{Query: "SELECT region, SUM(amount) AS total_sales FROM sales GROUP BY region"}}}}
+			b := &mockBackend{result: &query.QueryResult{Columns: tc.columns, Rows: tc.rows}}
+			err := ResolveFilterOptions(context.Background(), b, d, nil)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("error: %v", err)
+			}
+			if tc.wantErr {
+				return
+			}
+			o := d.Filters[0].Options
+			if !reflect.DeepEqual(o.MetricValues, tc.metrics) || o.Metric != nil {
+				t.Fatalf("unexpected options: %+v", o)
+			}
+			if len(b.calls) != 1 || (len(o.Values) > 0 && o.Values[0] != "Europe") {
+				t.Fatalf("unexpected calls or selection values: %+v, %v", b.calls, o.Values)
+			}
+		})
+	}
+}

@@ -83,6 +83,11 @@ func resolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboa
 		if metricIndex < 0 {
 			return fmt.Errorf("metric field %q not found in query results", metricField)
 		}
+	} else if o.Query != "" && o.Metric == nil && len(result.Columns) == 2 {
+		metricIndex = 1
+		metricField = result.Columns[1].Name
+	}
+	if metricIndex >= 0 {
 		o.MetricValues = make(map[string]any)
 	}
 	o.Values = make([]string, 0, len(result.Rows))
