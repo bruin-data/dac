@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 13
+version: 14
 ---
 
 # Create Dashboard
@@ -235,6 +235,8 @@ Supported filter types:
 Date range presets include `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, and `all_time`.
 
 Both single and multiple `select` filters show a searchable dropdown, so you can type to find an option quickly when the list is long.
+
+To show a metric beside each select option, SQL and model filters use `options.metric: { field: total_sales, format: "$,.0f" }`. Model filters can also use `options: { dimension: region, metric: total_sales }` to inherit the model format. Metrics are display-only. See `docs/dashboards/filters.md` for details.
 
 Set `tab: <name>` on a filter to move it into that tab's own filter bar (shown only while the tab is active) instead of the global bar at the top. Use it when a filter is only relevant to one tab's widgets. The `tab` must match a tab some row uses — `dac validate` and Bruin Cloud reject an unmatched tab.
 

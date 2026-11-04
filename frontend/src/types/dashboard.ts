@@ -31,10 +31,26 @@ export interface Filter {
     query?: string;
     connection?: string;
     presets?: string[];
+    dimension?: string;
+    metric?: string | { field: string; format?: DisplayFormat };
+    metric_values?: Record<string, string | number | boolean | null>;
+    metric_format?: FilterMetricFormat;
     // Client-only state for query-driven select controls.
     isLoading?: boolean;
     error?: string;
   };
+}
+
+export interface FilterMetricFormat {
+  type?: string;
+  currency?: string;
+  decimals?: number;
+}
+
+export interface ResolvedFilterOptions {
+  values: string[];
+  metric_values?: Record<string, string | number | boolean | null>;
+  metric_format?: FilterMetricFormat;
 }
 
 export interface Query {

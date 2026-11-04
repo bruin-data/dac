@@ -104,6 +104,19 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": { "type": { "not": { "const": "select" } } },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": {
+              "options": {
+                "not": { "anyOf": [{ "required": ["dimension"] }, { "required": ["metric"] }] }
+              }
+            }
+          }
         }
       ]
     },
@@ -119,6 +132,34 @@
         "connection": {
           "type": "string"
         },
+        "dimension": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metric": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "object",
+              "required": [
+                "field"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "format": {
+                  "$ref": "#/$defs/displayFormat"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
         "presets": {
           "type": "array",
           "items": {
@@ -129,7 +170,24 @@
       "patternProperties": {
         "^x-": true
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "required": ["dimension"] },
+          "then": { "not": { "anyOf": [{ "required": ["query"], "properties": { "query": { "minLength": 1 } } }, { "required": ["values"], "properties": { "values": { "minItems": 1 } } }] } }
+        },
+        {
+          "if": { "required": ["metric"] },
+          "then": {
+            "anyOf": [{ "required": ["dimension"] }, { "required": ["query"], "properties": { "query": { "minLength": 1 } } }],
+            "not": { "required": ["values"], "properties": { "values": { "minItems": 1 } } }
+          }
+        },
+        {
+          "if": { "required": ["query"], "properties": { "query": { "minLength": 1 } } },
+          "then": { "properties": { "metric": { "type": "object" } } }
+        }
+      ]
     },
     "query": {
       "type": "object",

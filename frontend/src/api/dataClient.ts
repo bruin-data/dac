@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Dashboard, DashboardSummary, WidgetData } from "../types/dashboard";
+import type { Dashboard, DashboardSummary, WidgetData, ResolvedFilterOptions } from "../types/dashboard";
 import { fetchFilterOptions, fetchWidgetData, getDashboard, listDashboards } from "./client";
 
 /** Widget ids are `r{row}-w{widget}` (zero-based), plus `::{tab name}` for a tab of a tabs widget. */
@@ -15,7 +15,7 @@ export interface DataClient {
     dashboardName: string,
     filterName: string,
     filters?: Record<string, unknown>,
-  ): Promise<string[]>;
+  ): Promise<string[] | ResolvedFilterOptions>;
 }
 
 export const httpDataClient: DataClient = {

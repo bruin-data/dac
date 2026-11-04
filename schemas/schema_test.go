@@ -268,6 +268,29 @@ rows:
 `,
 		},
 		{
+			name:     "select filter option metrics",
+			schemaID: DashboardV1ID,
+			yaml: `name: Filter metrics
+model: sales
+filters:
+  - name: region
+    type: select
+    options: { query: "SELECT region, 1 AS total FROM sales", metric: { field: total, format: "$,.0f" } }
+  - name: model_region
+    type: select
+    options: { dimension: region, metric: revenue }
+  - name: structured_format
+    type: select
+    options: { query: "SELECT region, 1 AS total FROM sales", metric: { field: total, format: { type: currency, currency: TRY, decimals: 0 } } }
+  - name: empty_values
+    type: select
+    options: { dimension: region, values: [] }
+rows:
+  - widgets:
+      - { name: A, type: text, content: Hi }
+`,
+		},
+		{
 			name:     "theme",
 			schemaID: ThemeV1ID,
 			yaml: `schema: https://getbruin.com/schemas/dac/theme/v1
@@ -594,6 +617,36 @@ rows:
             format:
               - { backgroundColor: ["red", "green"], scaleBy: row }
 `,
+		},
+		{
+			name:     "filter option dimension with query",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Filters\nfilters:\n  - { name: region, type: select, options: { dimension: region, query: SELECT 1 } }\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi }\n",
+		},
+		{
+			name:     "filter option metric name with query",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Filters\nfilters:\n  - { name: region, type: select, options: { query: SELECT 1, metric: revenue } }\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi }\n",
+		},
+		{
+			name:     "filter option metric with static values",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Filters\nfilters:\n  - { name: region, type: select, options: { values: [Europe], metric: { field: total } } }\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi }\n",
+		},
+		{
+			name:     "filter option metric with empty query",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Filters\nfilters:\n  - { name: region, type: select, options: { query: '', metric: { field: total } } }\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi }\n",
+		},
+		{
+			name:     "filter option metric without source",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Filters\nfilters:\n  - { name: region, type: select, options: { metric: revenue } }\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi }\n",
+		},
+		{
+			name:     "filter option dimension on text filter",
+			schemaID: DashboardV1ID,
+			yaml:     "name: Filters\nfilters:\n  - { name: region, type: text, options: { dimension: region } }\nrows:\n  - widgets:\n      - { name: A, type: text, content: Hi }\n",
 		},
 		{
 			name:     "dashboard sparkline column with format",

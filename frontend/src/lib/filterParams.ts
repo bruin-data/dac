@@ -41,7 +41,7 @@ export function fromParam(filter: Filter, raw: string): unknown {
       // DashboardView. Non-empty static values take precedence; query-driven
       // filters preserve shared-link values while options load independently.
       const allowed = filter.options?.values;
-      if (filter.options?.query && !allowed?.length) return raw;
+      if ((filter.options?.query || filter.options?.dimension) && !allowed?.length) return raw;
       return !allowed || allowed.includes(raw) ? raw : undefined;
     }
     default:
@@ -62,7 +62,7 @@ export function toParam(filter: Filter, value: unknown): string | null {
 /** Static values take precedence; live query options load independently. */
 export function keepAllowedValues(filter: Filter, vals: string[]): string[] {
   const allowed = filter.options?.values;
-  if (filter.options?.query && !allowed?.length) return vals;
+  if ((filter.options?.query || filter.options?.dimension) && !allowed?.length) return vals;
   return allowed ? vals.filter((v) => allowed.includes(v)) : vals;
 }
 
