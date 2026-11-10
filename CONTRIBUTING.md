@@ -22,7 +22,7 @@ DAC uses the Bruin CLI for query execution, so install `bruin` if you want to ru
 
 Prerequisites:
 
-- Go 1.25+
+- Go 1.26+
 - Node.js 20+
 - `make`
 - Bruin CLI on your `PATH` for `dac serve`, `dac query`, and `dac check`
