@@ -599,18 +599,22 @@ export function TableWidget({ widget, data }: Props) {
     if (copiedCellTimerRef.current != null) window.clearTimeout(copiedCellTimerRef.current);
     if (pendingSelectRef.current) window.clearTimeout(pendingSelectRef.current.timer);
   }, []);
-  // Pressing anything outside the table (a reset, the filter bar, another widget) applies a
-  // pending click first, so the later action wins instead of being undone by the timer.
+  // Acting outside the table (a reset, the filter bar, another widget) drops a pending click,
+  // so the later action wins. Applying it instead would start a refetch that blocks that action.
   useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
+    const cancelOutside = (event: Event) => {
       const pending = pendingSelectRef.current;
       if (!pending || outlineRootRef.current?.contains(event.target as Node)) return;
+      if (event instanceof KeyboardEvent && event.key !== "Enter" && event.key !== " ") return;
       window.clearTimeout(pending.timer);
       pendingSelectRef.current = null;
-      pending.run();
     };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointerdown", cancelOutside, true);
+    document.addEventListener("keydown", cancelOutside, true);
+    return () => {
+      document.removeEventListener("pointerdown", cancelOutside, true);
+      document.removeEventListener("keydown", cancelOutside, true);
+    };
   }, []);
 
   // All data columns by name → index, so cross-column rules can reference any
