@@ -107,6 +107,13 @@ func TestRenderSQLRejectsUnsafeOutputs(t *testing.T) {
 		{"dollar tag after name", "SELECT $a$'$a$ AND x = {{ filters.x }} -- '", "1=1 OR true"},
 		{"filter block", `SELECT 1 WHERE {% filter replace("X", filters.x) %}X{% endfilter %}`, "1=1 OR true"},
 		{"transformed set block", `{% set y %}{{ filters.x }}{% endset %}SELECT '{{ y | upper }}'`, "private"},
+		// {% call %} prints its expression without a {{ }} output to capture.
+		{"call block", "SELECT * FROM t WHERE id = {% call filters.x.strip() %}{% endcall %}", "0 UNION SELECT secret FROM private"},
+		{"call block before output", "SELECT 1 {% call filters.x.strip() %}{% endcall %} AND y = '{{ filters.x }}'", "0 UNION SELECT secret FROM private"},
+		{"call block building quotes", `SELECT * FROM t WHERE id = {% call filters.x.replace("abc", "1 OR '1'='1", 1) %}{% endcall %}`, "abc"},
+		{"call macro", `{% macro m() %}{{ caller() }}{% endmacro %}SELECT {% call m() %}{{ filters.x }}{% endcall %}`, "1=1 OR true"},
+		{"do", "SELECT 1 {% do filters.x %}", "private"},
+		{"trans", "SELECT '{% trans v=filters.x %}{{ v }}{% endtrans %}'", "private"},
 		// Offsets from a lexer that read each "\r\n" as "\n" once fell short of
 		// the output, leaving it uncaptured, with the capture call in the comment.
 		{"crlf lines before jinja comment", strings.Repeat("-- header\r\n", 20) + "SELECT * FROM t WHERE id = {# id from the filter bar #}{{ filters.x }}", "0 UNION SELECT secret FROM private"},
@@ -293,7 +300,38 @@ func TestRenderSQLJinjaOperators(t *testing.T) {
 }
 
 func TestRenderSQLRecoversTemplatePanics(t *testing.T) {
-	// gonja panics parsing an empty raw block; these must return, not panic.
-	_, _ = RenderSQL("SELECT 1 {% raw %}{% endraw %}", nil)
-	_, _ = Render("x {% raw %}{% endraw %}", nil)
+	// gonja panics parsing an empty raw block.
+	if _, err := RenderSQL("SELECT 1 {% raw %}{% endraw %}", nil); err == nil {
+		t.Error("RenderSQL: expected an error")
+	}
+	if _, err := Render("x {% raw %}{% endraw %}", nil); err == nil {
+		t.Error("Render: expected an error")
+	}
+}
+
+// Every tag gonja v2.7.0 supported in SQL keeps working; loop controls are new.
+func TestRenderSQLSupportedTags(t *testing.T) {
+	f := map[string]any{"x": "yes", "l": []any{"a", "b"}}
+	tests := []struct{ source, want string }{
+		{"SELECT {% if false %}1{% elif filters.x %}2{% else %}3{% endif %}", "SELECT 2"},
+		{"SELECT {% for v in filters.l %}'{{ v }}'{% else %}0{% endfor %}", "SELECT 'a''b'"},
+		{"SELECT {% for v in filters.l %}{% if loop.first %}{% continue %}{% endif %}'{{ v }}'{% endfor %}", "SELECT 'b'"},
+		{"SELECT {% for v in filters.l %}'{{ v }}'{% break %}{% endfor %}", "SELECT 'a'"},
+		{"SELECT {% set z = filters.x %}'{{ z }}'", "SELECT 'yes'"},
+		{"SELECT {% set z %}a{% endset %}'{{ z }}'", "SELECT 'a'"},
+		{"SELECT {% with z = filters.x %}'{{ z }}'{% endwith %}", "SELECT 'yes'"},
+		{"{% macro m() %}x{% endmacro %}SELECT '{{ m() }}'", "SELECT 'x'"},
+		{"SELECT {% block b %}'{{ filters.x }}'{% endblock %}", "SELECT 'yes'"},
+		{"SELECT {% autoescape true %}'{{ filters.x }}'{% endautoescape %}", "SELECT 'yes'"},
+		{"SELECT {% raw %}{{ x }}{% endraw %}", "SELECT {{ x }}"},
+		{"SELECT {%- if true -%} 1 {%- endif %}", "SELECT1"},
+	}
+	for _, tt := range tests {
+		got, err := RenderSQL(tt.source, f)
+		if err != nil {
+			t.Errorf("%q: %v", tt.source, err)
+		} else if got != tt.want {
+			t.Errorf("%q: got %q, want %q", tt.source, got, tt.want)
+		}
+	}
 }

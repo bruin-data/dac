@@ -135,13 +135,27 @@ func RenderSQL(source string, filters map[string]any) (sql string, err error) {
 	return substituteSQLValues(out.String(), prefix, values)
 }
 
-// sqlConfig keeps the trailing newline Jinja2 drops by default: the semantic
-// engine joins rendered fragments with " AND ", so a fragment ending in a line
-// comment would otherwise comment out the conditions after it.
+// sqlConfig is fixed rather than copied from gonja.DefaultConfig, which an
+// embedding binary may change (line statements would add tags this lexer
+// cannot see). It keeps the trailing newline Jinja2 drops by default: the
+// semantic engine joins rendered fragments with " AND ", so a fragment ending
+// in a line comment would otherwise comment out the conditions after it.
 func sqlConfig() *config.Config {
-	cfg := gonja.DefaultConfig.Inherit()
+	cfg := config.New()
 	cfg.KeepTrailingNewline = true
 	return cfg
+}
+
+// sqlTags lists the block tags whose output is template text or {{ }}
+// outputs, which are captured. Others can emit values directly: {% filter %}
+// transforms rendered text and {% call expr %} prints any expression. Tags
+// gonja adds later stay rejected until reviewed.
+var sqlTags = map[string]bool{
+	"if": true, "elif": true, "else": true, "endif": true,
+	"for": true, "endfor": true, "break": true, "continue": true,
+	"set": true, "endset": true, "with": true, "endwith": true,
+	"macro": true, "endmacro": true, "block": true, "endblock": true,
+	"autoescape": true, "endautoescape": true, "raw": true, "endraw": true,
 }
 
 // Use the Jinja lexer, not a regexp: delimiters inside strings and comments
@@ -162,10 +176,12 @@ func captureSQLExpressions(source, capture, list string) (string, error) {
 		token := stream.Current()
 		switch token.Type {
 		case tokens.BlockBegin:
-			// {% filter %} transforms rendered text, placeholders included,
-			// so its output would reach SQL without being captured.
-			if next := stream.Peek(); next != nil && next.Type == tokens.Name && next.Val == "filter" {
-				return "", fmt.Errorf("{%% filter %%} blocks are not supported in SQL templates")
+			if next := stream.Peek(); next == nil || next.Type != tokens.Name || !sqlTags[next.Val] {
+				name := ""
+				if next != nil {
+					name = next.Val
+				}
+				return "", fmt.Errorf("{%% %s %%} blocks are not supported in SQL templates", name)
 			}
 		case tokens.VariableBegin:
 			start = token.Pos + len(token.Val)
