@@ -117,6 +117,40 @@ func TestRender_BruinUserEmail(t *testing.T) {
 	})
 }
 
+// Behavior that changed when gonja moved to Bruin's pinned commit, which
+// follows Python Jinja2 more closely than v2.7.0 did.
+func TestRender_JinjaParity(t *testing.T) {
+	filters := map[string]any{"region": "EU", "empty": "", "list": []any{"a", "b"}}
+	tests := []struct{ name, template, want string }{
+		// or/and returned True or False before.
+		{"or returns operand", "{{ filters.region or 'All' }}", "EU"},
+		{"or falls back", "{{ filters.empty or 'All' }}", "All"},
+		{"or missing", "{{ filters.missing or 'All' }}", "All"},
+		{"and returns operand", "{{ filters.region and 'set' }}", "set"},
+		{"and short-circuits", "{{ filters.empty and 'set' }}", ""},
+		// Lowercase Jinja2 loop attributes were undefined or not callable.
+		{"loop length", "{% for x in filters.list %}{{ loop.length }}{% endfor %}", "22"},
+		{"loop previtem nextitem", "{% for x in filters.list %}{{ loop.previtem }}|{{ loop.nextitem }};{% endfor %}", "|b;a|;"},
+		{"loop cycle", "{% for x in filters.list %}{{ loop.cycle('x', 'y') }}{% endfor %}", "xy"},
+		{"loop changed", "{% for x in ['a', 'a', 'b'] %}{{ loop.changed(x) }}{% endfor %}", "TrueFalseTrue"},
+		{"loop depth", "{% for x in filters.list %}{{ loop.depth }}{% endfor %}", "11"},
+		{"capitalized loop names", "{% for x in filters.list %}{{ loop.Cycle('x', 'y') }}{{ loop.PrevItem }}{% endfor %}", "xya"},
+		// Line endings render as "\n" and one trailing newline is dropped.
+		{"crlf", "a\r\nb {{ filters.region }}\rc", "a\nb EU\nc"},
+		{"trailing newline", "{{ filters.region }}\n", "EU"},
+		{"numeric literals", "{{ 1_000 }} {{ 0x10 }} {{ 1e3 }}", "1000 16 1000.0"},
+		{"slice past end", "{{ filters.region[5:] }}{{ filters.list[1:10] }}", "['b']"},
+		{"truncate leeway", "{{ 'abcdef' | truncate(4) }}", "abcdef"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Render(tt.template, filters)
+			assertNoErr(t, err)
+			assertEqual(t, got, tt.want)
+		})
+	}
+}
+
 func TestRender_InvalidTemplate(t *testing.T) {
 	t.Run("malformed tag", func(t *testing.T) {
 		_, err := Render("{{ bad syntax !@ }}", map[string]any{})

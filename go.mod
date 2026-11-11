@@ -10,7 +10,7 @@ require (
 	github.com/evanw/esbuild v0.27.3
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
-	github.com/nikolalohinski/gonja/v2 v2.7.0
+	github.com/nikolalohinski/gonja/v2 v2.5.2-0.20260717165123-55bace2d23df
 	github.com/rudderlabs/analytics-go/v4 v4.2.3
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/afero v1.15.0

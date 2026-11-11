@@ -119,3 +119,21 @@ func TestRenderTemplateValue_ListRefOnlyWhenBare(t *testing.T) {
 		}
 	}
 }
+
+// gonja's or/and return an operand, as in Jinja2; they rendered "True" before.
+func TestRenderSemanticQuery_OrFallback(t *testing.T) {
+	query := sem.Query{Filters: []sem.Filter{{
+		Dimension: "region",
+		Operator:  "equals",
+		Value:     "{{ filters.region or 'All' }}",
+	}}}
+	for region, want := range map[string]string{"EU": "EU", "": "All"} {
+		out, err := renderSemanticQuery(query, map[string]any{"region": region})
+		if err != nil {
+			t.Fatalf("renderSemanticQuery: %v", err)
+		}
+		if len(out.Filters) != 1 || out.Filters[0].Value != want {
+			t.Fatalf("region %q: got %v, want %q", region, out.Filters, want)
+		}
+	}
+}

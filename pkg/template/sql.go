@@ -64,6 +64,16 @@ func RenderSQL(source string, filters map[string]any) (string, error) {
 	if !strings.Contains(source, "{{") && !strings.Contains(source, "{%") {
 		return source, nil
 	}
+	// The Jinja lexer reads "\r\n" and a bare "\r" as "\n", as Python Jinja2
+	// does, and renders them that way. Normalize first, so the capture step's
+	// lexer offsets index this exact text and substituteSQLValues checks the
+	// text that reaches SQL. Postgres ends line comments at a bare '\r' and
+	// MySQL does not; once it reads as '\n' that ambiguity is no longer
+	// visible after rendering, so reject it instead.
+	source = strings.ReplaceAll(source, "\r\n", "\n")
+	if strings.Contains(source, "\r") {
+		return "", fmt.Errorf("SQL templates cannot contain a carriage return that is not part of a CRLF line ending")
+	}
 	if err := ValidateSQLValue(filters); err != nil {
 		return "", err
 	}
@@ -126,7 +136,15 @@ func RenderSQL(source string, filters map[string]any) (string, error) {
 // Use the Jinja lexer, not a regexp: delimiters inside strings and comments
 // must not be mistaken for output boundaries. Preserve whitespace control.
 func captureSQLExpressions(source, capture, list string) (string, error) {
-	stream := tokens.Lex(source, gonja.DefaultConfig)
+	lexer := tokens.NewLexer(source, gonja.DefaultConfig)
+	// Token offsets index the lexer's normalized input. Slicing source with
+	// them would misplace output boundaries, leaving outputs uncaptured,
+	// unless both are the same text. Dropping a final newline moves no offset.
+	if lexer.Input != source && lexer.Input+"\n" != source {
+		return "", fmt.Errorf("SQL template must be newline-normalized before capture")
+	}
+	go lexer.Run()
+	stream := tokens.NewStream(lexer.Tokens)
 	var out strings.Builder
 	last, start := 0, -1
 	var expression []*tokens.Token
