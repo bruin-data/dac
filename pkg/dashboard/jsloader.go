@@ -397,6 +397,10 @@ func vnodeToDashboard(root *vnode) (*Dashboard, error) {
 	for _, child := range root.Children {
 		switch child.Tag {
 		case "Filter":
+			// YAML rejects this through the schema; don't silently drop it from TSX.
+			if _, ok := child.Props["crossFilter"]; ok {
+				return nil, fmt.Errorf("filter %q: crossFilter is a widget prop, not a <Filter> prop", asString(child.Props["name"]))
+			}
 			f := vnodeToFilter(child)
 			d.Filters = append(d.Filters, f)
 
@@ -506,6 +510,24 @@ func vnodeToRow(n *vnode) Row {
 	return row
 }
 
+func asCrossFilterMappings(raw any) []CrossFilterMapping {
+	if raw == nil {
+		return nil
+	}
+	items, ok := raw.([]interface{})
+	if !ok {
+		return []CrossFilterMapping{{}}
+	}
+	mappings := make([]CrossFilterMapping, len(items))
+	for i, item := range items {
+		if m, ok := item.(map[string]interface{}); ok && len(m) == 2 {
+			mappings[i].Field, _ = m["field"].(string)
+			mappings[i].Filter, _ = m["filter"].(string)
+		}
+	}
+	return mappings
+}
+
 func vnodeToWidget(n *vnode) Widget {
 	w := Widget{
 		ID:          asString(n.Props["id"]),
@@ -514,6 +536,7 @@ func vnodeToWidget(n *vnode) Widget {
 		Type:        widgetType(n.Tag),
 		Col:         asInt(n.Props["col"]),
 		Height:      n.Props["height"],
+		CrossFilter: asCrossFilterMappings(n.Props["crossFilter"]),
 
 		// Query source
 		QueryRef:   asString(n.Props["query"]),

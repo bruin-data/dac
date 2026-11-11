@@ -288,10 +288,63 @@ func semanticModelHasNote(model *sem.Model, id string) bool {
 	return false
 }
 
+func validateWidgetCrossFilter(prefix string, w *Widget, d *Dashboard) []string {
+	if w.CrossFilter == nil {
+		return nil
+	}
+	var errs []string
+	supported := w.Type == WidgetTypeTable || w.Type == WidgetTypePivotTable
+	if w.Type == WidgetTypeChart {
+		switch w.Chart {
+		case "bar", "line", "area", "pie", "scatter", "bubble", "combo",
+			"boxplot", "funnel", "sankey", "heatmap", "calendar", "sparkline", "waterfall",
+			"xmr", "dumbbell", "treemap", "radar", "candlestick", "forest", "vega-lite":
+			supported = true
+		}
+	}
+	if !supported {
+		errs = append(errs, fmt.Sprintf("%s: crossFilter is only supported on interactive charts, tables and pivot tables", prefix))
+	}
+	if len(w.CrossFilter) == 0 {
+		errs = append(errs, fmt.Sprintf("%s: crossFilter must contain at least one field/filter mapping", prefix))
+	}
+	filterTypes := map[string]string{}
+	for _, filter := range d.Filters {
+		filterTypes[filter.Name] = filter.Type
+	}
+	// Only date-axis charts can emit a date range; elsewhere the mapping would silently never fire.
+	dateRangeSource := false
+	if w.Type == WidgetTypeChart {
+		switch w.Chart {
+		case "line", "area", "calendar", "candlestick", "sparkline", "xmr":
+			dateRangeSource = true
+		}
+	}
+	seen := map[string]bool{}
+	for i, mapping := range w.CrossFilter {
+		filterType, known := filterTypes[mapping.Filter]
+		if strings.TrimSpace(mapping.Field) == "" || strings.TrimSpace(mapping.Filter) == "" {
+			errs = append(errs, fmt.Sprintf("%s: crossFilter mapping %d requires non-empty field and filter names", prefix, i+1))
+		} else if !known {
+			errs = append(errs, fmt.Sprintf("%s: crossFilter references unknown filter %q", prefix, mapping.Filter))
+		} else if filterType == "date-range" && supported && !dateRangeSource {
+			errs = append(errs, fmt.Sprintf("%s: crossFilter cannot target date-range filter %q; only line, area, calendar, candlestick, sparkline and xmr charts select date ranges", prefix, mapping.Filter))
+		} else if filterType == "date-range" && dateRangeSource && mapping.Field != w.XField() {
+			errs = append(errs, fmt.Sprintf("%s: crossFilter field %q cannot target date-range filter %q; only the x field selects date ranges", prefix, mapping.Field, mapping.Filter))
+		}
+		if seen[mapping.Field] {
+			errs = append(errs, fmt.Sprintf("%s: duplicate crossFilter field %q; a field can map to only one filter in this widget", prefix, mapping.Field))
+		}
+		seen[mapping.Field] = true
+	}
+	return errs
+}
+
 // validateWidgetContent validates a widget's type-specific fields, spec, inline
 // data, and pivot. Shared by top-level widgets and by each tab.
 func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
 	errs := validateWidgetFormats(prefix, w)
+	errs = append(errs, validateWidgetCrossFilter(prefix, w, d)...)
 
 	if w.Type == "" {
 		errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
@@ -362,6 +415,9 @@ var tabsContainerFields = map[string]bool{
 // each is validated as a complete widget with its own type. No nesting.
 func validateWidgetTabs(prefix string, w *Widget, d *Dashboard, notes *noteLookup) []string {
 	var errs []string
+	if w.CrossFilter != nil && len(w.CrossFilter) == 0 {
+		errs = append(errs, fmt.Sprintf("%s: crossFilter is not allowed on a tabs widget — set it on each tab", prefix))
+	}
 
 	if w.Type != WidgetTypeTabs {
 		errs = append(errs, fmt.Sprintf("%s: a widget with tabs must be type: tabs (got %q)", prefix, w.Type))

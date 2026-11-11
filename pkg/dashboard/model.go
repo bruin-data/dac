@@ -58,6 +58,12 @@ type Filter struct {
 	Options  *FilterOptions `yaml:"options,omitempty" json:"options,omitempty"`
 }
 
+// CrossFilterMapping connects a result dimension in one widget to a dashboard filter.
+type CrossFilterMapping struct {
+	Field  string `yaml:"field" json:"field"`
+	Filter string `yaml:"filter" json:"filter"`
+}
+
 type FilterOptions struct {
 	Values     []string `yaml:"values,omitempty" json:"values,omitempty"`
 	Query      string   `yaml:"query,omitempty" json:"query,omitempty"`
@@ -106,6 +112,8 @@ type Widget struct {
 	Type        string `yaml:"type" json:"type"`
 	Col         int    `yaml:"col,omitempty" json:"col,omitempty"`
 	Height      any    `yaml:"height,omitempty" json:"height,omitempty"`
+
+	CrossFilter []CrossFilterMapping `yaml:"crossFilter,omitempty" json:"crossFilter,omitempty"`
 
 	// Query source (pick one)
 	QueryRef  string `yaml:"query,omitempty" json:"query,omitempty"` // reference to queries map key

@@ -1,12 +1,12 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import {
-  LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
+  LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, Sector,
   ScatterChart, Scatter, ZAxis,
   ComposedChart, Sankey,
   Treemap,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, DefaultLegendContent,
   ReferenceLine, ReferenceArea, ErrorBar,
 } from "recharts";
 import type { TreemapNode } from "recharts";
@@ -16,6 +16,8 @@ import { useTokens } from "../../themes/TemplateProvider";
 import { cellColor, resolveScale } from "./conditionalFormat";
 import { RowHeightContext } from "../../themes/RowContext";
 import { VegaLiteChart } from "./VegaLiteChart";
+import { useCrossFilters } from "../../hooks/useCrossFilter";
+import { crossFilterDateRange, previewCrossFilterRows } from "../../lib/crossFilter";
 
 const DEFAULT_CHART_HEIGHT = 240;
 // Approx pixels consumed by the widget frame's title/padding above the chart.
@@ -78,6 +80,39 @@ function renderRefs(widget: Widget, yAxisId?: "left" | "right"): ReactNode[] {
 interface Props {
   widget: Widget;
   data?: WidgetData;
+}
+
+interface ChartSelection {
+  select: (row: Record<string, unknown>) => void;
+  /** The mark can represent a selection; it stays focusable while a refetch is pending. */
+  accepts: (row: Record<string, unknown>, series?: string) => boolean;
+  canSelect: (row: Record<string, unknown>, series?: string) => boolean;
+  opacity: (row: Record<string, unknown>) => number;
+  label: (row: Record<string, unknown>, series?: string) => string;
+}
+
+// Custom SVG/HTML charts share the same raw-value, keyboard and highlighting behavior.
+function markProps(selection: ChartSelection | undefined, row: Record<string, unknown>) {
+  // Marks stay focusable while a refetch is pending, so keyboard focus survives a selection.
+  const focusable = selection?.accepts(row);
+  const enabled = selection?.canSelect(row);
+  return {
+    "data-dac-mark": "",
+    className: "dac-filter-mark",
+    role: focusable ? "button" as const : undefined,
+    tabIndex: focusable ? 0 : undefined,
+    "aria-disabled": focusable && !enabled ? true : undefined,
+    "aria-label": focusable ? selection?.label(row) : undefined,
+    style: { cursor: enabled ? "pointer" : undefined, opacity: selection?.opacity(row) ?? 1 },
+    onClick: enabled ? () => selection?.select(row) : undefined,
+    onKeyDown: focusable ? (event: { key: string; preventDefault: () => void; stopPropagation: () => void }) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (enabled) selection?.select(row);
+      }
+    } : undefined,
+  };
 }
 
 function toChartData(data: WidgetData): Record<string, unknown>[] {
@@ -157,7 +192,7 @@ function CustomTooltip({ active, payload, label, labelFormatter = formatAxisTick
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="dac-tooltip">
+    <div data-dac-control className="dac-tooltip">
       <div className="dac-tooltip-label">{labelFormatter(label)}</div>
       {payload.map((p, i) => (
         <div key={i} className="dac-tooltip-row">
@@ -266,7 +301,7 @@ function buildWaterfallData(
   rawData: Record<string, unknown>[],
   xKey: string,
   yKey: string,
-): { name: string; base: number; value: number; total: number; fill: string }[] {
+): { name: string; base: number; value: number; total: number; fill: string; datum: Record<string, unknown> }[] {
   let cumulative = 0;
   return rawData.map((d) => {
     const val = Number(d[yKey]) || 0;
@@ -274,6 +309,7 @@ function buildWaterfallData(
     cumulative += val;
     return {
       name: String(d[xKey]),
+      datum: d,
       base: val >= 0 ? base : cumulative,
       value: Math.abs(val),
       total: cumulative,
@@ -297,16 +333,16 @@ function buildBoxplotData(
   categoryKey: string,
   valueKey: string,
 ): Record<string, unknown>[] {
-  const groups = new Map<string, number[]>();
+  const groups = new Map<string, { category: unknown; values: number[] }>();
   for (const d of rawData) {
     const cat = String(d[categoryKey]);
     const val = Number(d[valueKey]);
     if (isNaN(val)) continue;
-    if (!groups.has(cat)) groups.set(cat, []);
-    groups.get(cat)!.push(val);
+    if (!groups.has(cat)) groups.set(cat, { category: d[categoryKey], values: [] });
+    groups.get(cat)!.values.push(val);
   }
 
-  return Array.from(groups.entries()).map(([cat, values]) => {
+  return Array.from(groups.entries()).map(([cat, { category, values }]) => {
     values.sort((a, b) => a - b);
     const min = values[0];
     const q1 = quantile(values, 0.25);
@@ -315,6 +351,7 @@ function buildBoxplotData(
     const max = values[values.length - 1];
     return {
       category: cat,
+      datum: { [categoryKey]: category },
       min,
       q1,
       median,
@@ -333,23 +370,32 @@ function buildSankeyData(
   sourceKey: string,
   targetKey: string,
   valueKey: string,
-): { nodes: { name: string }[]; links: { source: number; target: number; value: number }[] } {
-  const nodeSet = new Set<string>();
-  for (const d of rawData) {
-    nodeSet.add(String(d[sourceKey]));
-    nodeSet.add(String(d[targetKey]));
-  }
-  const nodeList = Array.from(nodeSet);
-  const nodeIndex = new Map(nodeList.map((n, i) => [n, i]));
-
-  return {
-    nodes: nodeList.map((name) => ({ name })),
-    links: rawData.map((d) => ({
-      source: nodeIndex.get(String(d[sourceKey]))!,
-      target: nodeIndex.get(String(d[targetKey]))!,
-      value: Number(d[valueKey]) || 0,
-    })),
+) {
+  const nodes: { name: string; datum: Record<string, unknown> }[] = [];
+  const indices = new Map<string, number>();
+  const indexFor = (field: string, value: unknown) => {
+    const name = String(value);
+    let index = indices.get(name);
+    if (index === undefined) {
+      index = nodes.length;
+      indices.set(name, index);
+      nodes.push({ name, datum: {} });
+    }
+    nodes[index].datum[field] = value;
+    return index;
   };
+  const links = rawData.map((row) => ({
+    source: indexFor(sourceKey, row[sourceKey]),
+    target: indexFor(targetKey, row[targetKey]),
+    value: Number(row[valueKey]) || 0,
+    datum: { [sourceKey]: row[sourceKey], [targetKey]: row[targetKey] },
+  }));
+  // A middle node is both a source and a target. Selecting both would require a self-link,
+  // so it selects only its outgoing role.
+  for (const node of nodes) {
+    if (sourceKey !== targetKey && sourceKey in node.datum) delete node.datum[targetKey];
+  }
+  return { nodes, links };
 }
 
 // --- Calendar heatmap rendering ---
@@ -361,7 +407,7 @@ function SvgTooltip({ x, y, lines }: { x: number; y: number; lines: string[] }) 
   const w = Math.max(...lines.map((l) => l.length * 6.5)) + padX * 2;
   const h = lines.length * lineH + padY * 2;
   return (
-    <g style={{ pointerEvents: "none" }}>
+    <g data-dac-control style={{ pointerEvents: "none" }}>
       <rect x={x + 8} y={y - h / 2} width={w} height={h} rx={4}
         fill="var(--dac-surface, #fff)" stroke="var(--dac-border, #e5e7eb)" strokeWidth={1} />
       {lines.map((line, i) => (
@@ -381,6 +427,7 @@ function CalendarHeatmap({
   colors,
   axisColor,
   valueFmt,
+  selection,
 }: {
   data: Record<string, unknown>[];
   dateKey: string;
@@ -388,16 +435,19 @@ function CalendarHeatmap({
   colors: string[];
   valueFmt: (val: unknown) => string;
   axisColor: string;
+  selection?: ChartSelection;
 }) {
   const [hover, setHover] = useState<{ x: number; y: number; date: string; value: number } | null>(null);
 
   const { weeks, maxVal, months } = useMemo(() => {
     const valueMap = new Map<string, number>();
+    const records = new Map<string, Record<string, unknown>>();
     let maxV = 0;
     for (const d of data) {
       const date = String(d[dateKey]).slice(0, 10);
       const val = Number(d[valueKey]) || 0;
       valueMap.set(date, val);
+      records.set(date, d);
       if (val > maxV) maxV = val;
     }
 
@@ -408,7 +458,7 @@ function CalendarHeatmap({
     const end = new Date(dates[dates.length - 1]);
     start.setDate(start.getDate() - start.getDay());
 
-    const wks: { date: string; value: number; day: number; week: number }[] = [];
+    const wks: { date: string; value: number; day: number; week: number; datum?: Record<string, unknown> }[] = [];
     const mos: { label: string; week: number }[] = [];
     let weekIdx = 0;
     let lastMonth = -1;
@@ -424,6 +474,7 @@ function CalendarHeatmap({
       }
       wks.push({
         date: ds,
+        datum: records.get(ds),
         value: valueMap.get(ds) ?? 0,
         day: cursor.getDay(),
         week: weekIdx,
@@ -446,7 +497,7 @@ function CalendarHeatmap({
   const baseColor = colors[0] ?? "#4338CA";
 
   return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 180 }}
+    <svg className="dac-chart-plot" width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 180 }}
       onMouseLeave={() => setHover(null)}>
       {months.map((m, i) => (
         <text key={i} x={30 + m.week * (cellSize + gap)} y={10} fill={axisColor} fontSize={9} fontFamily='"Geist", system-ui'>
@@ -461,13 +512,14 @@ function CalendarHeatmap({
         return (
           <rect
             key={i}
+            {...markProps(selection, cell.datum ?? {})}
             x={cx}
             y={cy}
             width={cellSize}
             height={cellSize}
             rx={2}
             fill={baseColor}
-            opacity={opacity}
+            fillOpacity={opacity}
             onMouseEnter={() => setHover({ x: cx + cellSize, y: cy + cellSize / 2, date: cell.date, value: cell.value })}
             onMouseLeave={() => setHover(null)}
           />
@@ -506,6 +558,7 @@ function HeatmapChart({
   valueFmt,
   colorScale,
   tokens,
+  selection,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
@@ -517,24 +570,28 @@ function HeatmapChart({
   valueFmt: (val: unknown) => string;
   colorScale?: ColorScale;
   tokens: Record<string, string>;
+  selection?: ChartSelection;
 }) {
   const [hover, setHover] = useState<{ x: number; y: number; xLabel: string; yLabel: string; value: number } | null>(null);
 
-  const { cells, xLabels, yLabels, minVal, maxVal } = useMemo(() => {
+  const { cells, records, xLabels, yLabels, minVal, maxVal } = useMemo(() => {
     const xs = [...new Set(data.map((d) => String(d[xKey])))];
     const ys = [...new Set(data.map((d) => String(d[yKey])))];
     let maxV = -Infinity;
     let minV = Infinity;
     const cellMap = new Map<string, number>();
+    const recordMap = new Map<string, Record<string, unknown>>();
     for (const d of data) {
       const val = Number(d[valueKey]) || 0;
-      cellMap.set(`${d[xKey]}_${d[yKey]}`, val);
+      const key = JSON.stringify([String(d[xKey]), String(d[yKey])]);
+      cellMap.set(key, val);
+      recordMap.set(key, d);
       if (val > maxV) maxV = val;
       if (val < minV) minV = val;
     }
     if (!Number.isFinite(minV)) minV = 0;
     if (!Number.isFinite(maxV)) maxV = 1;
-    return { cells: cellMap, xLabels: xs, yLabels: ys, minVal: minV, maxVal: maxV };
+    return { cells: cellMap, records: recordMap, xLabels: xs, yLabels: ys, minVal: minV, maxVal: maxV };
   }, [data, xKey, yKey, valueKey]);
 
   // Discrete 4-bucket scale (equal-width min→max); a continuous opacity ramp made near-equal values indistinguishable.
@@ -609,7 +666,7 @@ function HeatmapChart({
   return (
     <div ref={wrapRef} style={{ width: "100%" }}>
       {scale ? (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <div data-dac-control style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <span style={{ fontSize: 12, color: axisColor, fontFamily: '"Geist", system-ui' }}>{valueFmt(scale.stops[0].value)}</span>
           <span
             style={{
@@ -624,7 +681,7 @@ function HeatmapChart({
           </span>
         </div>
       ) : (
-      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
+      <div data-dac-control style={{ display: "flex", justifyContent: "center", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
         {HEATMAP_SHADES.map((s) => (
           <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 12, height: 12, borderRadius: 2, background: s.color, display: "inline-block" }} />
@@ -633,7 +690,7 @@ function HeatmapChart({
         ))}
       </div>
       )}
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}
+      <svg className="dac-chart-plot" width="100%" height={height} viewBox={`0 0 ${width} ${height}`}
         onMouseLeave={() => setHover(null)}>
         {yLabels.map((y, j) => (
           <text key={`y-${j}`} x={leftPad - 8} y={topPad + j * cellH + cellH / 2 + 4} fill={axisColor} fontSize={12} fontFamily='"Geist", system-ui' textAnchor="end">
@@ -642,7 +699,7 @@ function HeatmapChart({
         ))}
         {xLabels.map((x, i) =>
           yLabels.map((y, j) => {
-            const raw = cells.get(`${x}_${y}`);
+            const raw = cells.get(JSON.stringify([x, y]));
             const present = raw !== undefined;
             const val = raw ?? 0;
             const fill = present ? paint(val).fill : "#E5E7EB";
@@ -651,13 +708,14 @@ function HeatmapChart({
             return (
               <rect
                 key={`${i}-${j}`}
+                {...markProps(selection, records.get(JSON.stringify([x, y])) ?? {})}
                 x={rx}
                 y={ry}
                 width={rectW}
                 height={rectH}
                 rx={3}
                 fill={fill}
-                opacity={present ? 1 : 0.4}
+                fillOpacity={present ? 1 : 0.4}
                 onMouseEnter={() => setHover({ x: rx + cellW, y: ry + cellH / 2, xLabel: x, yLabel: y, value: val })}
                 onMouseLeave={() => setHover(null)}
               />
@@ -668,9 +726,9 @@ function HeatmapChart({
           <g {...AXIS_STYLE} textAnchor="middle" pointerEvents="none">
             {xLabels.map((x, i) =>
               yLabels.map((y, j) => {
-                const label = cellLabels.get(`${x}_${y}`);
+                const label = cellLabels.get(JSON.stringify([x, y]));
                 if (!label) return null;
-                const val = cells.get(`${x}_${y}`) ?? 0;
+                const val = cells.get(JSON.stringify([x, y])) ?? 0;
                 return (
                   <text
                     key={`${i}-${j}`}
@@ -714,6 +772,7 @@ function DumbbellChart({
   colors,
   axisColor,
   gridColor,
+  selection,
 }: {
   formatterFor: (field: string) => (val: unknown) => string;
   data: Record<string, unknown>[];
@@ -722,6 +781,7 @@ function DumbbellChart({
   colors: string[];
   axisColor: string;
   gridColor: string;
+  selection?: ChartSelection;
 }) {
   const startField = yFields[0];
   const endField = yFields[1] ?? yFields[0];
@@ -729,6 +789,7 @@ function DumbbellChart({
   const { items, maxVal } = useMemo(() => {
     const rows = data.map((d) => ({
       label: String(d[xKey]),
+      datum: d,
       start: Number(d[startField]) || 0,
       end: Number(d[endField]) || 0,
     }));
@@ -746,14 +807,14 @@ function DumbbellChart({
   const barWidth = chartWidth - leftPad - rightPad;
 
   return (
-    <svg width="100%" viewBox={`0 0 ${chartWidth} ${height}`} style={{ maxHeight: 240 }}>
+    <svg className="dac-chart-plot" width="100%" viewBox={`0 0 ${chartWidth} ${height}`} style={{ maxHeight: 240 }}>
       {items.map((item, i) => {
         const y = topPad + i * (barH + gap) + barH / 2;
         const x1 = maxVal > 0 ? leftPad + (item.start / maxVal) * barWidth : leftPad;
         const x2 = maxVal > 0 ? leftPad + (item.end / maxVal) * barWidth : leftPad;
         const increasing = item.end >= item.start;
         return (
-          <g key={i}>
+          <g key={i} {...markProps(selection, item.datum)}>
             <line x1={leftPad} x2={leftPad + barWidth} y1={y} y2={y} stroke={gridColor} strokeOpacity={0.3} />
             <text x={leftPad - 6} y={y + 3} fill={axisColor} fontSize={10} fontFamily='"Geist", system-ui' textAnchor="end">
               {item.label.slice(0, 10)}
@@ -796,7 +857,7 @@ function truncateTreemapLabel(label: string, width: number, fontSize: number): s
   return `${label.slice(0, Math.max(1, maxChars - 3))}...`;
 }
 
-function TreemapCell(node: TreemapNode) {
+function TreemapCell({ selection, ...node }: TreemapNode & { selection?: ChartSelection }) {
   const fill = typeof node.fill === "string" ? node.fill : "var(--dac-accent)";
   const textColor = getTreemapTextColor(fill);
   const canShowLabel = node.width >= 42 && node.height >= 24;
@@ -804,7 +865,7 @@ function TreemapCell(node: TreemapNode) {
   const label = canShowLabel ? truncateTreemapLabel(node.name, node.width, fontSize) : "";
 
   return (
-    <g>
+    <g {...markProps(selection, !node.children && node.datum && typeof node.datum === "object" ? node.datum as Record<string, unknown> : {})}>
       <rect
         x={node.x}
         y={node.y}
@@ -914,6 +975,7 @@ function CandlestickChart({
   gridColor,
   valueFmt,
   tickFmt,
+  selection,
 }: {
   data: Record<string, unknown>[];
   xKey: string;
@@ -926,6 +988,7 @@ function CandlestickChart({
   tickFmt: (val: unknown) => string;
   axisColor: string;
   gridColor: string;
+  selection?: ChartSelection;
 }) {
   const [hover, setHover] = useState<{
     x: number; y: number; label: string;
@@ -934,6 +997,7 @@ function CandlestickChart({
 
   const items = useMemo(() => data.map((d) => ({
     label: String(d[xKey]),
+    datum: d,
     open: Number(d[openKey]) || 0,
     high: Number(d[highKey]) || 0,
     low: Number(d[lowKey]) || 0,
@@ -971,7 +1035,7 @@ function CandlestickChart({
   const labelStride = Math.max(1, Math.ceil(items.length / 8));
 
   return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 240 }}
+    <svg className="dac-chart-plot" width="100%" viewBox={`0 0 ${width} ${height}`} style={{ maxHeight: 240 }}
       onMouseLeave={() => setHover(null)}>
       {yTicks.map((v, i) => {
         const y = yToPx(v);
@@ -997,7 +1061,7 @@ function CandlestickChart({
         const top = Math.min(yO, yC);
         const h = Math.max(1, Math.abs(yC - yO));
         return (
-          <g key={i}
+          <g key={i} {...markProps(selection, item.datum)}
             onMouseEnter={() => setHover({ x: cx, y: (yH + yL) / 2, ...item })}
             onMouseLeave={() => setHover(null)}>
             <line x1={cx} x2={cx} y1={yH} y2={yL} stroke={color} strokeWidth={1} />
@@ -1049,6 +1113,7 @@ function FunnelChart({
   height,
   horizontal = false,
   valueFmt,
+  selection,
 }: {
   data: Record<string, unknown>[];
   labelKey: string;
@@ -1059,9 +1124,10 @@ function FunnelChart({
   height: number;
   horizontal?: boolean;
   valueFmt: (val: unknown) => string;
+  selection?: ChartSelection;
 }) {
   const raw = data
-    .map((d) => ({ label: String(d[labelKey] ?? ""), value: Number(d[valueKey]) || 0 }))
+    .map((d) => ({ datum: d, label: String(d[labelKey] ?? ""), value: Number(d[valueKey]) || 0 }))
     .filter((s) => s.label !== "");
 
   if (raw.length === 0) {
@@ -1092,7 +1158,7 @@ function FunnelChart({
 
   if (horizontal) {
     return (
-      <div className="flex items-stretch overflow-x-auto px-1" style={{ height }}>
+      <div className="dac-chart-plot flex items-stretch overflow-x-auto px-1" style={{ height }}>
         {stages.map((s, i) => (
           <div key={i} className="flex min-w-0 flex-1 items-stretch">
             {i > 0 && s.stepConv !== null && (
@@ -1115,8 +1181,9 @@ function FunnelChart({
               </span>
               <div className="flex w-full flex-1 items-center justify-center py-1">
                 <div
-                  className="flex w-[72%] items-center justify-center rounded-[3px]"
-                  style={{ height: `${s.extent}%`, background: s.color, opacity: s.opacity }}
+                  {...markProps(selection, s.datum)}
+                  className="dac-filter-mark flex w-[72%] items-center justify-center rounded-[3px]"
+                  style={{ height: `${s.extent}%`, background: s.color, opacity: s.opacity * (selection?.opacity(s.datum) ?? 1), cursor: selection?.canSelect(s.datum) ? "pointer" : undefined }}
                 >
                   <span
                     className="px-1 text-[11px] font-semibold tabular-nums text-white"
@@ -1137,7 +1204,7 @@ function FunnelChart({
   }
 
   return (
-    <div className="flex flex-col overflow-y-auto px-1" style={{ height }}>
+    <div className="dac-chart-plot flex flex-col overflow-y-auto px-1" style={{ height }}>
       {/* my-auto centers the stages when they fit; when they exceed the height
           the container scrolls instead of clipping later stages. */}
       <div className="my-auto flex flex-col gap-0.5">
@@ -1167,8 +1234,9 @@ function FunnelChart({
           </div>
           <div className="mt-1 flex w-full justify-center">
             <div
-              className="flex h-7 items-center justify-center rounded-[3px]"
-              style={{ width: `${s.extent}%`, background: s.color, opacity: s.opacity }}
+              {...markProps(selection, s.datum)}
+              className="dac-filter-mark flex h-7 items-center justify-center rounded-[3px]"
+              style={{ width: `${s.extent}%`, background: s.color, opacity: s.opacity * (selection?.opacity(s.datum) ?? 1), cursor: selection?.canSelect(s.datum) ? "pointer" : undefined }}
             >
               <span
                 className="px-2 text-[11px] font-semibold tabular-nums text-white"
@@ -1192,35 +1260,63 @@ const Y_TITLE_OFFSET = 18;
 
 export function ChartWidget({ widget, data }: Props) {
   const tokens = useTokens();
+  // Where the current press began, so a drag released over a point does not select it.
+  const press = useRef<{ x: number; y: number } | null>(null);
   if (widget.chart === "vega-lite") {
     return <VegaLiteChart widget={widget} data={data} />;
   }
+  const plotEvents = {
+    onPointerDownCapture: (event: ReactPointerEvent) => {
+      press.current = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+    },
+    onPointerUp: () => { press.current = null; },
+  };
   const yTitle = widget.y?.title;
   if (!yTitle) {
-    return <ChartBody widget={widget} data={data} />;
+    return <div data-dac-plot {...plotEvents}><ChartBody widget={widget} data={data} press={press} /></div>;
   }
   // Like cloud: the y-axis title sits under the widget title, not rotated
   // alongside the axis.
   return (
-    <div>
-      <div style={{ ...AXIS_STYLE, color: tokens["text-muted"], marginBottom: 4 }}>{yTitle}</div>
-      <ChartBody widget={widget} data={data} titleOffset={Y_TITLE_OFFSET} />
+    <div data-dac-plot {...plotEvents}>
+      <div data-dac-control style={{ ...AXIS_STYLE, color: tokens["text-muted"], marginBottom: 4 }}>{yTitle}</div>
+      <ChartBody widget={widget} data={data} press={press} titleOffset={Y_TITLE_OFFSET} />
     </div>
   );
 }
 
-function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: number }) {
+function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: RefObject<{ x: number; y: number } | null>; titleOffset?: number }) {
+  const interactions = useCrossFilters(widget, data);
+  const pointDates = ["calendar", "candlestick", "sparkline", "xmr"].includes(widget.chart ?? "");
+  const interaction = interactions.some((binding) => binding.filter.type !== "date-range" || pointDates);
+  const dateBinding = interactions.find((binding) => binding.filter.type === "date-range");
+  const rangeDrag = useRef<{ from: string; to: string; x: number; data: typeof data } | null>(null);
+  const [rangePreview, setRangePreview] = useState<{ from: string; to: string } | null>(null);
   const tokens = useTokens();
   const rowHeight = useContext(RowHeightContext);
   const chartHeight = (rowHeight !== undefined
     ? Math.max(80, rowHeight - FRAME_OVERHEAD)
     : DEFAULT_CHART_HEIGHT) - titleOffset;
 
-  if (!data?.rows?.length) {
-    return <div className="text-[var(--dac-text-muted)] text-xs py-6 text-center">No data</div>;
+  const pending = interactions.some((binding) => !binding.ready);
+  const sourceData = data?.rows?.length ? toChartData(data) : [];
+  // Narrow clicked categories immediately, without a faded copy of the old chart.
+  // If the old aggregates cannot represent this selection, wait for fresh data.
+  const chartData = previewCrossFilterRows(sourceData, interactions);
+  if (!chartData.length) {
+    return <div className="flex items-center justify-center text-[var(--dac-text-muted)] text-xs"
+      style={{ height: chartHeight }} role={pending ? "status" : undefined}>{pending ? "Loading…" : "No data"}</div>;
   }
-
-  const chartData = toChartData(data);
+  // Color pivots key series by String(value); keep the raw value so a null
+  // series stays unselectable instead of becoming the literal "null".
+  const colorField = ["bar", "line", "area"].includes(widget.chart ?? "") ? widget.color?.field : undefined;
+  const colorValues = new Map<string, unknown>();
+  if (interaction && colorField) {
+    for (const d of chartData) {
+      const key = String(d[colorField]);
+      if (!colorValues.has(key)) colorValues.set(key, d[colorField]);
+    }
+  }
   const colors = CHART_COLORS.map((key) => tokens[key] || "#888");
   const gridColor = tokens["border"];
   const axisColor = tokens["text-muted"];
@@ -1257,7 +1353,9 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
   // Point markers: shown on sparse line/area series by default, hidden when
   // y.markers is false (dense series stay dotless to avoid clutter).
   const showMarkers = widget.y?.markers !== false;
-  const dotFor = (n: number) => (showMarkers && n <= 30 ? { r: 2, strokeWidth: 0 } : false);
+  const passiveDot = { r: 4, "data-dac-mark": "" };
+  const lineActiveDot = { r: 3, strokeWidth: 0, "data-dac-mark": "" };
+  const dotFor = (n: number) => (showMarkers && n <= 30 ? { r: 2, strokeWidth: 0, "data-dac-mark": "" } : false);
 
   const xKey = axisField(widget.x);
   const yKeys = axisFields(widget.y);
@@ -1314,6 +1412,137 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     />
   ) : null;
 
+  // Color charts pivot rows into series. Recover the category from the series
+  // key; all other chart selections use the original, unformatted result value.
+  const bindingValue = (binding: (typeof interactions)[number], row: Record<string, unknown>, series?: string) =>
+    colorField === binding.field ? colorValues.get(series ?? "") : row[binding.field];
+  const selectRow = (row: Record<string, unknown>, series?: string) => {
+    if (pointDates) {
+      for (const binding of interactions.filter((binding) => binding.filter.type === "date-range")) {
+        binding.selectRange(row[binding.field], row[binding.field]);
+      }
+    }
+    const seen = new Set<string>();
+    const selections = interactions.map((binding) => ({
+      binding,
+      value: bindingValue(binding, row, series),
+    })).filter(({ binding, value }) => {
+      if (seen.has(binding.filter.name) || !binding.canSelect(value)) return false;
+      seen.add(binding.filter.name);
+      return true;
+    });
+    // A different series at the same x keeps the shared x selection. Toggle
+    // everything off only when this exact combination is already selected.
+    const selected = selections.every(({ binding, value }) => binding.isSelected(value));
+    for (const { binding, value } of selections) {
+      if (selected || !binding.isSelected(value)) binding.select(value);
+    }
+  };
+  const sourceSelections = interactions.filter((binding) => binding.isSource && binding.active && binding.filter.type !== "date-range");
+  const selectionOpacity = (row: Record<string, unknown>, series?: string) =>
+    sourceSelections.filter((binding) => binding.field === colorField || Object.prototype.hasOwnProperty.call(row, binding.field))
+      .every((binding) => binding.isSelected(bindingValue(binding, row, series))) ? 1 : 0.35;
+  const seriesOpacity = (series: string) => sourceSelections
+    .filter((binding) => binding.field === colorField)
+    .every((binding) => binding.isSelected(colorValues.get(series))) ? 1 : 0.35;
+  const markStyle = interactions.some((binding) => binding.ready && binding.filter.type !== "date-range") ? { cursor: "pointer" } : undefined;
+  // Bind to the actual point. Recharts can replace a regular dot with an
+  // active dot between pointer-down and pointer-up, so the up event is more
+  // reliable than a click (whose target becomes the enclosing SVG).
+  // `ownFill` ignores the parent mark's fill: Lines default to white and Radars to a translucent fill.
+  const selectableDot = (series: string, radius: number, color: string, ownFill = false) => (dot: {
+    cx?: number; cy?: number; fill?: string; fillOpacity?: number | string; stroke?: string; payload?: Record<string, unknown>;
+  }) => {
+    // Gaps in a color split have no y; Recharts' default Dot skips them too.
+    if (!Number.isFinite(dot.cx) || !Number.isFinite(dot.cy)) return <g />;
+    return <circle data-dac-mark className="recharts-dot dac-filter-point" cx={dot.cx} cy={dot.cy}
+      r={radius} fill={ownFill ? color : dot.fill ?? color} fillOpacity={ownFill ? 1 : dot.fillOpacity} strokeWidth={0}
+      style={dot.payload && selection.canSelect(dot.payload, series) ? { cursor: "pointer" } : undefined}
+      opacity={dot.payload ? selectionOpacity(dot.payload, series) : 1}
+      role={dot.payload && selection.accepts(dot.payload, series) ? "button" : undefined}
+      tabIndex={dot.payload && selection.accepts(dot.payload, series) ? 0 : undefined}
+      aria-disabled={dot.payload && selection.accepts(dot.payload, series) && !selection.canSelect(dot.payload, series) ? true : undefined}
+      aria-label={dot.payload ? selection.label(dot.payload, series) : undefined}
+      onKeyDown={(event) => {
+        if (dot.payload && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          // Recharts' accessibility layer also toggles its keyboard tooltip on Enter.
+          event.stopPropagation();
+          selectRow(dot.payload, series);
+        }
+      }}
+      onPointerUp={(event) => {
+        event.stopPropagation();
+        const start = press.current;
+        press.current = null;
+        // Only a press released in place selects; drags, including date-range drags, do not.
+        if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) >= 4) return;
+        if (event.button === 0 && dot.payload) selectRow(dot.payload, series);
+      }} />;
+  };
+
+  const markSelectable = (row: Record<string, unknown>, series: string | undefined, whenReady: boolean) =>
+    interactions.some((binding) => (!whenReady || binding.ready) && (binding.filter.type === "date-range"
+      ? pointDates && !!crossFilterDateRange(row[binding.field], row[binding.field])
+      : binding.accepts(bindingValue(binding, row, series))));
+  const selection: ChartSelection = {
+    select: selectRow,
+    opacity: selectionOpacity,
+    label: (row, series) => interactions.filter((binding) => bindingValue(binding, row, series) != null)
+      .map((binding) => `${binding.field}: ${String(bindingValue(binding, row, series))}`).join(", "),
+    accepts: (row, series) => markSelectable(row, series, false),
+    canSelect: (row, series) => markSelectable(row, series, true),
+  };
+  // Recharts gives bars, slices and symbols no keyboard handling. Cell and shape props reach the rendered mark.
+  const keyboardMark = (row: Record<string, unknown>, series?: string) => !selection.accepts(row, series) ? {} : {
+    role: "button" as const,
+    tabIndex: 0,
+    "aria-disabled": selection.canSelect(row, series) ? undefined : true,
+    "aria-label": selection.label(row, series),
+    onKeyDown: (event: ReactKeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      // Recharts' accessibility layer also toggles its keyboard tooltip on Enter.
+      event.stopPropagation();
+      selectRow(row, series);
+    },
+  };
+
+  const cancelRange = () => {
+    rangeDrag.current = null;
+    setRangePreview(null);
+  };
+  const rangeEvents = dateBinding?.ready ? {
+    style: { userSelect: "none" as const, cursor: "crosshair" },
+    onMouseDown: (state: { activeLabel?: string | number; isTooltipActive: boolean }, event: ReactMouseEvent) => {
+      if (event.button !== 0 || !state.isTooltipActive || !crossFilterDateRange(state.activeLabel, state.activeLabel)) return;
+      const from = String(state.activeLabel);
+      rangeDrag.current = { from, to: from, x: event.clientX, data };
+      setRangePreview({ from, to: from });
+    },
+    onMouseMove: (state: { activeLabel?: string | number; isTooltipActive: boolean }) => {
+      const drag = rangeDrag.current;
+      if (!drag || !state.isTooltipActive || !crossFilterDateRange(state.activeLabel, state.activeLabel)) return;
+      const to = String(state.activeLabel);
+      if (drag.to !== to) {
+        drag.to = to;
+        setRangePreview({ from: drag.from, to });
+      }
+    },
+    onMouseUp: (state: { activeLabel?: string | number; isTooltipActive: boolean }, event: ReactMouseEvent) => {
+      const drag = rangeDrag.current;
+      cancelRange();
+      if (event.button !== 0 || !drag || drag.data !== data || !state.isTooltipActive || Math.abs(event.clientX - drag.x) < 4) return;
+      dateBinding.selectRange(drag.from, state.activeLabel ?? drag.to, sourceData.map((row) => row[dateBinding.field]));
+    },
+    // Releasing outside the chart must not leave a pending selection behind.
+    onMouseLeave: cancelRange,
+  } : {};
+  const rangeHighlight = dateBinding?.ready && rangePreview ? (
+    <ReferenceArea x1={rangePreview.from} x2={rangePreview.to} yAxisId={leftAxisId}
+      fill="var(--dac-accent)" fillOpacity={0.12} stroke="none" pointerEvents="none" />
+  ) : null;
+
   const cartesianMargin = { top: 4, right: hasDual ? 12 : 8, bottom: 4, left: 4 };
   const gridProps = { vertical: false, stroke: gridColor, strokeOpacity: 0.5, strokeDasharray: "3 3" };
   const cartesianTooltip = <CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} valueFormatterFor={valueFormatterFor} />;
@@ -1342,31 +1571,33 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const LineOrComposed = hasBand ? ComposedChart : LineChart;
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <LineOrComposed data={lineRows} margin={cartesianMargin}>
+          <LineOrComposed data={lineRows} margin={cartesianMargin} {...rangeEvents}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
             <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
-            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {series.length > 1 && <Legend content={(props) => <div data-dac-control><DefaultLegendContent {...props} /></div>} wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {hasBand && bandBounds.map((b, i) => (b.lo && b.hi ? (
-              <Area key={`ci-${b.f}`} yAxisId={axisIdFor(b.f)} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} />
+              <Area data-dac-mark="" key={`ci-${b.f}`} yAxisId={axisIdFor(b.f)} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} activeDot={passiveDot} />
             ) : null))}
             {series.map((field, i) => (
-              <Line
+              <Line data-dac-mark=""
                 key={field}
                 yAxisId={axisIdFor(field)}
                 type={seriesCurve(field, !colorKey)}
                 dataKey={field}
                 stroke={seriesColor(field, i, !colorKey)}
+                strokeOpacity={seriesOpacity(field)}
                 strokeDasharray={seriesDash(field, !colorKey)}
                 strokeWidth={1.5}
-                dot={dotFor(rows.length)}
-                activeDot={{ r: 3, strokeWidth: 0 }}
+                dot={interaction && showMarkers && rows.length <= 30 ? selectableDot(field, 2, seriesColor(field, i, !colorKey)) : dotFor(rows.length)}
+                activeDot={interaction ? selectableDot(field, 4, seriesColor(field, i, !colorKey)) : lineActiveDot}
                 isAnimationActive={false}
               />
             ))}
             {renderRefs(widget, leftAxisId)}
+            {rangeHighlight}
           </LineOrComposed>
         </ResponsiveContainer>
       );
@@ -1419,17 +1650,22 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               </>
             )}
             <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} valueFormatterFor={widget.normalized ? undefined : valueFormatterFor} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
-            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {series.length > 1 && <Legend content={(props) => <div data-dac-control><DefaultLegendContent {...props} /></div>} wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {series.map((field, i) => (
-              <Bar
+              <Bar data-dac-mark=""
                 key={field}
                 yAxisId={horizontal ? undefined : axisIdFor(field)}
                 dataKey={field}
                 fill={seriesColor(field, i, !colorKey)}
                 stackId={isStacked ? "stack" : undefined}
                 radius={isStacked && i < series.length - 1 ? undefined : lastRadius}
+                onClick={interaction ? (entry) => selectRow(entry.payload, field) : undefined}
+                style={markStyle}
                 isAnimationActive={false}
               >
+                {interaction && rows.map((row, index) => (
+                  <Cell key={index} opacity={selectionOpacity(row, field)} {...keyboardMark(row, field)} />
+                ))}
                 {hasErr && errBounds[i].lo && errBounds[i].hi && (
                   <ErrorBar dataKey={`__err_${field}`} width={4} strokeWidth={1} stroke="#374151" direction={horizontal ? "x" : "y"} />
                 )}
@@ -1462,32 +1698,35 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
         : rows;
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <AreaChart data={areaRows} margin={cartesianMargin}>
+          <AreaChart data={areaRows} margin={cartesianMargin} {...rangeEvents}>
             <CartesianGrid {...gridProps} />
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
             <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
-            {series.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {series.length > 1 && <Legend content={(props) => <div data-dac-control><DefaultLegendContent {...props} /></div>} wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {hasBand && bandBounds.map((b, i) => (b.lo && b.hi ? (
-              <Area key={`ci-${b.f}`} yAxisId={axisIdFor(b.f)} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} />
+              <Area data-dac-mark="" key={`ci-${b.f}`} yAxisId={axisIdFor(b.f)} type="monotone" dataKey={`__ci_${b.f}`} fill={colors[i % colors.length]} fillOpacity={CI_BAND_OPACITY} stroke="none" legendType="none" tooltipType="none" isAnimationActive={false} activeDot={passiveDot} />
             ) : null))}
             {series.map((field, i) => (
-              <Area
+              <Area data-dac-mark=""
                 key={field}
                 yAxisId={axisIdFor(field)}
                 type={seriesCurve(field, !colorKey)}
                 dataKey={field}
                 stroke={seriesColor(field, i, !colorKey)}
+                strokeOpacity={seriesOpacity(field)}
                 fill={seriesColor(field, i, !colorKey)}
                 strokeDasharray={seriesDash(field, !colorKey)}
-                dot={dotFor(rows.length)}
-                fillOpacity={0.06}
+                dot={interaction && showMarkers && rows.length <= 30 ? selectableDot(field, 2, seriesColor(field, i, !colorKey)) : dotFor(rows.length)}
+                fillOpacity={0.06 * seriesOpacity(field)}
+                activeDot={interaction ? selectableDot(field, 4, seriesColor(field, i, !colorKey)) : passiveDot}
                 strokeWidth={1.5}
                 isAnimationActive={false}
               />
             ))}
             {renderRefs(widget, leftAxisId)}
+            {rangeHighlight}
           </AreaChart>
         </ResponsiveContainer>
       );
@@ -1500,8 +1739,11 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       return (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <PieChart>
-            <Pie
+            <Pie data-dac-mark=""
               data={chartData}
+              onClick={interaction ? (entry) => selectRow(entry.payload) : undefined}
+              // A shape, not Cell props: Recharts forces tabIndex -1 on sectors and copies Cell props onto labels.
+              shape={interaction ? (props) => <Sector {...props} {...keyboardMark(props.payload)} /> : undefined}
               dataKey={valueKey}
               nameKey={nameKey}
               cx="50%"
@@ -1516,12 +1758,13 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               labelLine={false}
               style={AXIS_STYLE}
             >
+              {/* Recharts copies Cell props onto slice labels; never clobber the Pie's label style. */}
               {chartData.map((row, i) => (
-                <Cell key={i} fill={sliceColor(row[nameKey], i)} />
+                <Cell key={i} fill={sliceColor(row[nameKey], i)} opacity={selectionOpacity(row)} {...(markStyle && { style: { ...AXIS_STYLE, ...markStyle } })} />
               ))}
             </Pie>
             <Tooltip content={<CustomTooltip nameFormatter={sliceLabel} valueFormatter={valueFmt} />} />
-            <Legend wrapperStyle={AXIS_STYLE} iconSize={7} formatter={(value) => sliceLabel(value)} />
+            <Legend content={(props) => <div data-dac-control><DefaultLegendContent {...props} /></div>} wrapperStyle={AXIS_STYLE} iconSize={7} formatter={(value) => sliceLabel(value)} />
           </PieChart>
         </ResponsiveContainer>
       );
@@ -1545,7 +1788,9 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               {...(yIsNumeric ? autoWidthYAxisProps : commonAxisProps)}
               tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
             <Tooltip content={cartesianTooltip} />
-            <Scatter data={chartData} fill={colors[0]} r={3} isAnimationActive={false} />
+            <Scatter data-dac-mark="" data={chartData} fill={colors[0]} r={3} isAnimationActive={false} onClick={interaction ? (entry) => selectRow(entry.payload) : undefined} style={markStyle}>
+              {interaction && chartData.map((row, index) => <Cell key={index} opacity={selectionOpacity(row)} {...keyboardMark(row)} />)}
+            </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
       );
@@ -1570,7 +1815,9 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               tickFormatter={yTick} type={yIsNumeric ? "number" : "category"} />
             <ZAxis dataKey={widget.size} range={[40, 500]} name={widget.size} />
             <Tooltip content={cartesianTooltip} />
-            <Scatter data={chartData} fill={colors[0]} fillOpacity={0.6} isAnimationActive={false} />
+            <Scatter data-dac-mark="" data={chartData} fill={colors[0]} fillOpacity={0.6} isAnimationActive={false} onClick={interaction ? (entry) => selectRow(entry.payload) : undefined} style={markStyle}>
+              {interaction && chartData.map((row, index) => <Cell key={index} opacity={selectionOpacity(row)} {...keyboardMark(row)} />)}
+            </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
       );
@@ -1587,10 +1834,10 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
-            <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />
+            <Legend content={(props) => <div data-dac-control><DefaultLegendContent {...props} /></div>} wrapperStyle={AXIS_STYLE} iconSize={7} />
             {yFields.map((field, i) =>
               lineSet.has(field) ? (
-                <Line
+                <Line data-dac-mark=""
                   key={field}
                   yAxisId={axisIdFor(field)}
                   type={seriesCurve(field, true)}
@@ -1598,18 +1845,23 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                   stroke={seriesColor(field, i, true)}
                   strokeDasharray={seriesDash(field, true)}
                   strokeWidth={1.5}
-                  dot={dotFor(chartData.length)}
+                  dot={interaction && showMarkers && chartData.length <= 30 ? selectableDot(field, 2, seriesColor(field, i, true)) : dotFor(chartData.length)}
+                  activeDot={interaction ? selectableDot(field, 4, seriesColor(field, i, true)) : passiveDot}
                   isAnimationActive={false}
                 />
               ) : (
-                <Bar
+                <Bar data-dac-mark=""
                   key={field}
                   yAxisId={axisIdFor(field)}
                   dataKey={field}
                   fill={seriesColor(field, i, true)}
                   radius={[2, 2, 0, 0]}
+                  onClick={interaction ? (entry) => selectRow(entry.payload) : undefined}
+                  style={markStyle}
                   isAnimationActive={false}
-                />
+                >
+                  {interaction && chartData.map((row, index) => <Cell key={index} opacity={selectionOpacity(row)} {...keyboardMark(row)} />)}
+                </Bar>
               ),
             )}
           </ComposedChart>
@@ -1626,7 +1878,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <XAxis dataKey="bin" {...commonAxisProps} dy={6} angle={-30} textAnchor="end" height={50} />
             <YAxis {...autoWidthYAxisProps} tickFormatter={formatYTick} />
             <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="count" fill={colors[0]} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+            <Bar data-dac-mark="" dataKey="count" fill={colors[0]} radius={[2, 2, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       );
@@ -1645,9 +1897,13 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             {/* Invisible base to offset */}
             <Bar dataKey="min" fill="transparent" stackId="box" isAnimationActive={false} />
             {/* Q1 to median */}
-            <Bar dataKey="_q1ToMedian" fill={colors[0]} fillOpacity={0.3} stackId="box" radius={[0, 0, 0, 0]} name="Q1–Median" isAnimationActive={false} />
+            <Bar data-dac-mark="" dataKey="_q1ToMedian" fill={colors[0]} fillOpacity={0.3} stackId="box" radius={[0, 0, 0, 0]} name="Q1–Median" isAnimationActive={false} onClick={(entry) => selection.select(entry.payload.datum)} style={markStyle}>
+              {boxData.map((entry, i) => <Cell key={i} opacity={selection.opacity(entry.datum as Record<string, unknown>)} {...(entry._q1ToMedian ? keyboardMark(entry.datum as Record<string, unknown>) : {})} />)}
+            </Bar>
             {/* Median to Q3 */}
-            <Bar dataKey="_medianToQ3" fill={colors[0]} fillOpacity={0.5} stackId="box" radius={[0, 0, 0, 0]} name="Median–Q3" isAnimationActive={false} />
+            <Bar data-dac-mark="" dataKey="_medianToQ3" fill={colors[0]} fillOpacity={0.5} stackId="box" radius={[0, 0, 0, 0]} name="Median–Q3" isAnimationActive={false} onClick={(entry) => selection.select(entry.payload.datum)} style={markStyle}>
+              {boxData.map((entry, i) => <Cell key={i} opacity={selection.opacity(entry.datum as Record<string, unknown>)} {...(entry._q1ToMedian ? {} : keyboardMark(entry.datum as Record<string, unknown>))} />)}
+            </Bar>
           </ComposedChart>
         </ResponsiveContainer>
       );
@@ -1656,6 +1912,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     case "funnel":
       return (
         <FunnelChart
+          selection={selection}
           data={chartData}
           labelKey={widget.label || xKey || "label"}
           valueKey={valueKey}
@@ -1679,10 +1936,12 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
         <ResponsiveContainer width="100%" height={chartHeight}>
           <Sankey
             data={sankeyData}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            node={{ fill: colors[0], opacity: 0.8 } as any}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            link={{ stroke: colors[0], strokeOpacity: 0.15 } as any}
+            node={(node) => <rect x={node.x} y={node.y} width={node.width} height={node.height}
+              fill={colors[0]} fillOpacity={0.8} {...markProps(selection, sankeyData.nodes[node.index]?.datum ?? {})} />}
+            link={(link) => <path
+              d={`M${link.sourceX},${link.sourceY}C${link.sourceControlX},${link.sourceY} ${link.targetControlX},${link.targetY} ${link.targetX},${link.targetY}`}
+              fill="none" stroke={colors[0]} strokeOpacity={0.25} strokeWidth={Math.max(1, link.linkWidth)}
+              {...markProps(selection, sankeyData.links[link.index]?.datum ?? {})} />}
             nodePadding={16}
             margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
           >
@@ -1695,6 +1954,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     case "heatmap":
       return (
         <HeatmapChart
+          selection={selection}
           data={chartData}
           xKey={xKey!}
           yKey={yKeys[0] ?? "y"}
@@ -1711,6 +1971,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     case "calendar":
       return (
         <CalendarHeatmap
+          selection={selection}
           data={chartData}
           dateKey={xKey!}
           valueFmt={valueFmt}
@@ -1734,13 +1995,14 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
               }
             />
             {yKeys.map((field, i) => (
-              <Line
+              <Line data-dac-mark=""
                 key={field}
                 type="monotone"
                 dataKey={field}
                 stroke={colors[i % colors.length]}
                 strokeWidth={1.5}
-                dot={false}
+                dot={interaction && showMarkers && chartData.length <= 30 ? selectableDot(field, 2, colors[i % colors.length], true) : false}
+                activeDot={interaction ? selectableDot(field, 4, colors[i % colors.length], true) : passiveDot}
                 isAnimationActive={false}
               />
             ))}
@@ -1759,9 +2021,10 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <YAxis {...autoWidthYAxisProps} tickFormatter={yTick} />
             <Tooltip content={cartesianTooltip} />
             <Bar dataKey="base" fill="transparent" stackId="wf" isAnimationActive={false} />
-            <Bar dataKey="value" stackId="wf" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+            <Bar data-dac-mark="" dataKey="value" stackId="wf" radius={[2, 2, 0, 0]} isAnimationActive={false}
+              onClick={(entry) => selection.select(entry.payload.datum)} style={markStyle}>
               {wfData.map((entry, i) => (
-                <Cell key={i} fill={entry.fill === "positive" ? colors[0] : colors[3] ?? "#DC2626"} />
+                <Cell key={i} fill={entry.fill === "positive" ? colors[0] : colors[3] ?? "#DC2626"} opacity={selection.opacity(entry.datum)} {...keyboardMark(entry.datum)} />
               ))}
             </Bar>
           </BarChart>
@@ -1778,15 +2041,15 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
             <YAxis {...autoWidthYAxisProps} tickFormatter={yTick} />
             <Tooltip content={cartesianTooltip} />
-            <Line type="monotone" dataKey={yField} stroke={colors[0]} strokeWidth={1.5} dot={{ r: 2, strokeWidth: 0, fill: colors[0] }} isAnimationActive={false} />
+            <Line data-dac-mark="" type="monotone" dataKey={yField} stroke={colors[0]} strokeWidth={1.5} dot={interaction ? selectableDot(yField, 2, colors[0], true) : { r: 2, strokeWidth: 0, fill: colors[0] }} activeDot={interaction ? selectableDot(yField, 4, colors[0], true) : passiveDot} isAnimationActive={false} />
             {typeof widget.yMin === "string" && (
-              <Line type="monotone" dataKey={widget.yMin} stroke={colors[3] ?? "#DC2626"} strokeWidth={1} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
+              <Line data-dac-mark="" type="monotone" dataKey={widget.yMin} stroke={colors[3] ?? "#DC2626"} strokeWidth={1} strokeDasharray="4 4" dot={false} isAnimationActive={false} activeDot={passiveDot} />
             )}
             {typeof widget.yMax === "string" && (
-              <Line type="monotone" dataKey={widget.yMax} stroke={colors[3] ?? "#DC2626"} strokeWidth={1} strokeDasharray="4 4" dot={false} isAnimationActive={false} />
+              <Line data-dac-mark="" type="monotone" dataKey={widget.yMax} stroke={colors[3] ?? "#DC2626"} strokeWidth={1} strokeDasharray="4 4" dot={false} isAnimationActive={false} activeDot={passiveDot} />
             )}
             {yKeys.length > 1 && (
-              <Line type="monotone" dataKey={yKeys[1]} stroke={colors[1]} strokeWidth={1} strokeDasharray="6 3" dot={false} isAnimationActive={false} />
+              <Line data-dac-mark="" type="monotone" dataKey={yKeys[1]} stroke={colors[1]} strokeWidth={1} strokeDasharray="6 3" dot={false} isAnimationActive={false} activeDot={passiveDot} />
             )}
           </LineChart>
         </ResponsiveContainer>
@@ -1796,6 +2059,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     case "dumbbell":
       return (
         <DumbbellChart
+          selection={selection}
           formatterFor={(field) => buildAxisFormatter(widget.y, formatTooltipValue, field)}
           data={chartData}
           xKey={xKey!}
@@ -1827,6 +2091,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
       const labelKey = widget.label || xKey || "label";
       const tmData = chartData.map((d, i) => ({
         name: sliceLabel(d[labelKey]),
+        datum: d,
         size: Number(d[valueKey]) || 0,
         fill: sliceColor(d[labelKey], i),
       }));
@@ -1837,7 +2102,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             dataKey="size"
             nameKey="name"
             stroke="var(--dac-surface)"
-            content={TreemapCell}
+            content={(node) => <TreemapCell {...node} selection={selection} />}
             isAnimationActive={false}
           >
             <Tooltip content={<CustomTooltip valueFormatter={valueFmt} />} />
@@ -1855,7 +2120,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             <PolarAngleAxis dataKey={xKey} tick={{ ...AXIS_STYLE, fill: axisColor }} />
             <PolarRadiusAxis tick={{ ...AXIS_STYLE, fill: axisColor }} axisLine={false} tickFormatter={yTick} />
             <Tooltip content={cartesianTooltip} />
-            {yFields.length > 1 && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {yFields.length > 1 && <Legend content={(props) => <div data-dac-control><DefaultLegendContent {...props} /></div>} wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {yFields.map((field, i) => (
               <Radar
                 key={field}
@@ -1865,6 +2130,8 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
                 fill={colors[i % colors.length]}
                 fillOpacity={0.15}
                 strokeWidth={1.5}
+                dot={interaction ? (dot) => selectableDot(field, 3, colors[i % colors.length], true)({ ...dot, cx: dot.cx ?? (dot as { x?: number }).x, cy: dot.cy ?? (dot as { y?: number }).y }) : false}
+                activeDot={interaction ? false : undefined}
                 isAnimationActive={false}
               />
             ))}
@@ -1876,6 +2143,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
     case "candlestick":
       return (
         <CandlestickChart
+          selection={selection}
           data={chartData}
           xKey={xKey!}
           openKey={widget.open || "open"}
@@ -1925,7 +2193,7 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
           const spansZero = low <= 0 && high >= 0;
           const err = hasCI ? [Math.max(0, est - low), Math.max(0, high - est)] : undefined;
           const catPos: number | string = multi ? cats.indexOf(cat) + off : cat;
-          return horizontal ? { x: est, y: catPos, err, spansZero } : { x: catPos, y: est, err, spansZero };
+          return horizontal ? { x: est, y: catPos, err, spansZero, datum: r } : { x: catPos, y: est, err, spansZero, datum: r };
         });
         return { field: f, pts, color: colors[si % colors.length] };
       });
@@ -1957,13 +2225,14 @@ function ChartBody({ widget, data, titleOffset = 0 }: Props & { titleOffset?: nu
             )}
             <ZAxis range={[36, 36]} />
             <Tooltip content={cartesianTooltip} cursor={{ strokeDasharray: "3 3" }} />
-            {multi && <Legend wrapperStyle={AXIS_STYLE} iconSize={7} />}
+            {multi && <Legend content={(props) => <div data-dac-control><DefaultLegendContent {...props} /></div>} wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {horizontal
               ? <ReferenceLine x={0} stroke={REF_LINE_COLOR} strokeDasharray="4 4" />
               : <ReferenceLine y={0} stroke={REF_LINE_COLOR} strokeDasharray="4 4" />}
             {forestSeries.map((s) => (
-              <Scatter key={s.field} name={s.field} data={s.pts} fill={multi ? s.color : FOREST_SIG} isAnimationActive={false}>
-                {!multi && s.pts.map((p, pi) => <Cell key={pi} fill={p.spansZero ? FOREST_NOSIG : FOREST_SIG} />)}
+              <Scatter data-dac-mark="" key={s.field} name={s.field} data={s.pts} fill={multi ? s.color : FOREST_SIG} isAnimationActive={false}
+                onClick={(entry) => selection.select(entry.payload.datum)} style={markStyle}>
+                {s.pts.map((p, pi) => <Cell key={pi} fill={multi ? s.color : p.spansZero ? FOREST_NOSIG : FOREST_SIG} opacity={selection.opacity(p.datum)} {...keyboardMark(p.datum)} />)}
                 <ErrorBar dataKey="err" width={4} strokeWidth={1.5} stroke={multi ? s.color : "#374151"} direction={horizontal ? "x" : "y"} />
               </Scatter>
             ))}

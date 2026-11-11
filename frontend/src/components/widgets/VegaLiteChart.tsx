@@ -1,11 +1,12 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { Loader, View } from "vega";
+import type { Item, Loader, View } from "vega";
 import type { VisualizationSpec } from "vega-embed";
 import type { Widget, WidgetData } from "../../types/dashboard";
 import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { DAC_EXPORT_PENDING_ATTRIBUTE } from "../../lib/renderExport";
 import { RowHeightContext } from "../../themes/RowContext";
 import { useTokens } from "../../themes/TemplateProvider";
+import { useCrossFilters } from "../../hooks/useCrossFilter";
 import { axisFields, buildSemanticFormatter, formatForField } from "../../lib/format";
 
 const DAC_DATASET_NAME = "dac";
@@ -232,6 +233,9 @@ function themedSpec(
 
 export function VegaLiteChart({ widget, data }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const bindings = useCrossFilters(widget, data);
+  const interactionRef = useRef({ bindings, originalDate: (() => undefined) as (field: string, timestamp: number) => string | undefined });
+  const highlightRef = useRef<(() => void) | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const tokens = useTokens();
   const rowHeight = useContext(RowHeightContext);
@@ -240,6 +244,32 @@ export function VegaLiteChart({ widget, data }: Props) {
     : DEFAULT_CHART_HEIGHT;
 
   const records = useMemo(() => data ? toRecords(data) : [], [data]);
+  // Vega parses temporal fields into epoch timestamps. Index each field's
+  // original query values once, so highlighting stays linear in the marks.
+  const originalDate = useMemo(() => {
+    const indexes = new Map<string, Map<number, string>>();
+    return (field: string, timestamp: number) => {
+      let index = indexes.get(field);
+      if (!index) {
+        index = new Map();
+        for (const row of records) {
+          const raw = row[field];
+          // Vega's toDate uses Date.parse for any string, e.g. "2024-01" or "2024-01-01 10:00:00".
+          if (typeof raw !== "string") continue;
+          const parsed = Date.parse(raw);
+          if (Number.isFinite(parsed) && !index.has(parsed)) index.set(parsed, raw);
+        }
+        indexes.set(field, index);
+      }
+      return index.get(timestamp);
+    };
+  }, [records]);
+  // Keep listeners current without rebuilding a Vega view on each filter click.
+  useEffect(() => {
+    interactionRef.current = { bindings, originalDate };
+    highlightRef.current?.();
+  }, [bindings, originalDate]);
+
   const resolvedSpec = useMemo(() => {
     try {
       const spec = themedSpec(inheritFormats(widget.spec ?? {}, widget.y) as JSONObject, records, tokens);
@@ -263,6 +293,7 @@ export function VegaLiteChart({ widget, data }: Props) {
     let disposed = false;
     let view: View | undefined;
     let observer: ResizeObserver | undefined;
+    let markObserver: MutationObserver | undefined;
     let animationFrame = 0;
     let lastWidth = -1;
     let lastHeight = -1;
@@ -308,9 +339,95 @@ export function VegaLiteChart({ widget, data }: Props) {
           return;
         }
         view = result.view;
+        // A line/area path represents a whole series. Only marks with their own
+        // scalar datum may emit clicks; guides and group backgrounds stay inert.
+        const datumFor = (item?: Item | null): JSONObject | undefined => {
+          if (item?.mark.role !== "mark" || ["group", "line", "area"].includes(item.mark.marktype) || !isObject(item.datum)) return;
+          const datum = { ...item.datum };
+          for (const binding of interactionRef.current.bindings) {
+            const value = datum[binding.field];
+            // Recover the original query value so dates and select options keep their type.
+            if (typeof value === "number" || value instanceof Date) {
+              const original = interactionRef.current.originalDate(binding.field, Number(value));
+              if (original !== undefined) datum[binding.field] = original;
+            }
+          }
+          return datum;
+        };
+        const select = (item?: Item | null) => {
+          const datum = datumFor(item);
+          if (!datum) return;
+          const seen = new Set<string>();
+          const selections = interactionRef.current.bindings.filter((binding) => {
+            if (seen.has(binding.filter.name) || !binding.canSelect(datum[binding.field])) return false;
+            seen.add(binding.filter.name);
+            return true;
+          });
+          const selected = selections.every((binding) => binding.isSelected(datum[binding.field]));
+          for (const binding of selections) {
+            if (selected || !binding.isSelected(datum[binding.field])) binding.select(datum[binding.field]);
+          }
+        };
+        const highlight = () => {
+          for (const element of container.querySelectorAll<SVGElement>("svg *")) {
+            const item = (element as SVGElement & { __data__?: Item & { opacity?: number } }).__data__;
+            const role = item?.mark?.role;
+            if (!role) continue;
+            if (role.startsWith("axis") || role.startsWith("legend")) {
+              element.setAttribute("data-dac-control", "");
+              continue;
+            }
+            if (role !== "mark") continue;
+            element.setAttribute("data-dac-mark", "");
+            // Text spans can share their parent's scene item; keep one focus target.
+            if ((element.parentElement as (Element & { __data__?: Item }) | null)?.__data__ === item) continue;
+            const datum = datumFor(item);
+            const matches = datum ? interactionRef.current.bindings.filter((binding) => binding.accepts(datum[binding.field])) : [];
+            const enabled = matches.some((binding) => binding.ready);
+            const selected = matches.filter((binding) => binding.isSource && binding.active)
+              .every((binding) => binding.isSelected(datum?.[binding.field]));
+            // Inline styles beat Vega's opacity attribute, so only set one while dimming;
+            // otherwise hover/param opacity encodings stop updating.
+            if (selected) element.style.removeProperty("opacity");
+            else element.style.opacity = String((item?.opacity ?? 1) * 0.35);
+            element.style.cursor = enabled ? "pointer" : "";
+            // Marks stay focusable while a refetch is pending, so keyboard focus survives a selection.
+            if (matches.length) {
+              element.setAttribute("role", "button");
+              element.setAttribute("tabindex", "0");
+              element.setAttribute("aria-label", matches.map((binding) => `${binding.field}: ${String(datum?.[binding.field])}`).join(", "));
+              if (enabled) element.removeAttribute("aria-disabled");
+              else element.setAttribute("aria-disabled", "true");
+            } else {
+              element.removeAttribute("tabindex");
+              element.removeAttribute("aria-disabled");
+            }
+          }
+        };
+        highlightRef.current = highlight;
+        result.view.addEventListener("click", (event, item) => {
+          if (!("button" in event) || event.button === 0) select(item);
+        });
+        result.view.addEventListener("keydown", (event, item) => {
+          if ("key" in event && (event.key === "Enter" || event.key === " ") && datumFor(item)) {
+            event.preventDefault();
+            select(item);
+          }
+        });
         await result.view.resize().runAsync();
         if (disposed) return;
         titleTruncatedLabels(container);
+        // Vega parameters may create new marks or bound input controls after rendering.
+        const markElements = () => {
+          highlight();
+          for (const control of container.querySelectorAll("input, select, textarea, button, a, [contenteditable=true]")) {
+            control.setAttribute("data-dac-control", "");
+            control.closest("label")?.setAttribute("data-dac-control", "");
+          }
+        };
+        markElements();
+        markObserver = new MutationObserver(markElements);
+        markObserver.observe(container, { childList: true, subtree: true });
         container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
 
         observer = new ResizeObserver(([entry]) => {
@@ -333,7 +450,10 @@ export function VegaLiteChart({ widget, data }: Props) {
             if (resolvedSpec.height === "container") activeView.height(height);
             void activeView.resize().runAsync()
               .then(() => {
-                if (!disposed && generation === resizeGeneration) titleTruncatedLabels(container);
+                if (!disposed && generation === resizeGeneration) {
+                  titleTruncatedLabels(container);
+                  highlight();
+                }
               })
               .catch((error: unknown) => {
                 if (!disposed && generation === resizeGeneration) {
@@ -360,6 +480,8 @@ export function VegaLiteChart({ widget, data }: Props) {
       disposed = true;
       cancelAnimationFrame(animationFrame);
       observer?.disconnect();
+      markObserver?.disconnect();
+      highlightRef.current = null;
       view?.finalize();
       container.removeAttribute(DAC_EXPORT_PENDING_ATTRIBUTE);
       container.replaceChildren();
@@ -374,6 +496,7 @@ export function VegaLiteChart({ widget, data }: Props) {
     <div className="relative min-h-0 min-w-0 flex-auto overflow-hidden" style={{ height: chartHeight }}>
       <div
         ref={containerRef}
+        data-dac-plot
         className="dac-vega-lite h-full w-full"
         data-dac-export-pending="true"
       />

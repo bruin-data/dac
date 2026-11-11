@@ -5,6 +5,7 @@ import { useTemplate } from "../TemplateProvider";
 import { RowHeightContext } from "../RowContext";
 import { QueryInfo } from "../../components/widgets/QueryInfo";
 import { WidgetExportButton } from "../../components/widgets/WidgetExportButton";
+import { CrossFilterContext, CrossFilterWidgetContext } from "../../hooks/useCrossFilter";
 import { dashboardImageSrc } from "../../lib/dashboardImage";
 
 const containerClass: Record<string, string> = {
@@ -19,6 +20,10 @@ const containerClass: Record<string, string> = {
 export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) {
   const { MetricWidget, ChartWidget, TableWidget, TextWidget } = useTemplate();
   const rowHeight = useContext(RowHeightContext);
+  const crossFilter = useContext(CrossFilterContext);
+  const widgetId = useContext(CrossFilterWidgetContext);
+  const resetNames = Object.entries(crossFilter?.sources ?? {})
+    .filter(([, source]) => source.widgetId === widgetId).map(([name]) => name);
   const chartSkeletonHeight = rowHeight !== undefined ? Math.max(80, rowHeight - 60) : 240;
 
   // Divider: just a horizontal line, no title or data.
@@ -114,8 +119,24 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
   return (
     <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? (isTable ? containerClass.table : containerClass.text)} ${isVegaChart ? "min-h-0 min-w-0 flex flex-col" : ""}`}>
       {widget.type !== "text" && (
-        <div className={`flex shrink-0 items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] ${widget.description ? "mb-0.5" : "mb-1.5"} ${isTable ? "px-4" : ""}`}>
+        <div data-dac-reset className={`flex shrink-0 items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] ${widget.description ? "mb-0.5" : "mb-1.5"} ${isTable ? "px-4" : ""}`}>
           <span>{widget.name}</span>
+          {widgetId && crossFilter?.reset && resetNames.length > 0 && (
+            <button type="button" data-dac-control data-dac-export-control
+              title="Clear this widget's selection" aria-label="Clear this widget's selection"
+              className="ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] hover:bg-[var(--dac-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dac-accent)]"
+              onClick={(event) => {
+                event.stopPropagation();
+                crossFilter.reset?.(resetNames);
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 4h18l-7 8v6l-4 2v-8L3 4Z" />
+                <circle cx="19" cy="18" r="5" fill="var(--dac-surface)" stroke="var(--dac-surface)" strokeWidth="3" />
+                <circle cx="19" cy="18" r="4.3" fill="var(--dac-surface)" strokeWidth="1.35" />
+                <path d="m17.5 16.5 3 3m0-3-3 3" strokeWidth="1.25" />
+              </svg>
+            </button>
+          )}
           {(canExport || data?.query) && (
             <span className="ml-auto inline-flex items-center gap-1">
               {canExport && <WidgetExportButton widget={widget} data={data} />}
@@ -125,7 +146,7 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
         </div>
       )}
       {widget.type !== "text" && widget.description && (
-        <div className={`shrink-0 text-[11px] leading-snug text-[var(--dac-text-muted)] opacity-70 mb-1.5 ${isTable ? "px-4" : ""}`}>
+        <div data-dac-reset className={`shrink-0 text-[11px] leading-snug text-[var(--dac-text-muted)] opacity-70 mb-1.5 ${isTable ? "px-4" : ""}`}>
           {widget.description}
         </div>
       )}

@@ -5,6 +5,16 @@
   font-feature-settings: "ss01", "ss02", "cv01";
 }
 
+/* Pointer clicks should not leave the browser's focus ring around a chart layer. */
+.dac-root .recharts-wrapper :focus:not(:focus-visible) {
+  outline: none;
+}
+
+.dac-root .recharts-wrapper :focus-visible {
+  outline: 2px solid var(--dac-accent);
+  outline-offset: 2px;
+}
+
 .dac-widget-container {
   grid-column: 1 / -1;
 }

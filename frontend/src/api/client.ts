@@ -179,6 +179,7 @@ export async function fetchWidgetData(
   dashboardName: string,
   widgetId: string,
   filters?: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<WidgetData> {
   const sp = getStaticPayload();
   if (sp) return sp.widgetData[widgetId];
@@ -188,6 +189,7 @@ export async function fetchWidgetData(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ filters: filters ?? {} }),
+      signal,
     },
   );
 }

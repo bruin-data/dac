@@ -10,6 +10,7 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 | `type` | string | Yes | `metric`, `chart`, `table`, `pivot_table`, `text`, `image`, `divider`, or `tabs` |
 | `col` | integer | No | Column span from 1 to 12 |
 | `description` | string | No | Optional tooltip or subtitle |
+| `crossFilter` | array | No | Explicit `{field, filter}` pairs for cross-filter clicks; omit for same-name matching |
 | `tabs` | list | No | Complete widgets shown as tabs of a `type: tabs` widget — see [Widget tabs](/dashboards/layout#widget-tabs) |
 
 Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), `file` (external `.sql` path), a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts), or `data` (inline static values — see [Inline data](#inline-data)). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
@@ -926,3 +927,15 @@ The dashboard header has an **Export** menu:
 In `dac serve`, CSV exports reflect the active filter values at the time of the click. Static dashboard CSV exports use the baked query results. Text, divider, and image widgets are skipped in CSV exports. Widgets with query errors or no rows are omitted from the dashboard CSV.
 
 PNG and PDF exports capture the visible rendered view, excluding viewer controls such as export buttons and YAML controls. For tabbed dashboards, they capture the currently active tab.
+
+## Cross Filtering
+
+Chart, table and pivot dimensions match dashboard filter names automatically. Set `crossFilter: [{field: customer_region, filter: region}]` on a widget to replace automatic matching with explicit pairs. Each field can target one existing filter within that widget; other widgets can map the same field differently. Widget IDs are not needed. Put mappings on individual widget tabs, not the tabs container. Fields refer to returned dimension names, including SQL aliases and dotted names.
+
+All built-in charts except `histogram` and `gauge` can emit dimension selections. Boxplots select their group, treemaps their leaf, and radar/forest charts their point. Heatmap cells and Sankey links select both dimensions; Sankey nodes select their own dimension. Labels and slice renames never replace raw selection values. Histogram bins represent ranges and gauges summarize a value, so they only receive filters.
+
+Line/area charts support date-range dragging. Calendar days, candlesticks, sparkline points and XmR observations can set a matching date-range filter to one day; calendar padding and control-limit lines stay inert. Pivot labels, headers and data cells use raw dimension values; totals are non-interactive.
+
+Vega-Lite clicks use directly encoded, non-binned fields from the clicked mark's datum, including grouping fields retained after aggregation and fields in layered/composed views. Derived bins/time units, aggregate values, full-series line/area paths, guides and backgrounds do not emit selections. Use point marks on Vega line/area charts for dimension clicks. Existing Vega interactions remain active.
+
+Receiving queries must consume the target filter to narrow results. With an active selection, a **filter icon with a small × badge** appears beside the widget title: click it to restore that widget's pre-click filter values while keeping other widgets' selections. Clicking the widget title, description or empty chart space also resets that widget; **Reset filters** restores defaults. See [Cross filtering](/dashboards/filters#cross-filtering).

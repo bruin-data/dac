@@ -62,9 +62,43 @@ func TestLoadDefinition_MatchesFileLoading(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Loader tests
-// ---------------------------------------------------------------------------
+func TestLoadDefinition_WidgetCrossFilter(t *testing.T) {
+	definition := `name: Mappings
+filters:
+  - {name: region, type: select}
+  - {name: channel, type: select}
+rows:
+  - widgets:
+      - name: Results
+        type: table
+        sql: SELECT customer_region, sales_channel FROM sales
+        crossFilter:
+          - {field: customer_region, filter: region}
+          - {field: sales_channel, filter: channel}
+`
+	d, err := LoadDefinition([]byte(definition), nil)
+	assertNoErr(t, err)
+	assertNoErr(t, Validate(d))
+	mappings := d.Rows[0].Widgets[0].CrossFilter
+	if len(mappings) != 2 || mappings[0].Field != "customer_region" || mappings[0].Filter != "region" || mappings[1].Filter != "channel" {
+		t.Fatalf("lost widget mappings: %+v", mappings)
+	}
+	data, err := json.Marshal(d)
+	assertNoErr(t, err)
+	if !strings.Contains(string(data), `"crossFilter":[{"field":"customer_region","filter":"region"}`) {
+		t.Fatalf("API lost widget mappings: %s", data)
+	}
+	for _, config := range []string{`true`, `{dimensions: [customer_region]}`, `[]`, `[{}]`, `[{field: 123, filter: region}]`, `[{field: customer_region, filter: region, extra: x}]`} {
+		t.Run(config, func(t *testing.T) {
+			invalid := strings.Replace(definition, "crossFilter:\n          - {field: customer_region, filter: region}\n          - {field: sales_channel, filter: channel}", "crossFilter: "+config, 1)
+			_, err := LoadDefinition([]byte(invalid), nil)
+			assertErr(t, err)
+		})
+	}
+	legacy := strings.Replace(definition, "- {name: region, type: select}", "- {name: region, type: select, crossFilter: {dimensions: [customer_region]}}", 1)
+	_, err = LoadDefinition([]byte(legacy), nil)
+	assertErr(t, err)
+}
 
 func TestLoadDir_LoadsAllDashboards(t *testing.T) {
 	dashboards, err := LoadDir("../../testdata/dashboards")

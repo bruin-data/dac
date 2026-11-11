@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useWidgetQuery } from "../hooks/useWidgetQuery";
+import { useWidgetCrossFilter, CrossFilterReadyContext, CrossFilterWidgetContext } from "../hooks/useCrossFilter";
 import type { Widget } from "../types/dashboard";
 import type { WidgetFrameProps } from "../types/template";
 
@@ -53,8 +54,17 @@ function DataWidgetInner({
   filters?: Record<string, unknown>;
   WidgetFrame: React.ComponentType<WidgetFrameProps>;
 }) {
-  const { data, isLoading, isPlaceholderData } = useWidgetQuery(dashboardName, widgetId, filters, true);
-  return <WidgetFrame key={`${dashboardName}:${widgetId}`} widget={widget} data={data} isLoading={isLoading || isPlaceholderData} />;
+  const { queryFilters, resetEvents } = useWidgetCrossFilter(widgetId, filters);
+  const { data, isLoading, isPlaceholderData } = useWidgetQuery(dashboardName, widgetId, queryFilters, true);
+  return (
+    <CrossFilterWidgetContext.Provider value={widgetId}>
+      <CrossFilterReadyContext.Provider value={!isLoading && !isPlaceholderData && !data?.error}>
+        <div className="h-full" {...resetEvents}>
+          <WidgetFrame key={`${dashboardName}:${widgetId}`} widget={widget} data={data} isLoading={isLoading || isPlaceholderData} />
+        </div>
+      </CrossFilterReadyContext.Provider>
+    </CrossFilterWidgetContext.Provider>
+  );
 }
 
 /**

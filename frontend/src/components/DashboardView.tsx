@@ -5,14 +5,29 @@ import { useFilterOptions } from "../hooks/useFilterOptions";
 import { useTemplate } from "../themes/TemplateProvider";
 import { buildDefaultFilters, fromParam, toParam, keepAllowedValues } from "../lib/filterParams";
 import { DataWidget, TabbedWidget } from "./DashboardWidget";
+import { CrossFilterContext } from "../hooks/useCrossFilter";
+import { crossFilterDefaultValue, crossFilterQueryFilters, sameCrossFilterValue, type CrossFilterSource } from "../lib/crossFilter";
 import { YamlPanel } from "./YamlPanel";
 import { ExportMenuButton, type ExportMenuItem } from "./ExportMenuButton";
-import { fetchDashboardData } from "../api/client";
+import { fetchDashboardData, fetchWidgetData } from "../api/client";
 import { dashboardToCSV, downloadTextFile, slugify } from "../lib/csv";
 import { exportElementAsPDF, exportElementAsPNG } from "../lib/renderExport";
 import type { Widget, WidgetData } from "../types/dashboard";
 
 const isStaticMode = window.__DAC_STATIC__ !== undefined;
+const EMPTY_FILTERS: Record<string, unknown> = {};
+
+interface CrossFilterSelection {
+  base: Record<string, unknown>;
+  changes: Record<string, unknown>;
+  sources: Record<string, CrossFilterSource>;
+  previewFilters: string[];
+}
+
+/** A selection is current while the filter values still equal its base plus its changes. */
+function isCurrentSelection(state: CrossFilterSelection | null, values: Record<string, unknown>): state is CrossFilterSelection {
+  return !!state && JSON.stringify({ ...state.base, ...state.changes }) === JSON.stringify(values);
+}
 type DashboardExportFormat = "csv" | "png" | "pdf";
 
 // Persist sidebar state across navigation (module-level, resets on page refresh).
@@ -77,13 +92,75 @@ export function DashboardView() {
   const activeFilters = filters ?? baseFilters;
   const allFilters = useFilterOptions(dashboard, activeFilters ?? undefined);
 
+  const values = activeFilters ?? EMPTY_FILTERS;
+  const defaults = useMemo(() => dashboard ? buildDefaultFilters(dashboard) : EMPTY_FILTERS, [dashboard]);
+  const selectionKey = !dashLoading && !dashError ? dashboard : undefined;
+  const [selection, setSelection] = useState<CrossFilterSelection | null>(null);
+  const [observedValues, setObservedValues] = useState(values);
+  const [observedResetKey, setObservedResetKey] = useState(selectionKey);
+  const current = isCurrentSelection(selection, values) ? selection : null;
+
+  // External values or a reloaded definition invalidate old click origins.
+  if (observedResetKey !== selectionKey) {
+    setObservedResetKey(selectionKey);
+    setSelection(null);
+  }
+  if (observedValues !== values) {
+    setObservedValues(values);
+    if (selection && !current) setSelection(null);
+  }
+
+  // Stable callbacks and context value, so cross-filter bindings only recompute when filter state changes.
+  const handleFilterChange = useCallback((name: string, next: unknown, widgetId?: string, deselect?: boolean) => {
+    // Several dimensions selected in one click share the same base state.
+    setSelection((previous) => {
+      const sameBase = previous?.base === values;
+      const sources = previous && (sameBase || isCurrentSelection(previous, values)) ? { ...previous.sources } : {};
+      const filter = (dashboard?.filters ?? []).find((filter) => filter.name === name);
+      const baseline = name in sources ? sources[name].value : values[name];
+      // Deselecting back to the default is a clear; selecting a value that equals the default still owns the change.
+      const cleared = filter && ((Array.isArray(next) && next.length === 0) ||
+        sameCrossFilterValue(next, baseline) ||
+        (deselect && sameCrossFilterValue(next, crossFilterDefaultValue(filter, defaults))));
+      if (widgetId && filter && !cleared) {
+        const keepScope = filter.type === "select" && !!filter.multiple;
+        // Clicks in other widgets edit a multi-select; its origin keeps the pre-click scope and reset.
+        const owner = keepScope && sources[name] ? sources[name].widgetId : widgetId;
+        sources[name] = { widgetId: owner, value: baseline, keepScope };
+      } else {
+        delete sources[name];
+      }
+      return {
+        base: values,
+        changes: { ...(sameBase ? previous.changes : {}), [name]: next },
+        sources,
+        previewFilters: [...(sameBase ? previous.previewFilters : []), ...(widgetId ? [name] : [])],
+      };
+    });
+    setFilters((previous) => ({ ...(previous ?? values), [name]: next }));
+  }, [dashboard, values, defaults]);
+  const resetFilters = useCallback((names?: string[]) => {
+    for (const filter of dashboard?.filters ?? []) {
+      if (names && !names.includes(filter.name)) continue;
+      // Widget resets restore the pre-click scope; a full reset uses defaults.
+      const source = names && current?.sources[filter.name];
+      const next = source ? source.value : defaults[filter.name];
+      handleFilterChange(filter.name, next ?? crossFilterDefaultValue(filter, defaults));
+    }
+  }, [dashboard, current, defaults, handleFilterChange]);
+  const crossFilterContext = useMemo(() => isStaticMode || !dashboard ? null : {
+    filters: dashboard.filters ?? [], queries: dashboard.queries, values, defaults,
+    onChange: handleFilterChange, reset: resetFilters,
+    previewFilters: current?.previewFilters, sources: current?.sources,
+  }, [dashboard, values, defaults, handleFilterChange, resetFilters, current]);
+
   // Last query string, so the reseed effect can skip our own writes.
   const lastSelfWrite = useRef<string | null>(null);
 
   const {
     DashboardLayout,
-    WidgetFrame,
     FilterBar,
+    WidgetFrame,
     Row,
     WidgetContainer,
   } = useTemplate();
@@ -140,13 +217,18 @@ export function DashboardView() {
     setFilters(null);
   }, [searchParams]);
 
-  const handleExport = useCallback(async (format: DashboardExportFormat) => {
+  const handleExport = useCallback(async (format: DashboardExportFormat, sources?: Record<string, CrossFilterSource>) => {
     if (!dashboard) return;
     setExporting(format);
     try {
       const filename = `${slugify(dashboard.name)}.${format}`;
       if (format === "csv") {
         const widgetData = await fetchDashboardData(name || "", activeFilters ?? undefined);
+        // A multi-select click origin keeps its pre-click scope on screen; export what it shows.
+        const origins = [...new Set(Object.values(sources ?? {}).filter((source) => source.keepScope).map((source) => source.widgetId))];
+        await Promise.all(origins.map(async (widgetId) => {
+          widgetData[widgetId] = await fetchWidgetData(name || "", widgetId, crossFilterQueryFilters(widgetId, activeFilters ?? undefined, sources));
+        }));
         const sections: { name: string; data: WidgetData }[] = [];
         const pushSection = (label: string, data: WidgetData | undefined) => {
           if (data && !data.error && data.rows && data.rows.length > 0) {
@@ -211,12 +293,6 @@ export function DashboardView() {
   const hasTabs = tabNames.length > 0;
   const currentTab = activeTab ?? (hasTabs ? tabNames[0] : null);
 
-  const handleFilterChange = (filterName: string, value: unknown) => {
-    // Accumulate locally; the projection effect writes the URL. Functional update
-    // so batched changes in one tick don't clobber each other.
-    setFilters((prev) => ({ ...(prev ?? activeFilters ?? {}), [filterName]: value }));
-  };
-
   // Filters with no `tab` (or an unmatched one — the validator rejects those) go
   // in the global bar; a tab-scoped filter shows only on its tab.
   const globalFilters = allFilters.filter((f) => !f.tab || !tabNames.includes(f.tab));
@@ -230,21 +306,24 @@ export function DashboardView() {
     />
   ) : null;
 
-  const exportItems: ExportMenuItem[] = [
-    { key: "csv", label: "CSV", onSelect: () => handleExport("csv") },
-    { key: "png", label: "PNG", onSelect: () => handleExport("png") },
-    { key: "pdf", label: "PDF", onSelect: () => handleExport("pdf") },
-  ];
+  const filtersChanged = Object.keys(current?.sources ?? {}).length > 0 || (dashboard.filters ?? []).some((filter) => {
+    const initial = crossFilterDefaultValue(filter, defaults);
+    return !sameCrossFilterValue(values[filter.name] ?? initial, initial);
+  });
+  const exportItems: ExportMenuItem[] = (["csv", "png", "pdf"] as const).map((format) => ({
+    key: format, label: format.toUpperCase(), onSelect: () => handleExport(format, current?.sources),
+  }));
 
   const headerActions = (
     <div data-dac-export-control className="flex items-center gap-1.5">
-      <ExportMenuButton
-        label={exporting ? "Exporting" : "Export"}
-        ariaLabel="Export dashboard"
-        title="Export dashboard"
-        items={exportItems}
-        disabled={exporting !== null}
-      />
+      {!isStaticMode && filtersChanged && (
+        <button type="button" onClick={() => resetFilters()} aria-label="Reset all filters"
+          className="inline-flex items-center h-7 px-2 rounded-sm border border-[var(--dac-border)] text-[13px] text-[var(--dac-text-secondary)] hover:text-[var(--dac-text-primary)] hover:bg-[var(--dac-surface-hover)]">
+          Reset filters
+        </button>
+      )}
+      <ExportMenuButton label={exporting ? "Exporting" : "Export"} ariaLabel="Export dashboard"
+        title="Export dashboard" items={exportItems} disabled={exporting !== null} />
       {!isStaticMode && (
         <button
           onClick={() => setYamlOpen(!yamlOpen)}
@@ -293,6 +372,7 @@ export function DashboardView() {
   };
 
   return (
+    <CrossFilterContext.Provider key={dashboard.name} value={crossFilterContext}>
     <div
       className={`dac-layout h-screen overflow-hidden ${isResizing ? "dac-layout-resizing" : ""}`}
       style={{ gridTemplateColumns: gridColumns }}
@@ -378,5 +458,6 @@ export function DashboardView() {
         onResizeEnd={onResizeEnd}
       />
     </div>
+    </CrossFilterContext.Provider>
   );
 }

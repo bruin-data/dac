@@ -107,6 +107,19 @@
         }
       ]
     },
+    "crossFilterMappings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["field", "filter"],
+        "properties": {
+          "field": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "filter": { "type": "string", "minLength": 1, "pattern": "\\S" }
+        },
+        "additionalProperties": false
+      }
+    },
     "filterOptions": {
       "type": "object",
       "properties": {
@@ -226,6 +239,7 @@
           "maximum": 12
         },
         "height": { "$ref": "#/$defs/widgetHeight" },
+        "crossFilter": { "$ref": "#/$defs/crossFilterMappings" },
         "query": {
           "type": "string"
         },
@@ -501,6 +515,7 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "description": { "type": "string" },
+        "crossFilter": { "$ref": "#/$defs/crossFilterMappings" },
         "notes": {
           "$ref": "#/$defs/stringList",
           "description": "Ids of top-level or semantic-model notes shown on this tab, matched to rows/points by their dimensions."

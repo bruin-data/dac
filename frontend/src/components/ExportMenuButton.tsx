@@ -63,7 +63,7 @@ export function ExportMenuButton({
       <button
         ref={triggerRef}
         type="button"
-        data-dac-export-control
+        data-dac-control data-dac-export-control
         aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -80,7 +80,7 @@ export function ExportMenuButton({
       {open && createPortal(
         <div
           ref={popoverRef}
-          data-dac-export-control
+          data-dac-control data-dac-export-control
           role="menu"
           className="fixed z-[9999] min-w-24 rounded-sm border border-[var(--dac-border)] bg-[var(--dac-surface)] shadow-lg py-1"
           style={{ top: position.top, left: menuLeft }}

@@ -67,6 +67,90 @@ func TestValidate_WidgetIDs(t *testing.T) {
 	}
 }
 
+func TestValidate_WidgetCrossFilter(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		mappings []CrossFilterMapping
+		problem  string
+	}{
+		{"automatic", nil, ""},
+		{"mapped field", []CrossFilterMapping{{Field: "customer_region", Filter: "region"}}, ""},
+		{"multiple dimensions", []CrossFilterMapping{{Field: "customer_region", Filter: "region"}, {Field: "sales_channel", Filter: "channel"}}, ""},
+		{"dotted result field", []CrossFilterMapping{{Field: "customers.region", Filter: "region"}}, ""},
+		{"multiple fields one filter", []CrossFilterMapping{{Field: "region", Filter: "region"}, {Field: "customer_region", Filter: "region"}}, ""},
+		{"empty list", []CrossFilterMapping{}, "at least one"},
+		{"missing field", []CrossFilterMapping{{Filter: "region"}}, "non-empty"},
+		{"missing filter", []CrossFilterMapping{{Field: "customer_region"}}, "non-empty"},
+		{"unknown filter", []CrossFilterMapping{{Field: "customer_region", Filter: "missing"}}, "unknown filter"},
+		{"duplicate field", []CrossFilterMapping{{Field: "customer_region", Filter: "region"}, {Field: "customer_region", Filter: "channel"}}, "duplicate crossFilter field"},
+		{"table to date range", []CrossFilterMapping{{Field: "created_at", Filter: "period"}}, "cannot target date-range"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			d := &Dashboard{Name: "Mappings", Filters: []Filter{{Name: "region", Type: "select"}, {Name: "channel", Type: "select"}, {Name: "period", Type: "date-range"}}, Rows: []Row{{Widgets: []Widget{{Name: "Results", Type: WidgetTypeTable, SQL: "SELECT 1", CrossFilter: tt.mappings}}}}}
+			if tt.problem == "" {
+				assertNoErr(t, Validate(d))
+			} else {
+				assertValidationContains(t, Validate(d), tt.problem)
+			}
+		})
+	}
+	d := &Dashboard{Name: "Local mappings", Filters: []Filter{{Name: "region", Type: "select"}, {Name: "channel", Type: "select"}}, Rows: []Row{{Widgets: []Widget{
+		{Name: "A", Type: WidgetTypeTable, SQL: "SELECT customer_region", CrossFilter: []CrossFilterMapping{{Field: "customer_region", Filter: "region"}}},
+		{Name: "B", Type: WidgetTypeTable, SQL: "SELECT customer_region", CrossFilter: []CrossFilterMapping{{Field: "customer_region", Filter: "channel"}}},
+	}}}}
+	assertNoErr(t, Validate(d))
+	d.Rows[0].Widgets[0].Type = WidgetTypeMetric
+	assertValidationContains(t, Validate(d), "only supported on interactive")
+	d.Rows[0].Widgets[0].Type = WidgetTypeTable
+	child := d.Rows[0].Widgets[0]
+	d.Rows[0].Widgets[0] = Widget{Type: WidgetTypeTabs, Tabs: []Widget{child}}
+	assertNoErr(t, Validate(d))
+	d.Rows[0].Widgets[0].CrossFilter = []CrossFilterMapping{}
+	assertValidationContains(t, Validate(d), "set it on each tab")
+}
+
+func TestValidate_ChartCrossFilterSupport(t *testing.T) {
+	d := &Dashboard{Filters: []Filter{{Name: "category", Type: "select"}}}
+	for chart := range validChartTypes {
+		t.Run(chart, func(t *testing.T) {
+			widget := &Widget{Type: WidgetTypeChart, Chart: chart, CrossFilter: []CrossFilterMapping{{Field: "category", Filter: "category"}}}
+			errs := validateWidgetCrossFilter("chart", widget, d)
+			if chart == "histogram" || chart == "gauge" {
+				if len(errs) == 0 {
+					t.Fatal("summary/range chart must reject explicit dimension-click mappings")
+				}
+			} else if len(errs) != 0 {
+				t.Fatalf("dimension chart must accept mappings: %v", errs)
+			}
+		})
+	}
+}
+
+func TestValidate_ChartCrossFilterDateRange(t *testing.T) {
+	d := &Dashboard{Filters: []Filter{{Name: "period", Type: "date-range"}}}
+	dateCharts := map[string]bool{"line": true, "area": true, "calendar": true, "candlestick": true, "sparkline": true, "xmr": true}
+	for chart := range validChartTypes {
+		if chart == "histogram" || chart == "gauge" {
+			continue
+		}
+		t.Run(chart, func(t *testing.T) {
+			widget := &Widget{Type: WidgetTypeChart, Chart: chart, X: &AxisEncoding{Field: "day"}, CrossFilter: []CrossFilterMapping{{Field: "day", Filter: "period"}}}
+			errs := validateWidgetCrossFilter("chart", widget, d)
+			if dateCharts[chart] && len(errs) != 0 {
+				t.Fatalf("date chart must accept date-range mappings: %v", errs)
+			}
+			if !dateCharts[chart] && len(errs) == 0 {
+				t.Fatal("non-date chart must reject date-range mappings")
+			}
+			// Only the x field emits a date range; any other field would never fire.
+			widget.CrossFilter = []CrossFilterMapping{{Field: "region", Filter: "period"}}
+			if errs := validateWidgetCrossFilter("chart", widget, d); len(errs) == 0 {
+				t.Fatal("non-x field must not target a date-range filter")
+			}
+		})
+	}
+}
+
 func TestValidate_Notes(t *testing.T) {
 	base := func(notes []Note, refs []string) *Dashboard {
 		return &Dashboard{

@@ -3,12 +3,13 @@ import type { AxisEncoding, DisplayFormat, FormatLayer, Widget, WidgetData } fro
 import { axisField, buildAxisFormatter, buildTableNumberFormatter } from "../../lib/format";
 import { useTokens } from "../../themes/TemplateProvider";
 import { cellStyle, isGradient, resolveScale, toNumber, type ResolvedScale } from "./conditionalFormat";
-import { pivotData, pivotFormats } from "./pivot";
+import { pivotCellDimensions, pivotData, pivotFormats } from "./pivot";
 import { SparklineCell } from "./SparklineCell";
 import { dashboardImageSrc } from "../../lib/dashboardImage";
 import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
 import { buildColumnGroups, buildColumnGroupOutline, collapsedColumnNames, type ColumnGroupState } from "./columnGroups";
 import { ColumnGroupToggle } from "./ColumnGroupToggle";
+import { useCrossFilters } from "../../hooks/useCrossFilter";
 
 interface Props {
   widget: Widget;
@@ -57,6 +58,7 @@ function alignClasses(align: TableColumn["align"], numeric: boolean) {
 }
 
 export function TableWidget({ widget, data }: Props) {
+  const interactions = useCrossFilters(widget, data);
   const [sort, setSort] = useState<SortState | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [autoColumnWidths, setAutoColumnWidths] = useState<Record<string, number>>({});
@@ -576,8 +578,26 @@ export function TableWidget({ widget, data }: Props) {
     else cell.removeAttribute("title");
   };
 
+  // Defer cell clicks so a double-click copies without also changing filters.
+  const pendingSelectRef = useRef<{ timer: number; run: () => void } | null>(null);
+  const cancelPendingSelect = () => {
+    if (pendingSelectRef.current) window.clearTimeout(pendingSelectRef.current.timer);
+    pendingSelectRef.current = null;
+  };
+  // Deferred clicks resolve against the latest filter values, not those at click time.
+  const interactionsRef = useRef(interactions);
+  useEffect(() => { interactionsRef.current = interactions; }, [interactions]);
+  // A quick click on another cell applies the earlier one instead of dropping it.
+  const flushPendingSelect = () => {
+    const pending = pendingSelectRef.current;
+    cancelPendingSelect();
+    pending?.run();
+    return !!pending;
+  };
+
   useEffect(() => () => {
     if (copiedCellTimerRef.current != null) window.clearTimeout(copiedCellTimerRef.current);
+    if (pendingSelectRef.current) window.clearTimeout(pendingSelectRef.current.timer);
   }, []);
 
   // All data columns by name → index, so cross-column rules can reference any
@@ -732,9 +752,42 @@ export function TableWidget({ widget, data }: Props) {
     ));
   };
   const trailingGroups = !pivot ? groupOutline.cells[groupOutline.cells.length - 1]?.after ?? [] : [];
+  const crossSelection = (dimensions: Record<string, unknown>, current = interactions) => {
+    const candidates = current.filter((binding) => Object.prototype.hasOwnProperty.call(dimensions, binding.field) && binding.accepts(dimensions[binding.field]));
+    const bindings = candidates.filter((binding, index) => candidates.findIndex((other) => other.filter.name === binding.filter.name) === index);
+    if (!bindings.length) return undefined;
+    const selected = bindings.every((binding) => binding.isSelected(dimensions[binding.field]));
+    return {
+      ready: bindings.every((binding) => binding.ready),
+      selected,
+      isSource: bindings.some((binding) => binding.isSource),
+      label: bindings.map((binding) => `${binding.filter.name}: ${String(dimensions[binding.field])}`).join(", "),
+      select: (confirmed = false) => {
+        if (!bindings.every((binding) => confirmed ? binding.accepts(dimensions[binding.field]) : binding.canSelect(dimensions[binding.field]))) return;
+        for (const binding of bindings) {
+          if (selected || !binding.isSelected(dimensions[binding.field])) binding.select(dimensions[binding.field], confirmed);
+        }
+      },
+    };
+  };
+  // Deferred runs re-resolve against the latest filter values; readiness was checked at click time.
+  const scheduleSelect = (dimensions: Record<string, unknown>, delay: number) => {
+    const run = () => crossSelection(dimensions, interactionsRef.current)?.select(true);
+    pendingSelectRef.current = { run, timer: window.setTimeout(() => {
+      pendingSelectRef.current = null;
+      run();
+    }, delay) };
+  };
+  // Headers and keys select at once, but after a pending click has rendered, so the last action wins.
+  const selectNow = (dimensions: Record<string, unknown>) => {
+    const flushed = flushPendingSelect();
+    const selection = crossSelection(dimensions);
+    if (!flushed) selection?.select();
+    else if (selection?.ready) scheduleSelect(dimensions, 0);
+  };
 
   return (
-    <div ref={outlineRootRef} className="w-full min-w-0 max-w-full">
+    <div ref={outlineRootRef} className="w-full min-w-0 max-w-full" onContextMenuCapture={cancelPendingSelect}>
       {!pivot && !columns.length && groupOutline.hidden.length > 0 && (
         <div role="group" aria-label="Column groups" data-dac-export-control className="flex min-h-[26px] items-start gap-1.5 overflow-x-auto px-2 py-1">
           {groupOutline.hidden.map((group) => (
@@ -811,6 +864,8 @@ export function TableWidget({ widget, data }: Props) {
               const pinGroup = !pivot ? columnGroupsByMember.get(col.name) : undefined;
               const pinnable = !pinGroup || pinGroup.summary === col.name;
               const pinTarget = pinGroup ? `${pinGroup.name} column group for ${col.label}` : `${col.label} column`;
+              const headerDimensions = pivot ? pivot.columnDimensions[col.idx] ?? {} : undefined;
+              const selection = headerDimensions && crossSelection(headerDimensions);
               return (
                 <th
                   key={col.name}
@@ -828,8 +883,11 @@ export function TableWidget({ widget, data }: Props) {
                 >
                   <button
                     type="button"
-                    onClick={sortable ? () => handleHeaderClick(col.name) : undefined}
-                    className={`group w-full min-w-0 flex items-center gap-1 py-2 pl-4 ${pivot || !pinnable ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active ? "text-[var(--dac-text-primary)]" : ""} ${sortable ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    onClick={selection && headerDimensions ? () => selectNow(headerDimensions) : sortable ? () => handleHeaderClick(col.name) : undefined}
+                    aria-label={selection ? `${col.label}, filter ${selection.label}` : undefined}
+                    aria-pressed={selection ? selection.selected : undefined}
+                    aria-disabled={selection && !selection.ready ? true : undefined}
+                    className={`group w-full min-w-0 flex items-center gap-1 py-2 pl-4 ${pivot || !pinnable ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active || (selection?.isSource && selection.selected) ? "text-[var(--dac-text-primary)]" : ""} ${sortable || selection?.ready ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                     style={columnWidthStyle(col)}
                   >
                     <span
@@ -917,6 +975,9 @@ export function TableWidget({ widget, data }: Props) {
                 const frozen = frozenStyle(ci, false);
                 const tdStyle = { ...columnWidthStyle(col), ...frozen, ...style };
                 const displayValue = formatCell(raw, col.number, numberFormatters.get(col.name));
+                // Stay focusable while a refetch is pending so keyboard focus is kept.
+                const dimensions = pivot ? pivotCellDimensions(pivot, i, col.idx) : { [col.name]: raw };
+                const selectable = crossSelection(dimensions);
                 return (
                   <td
                     key={col.name}
@@ -927,13 +988,35 @@ export function TableWidget({ widget, data }: Props) {
                   >
                     <div
                       data-column-value={col.type === undefined || col.type === "text" ? "" : undefined}
-                      className="relative box-border w-full min-w-0 py-1.5 px-4 whitespace-nowrap overflow-hidden text-ellipsis"
+                      className={`relative box-border w-full min-w-0 py-1.5 px-4 whitespace-nowrap overflow-hidden text-ellipsis ${selectable?.ready ? "cursor-pointer" : ""} ${selectable?.isSource && selectable.selected ? "font-semibold" : ""}`}
+                      onClick={selectable ? (event) => {
+                        // Double-clicks copy and drags select text; neither should filter.
+                        if (event.detail > 1 || window.getSelection()?.isCollapsed === false) {
+                          cancelPendingSelect();
+                          return;
+                        }
+                        flushPendingSelect();
+                        // Readiness is checked now: a flushed click may start a refetch before this one runs.
+                        if (selectable.ready) scheduleSelect(dimensions, 250);
+                      } : undefined}
+                      role={selectable ? "button" : undefined}
+                      tabIndex={selectable ? 0 : undefined}
+                      aria-disabled={selectable && !selectable.ready ? true : undefined}
+                      aria-pressed={selectable ? selectable.selected : undefined}
+                      aria-label={selectable ? `${displayValue}, filter ${selectable.label}` : undefined}
+                      onKeyDown={selectable ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          selectNow(dimensions);
+                        }
+                      } : undefined}
                       style={columnWidthStyle(col)}
                       onMouseEnter={(event) => (col.type === undefined || col.type === "text") && updateCellTooltip(event.currentTarget, displayValue)}
                       onDoubleClick={
                         col.type === undefined || col.type === "text"
                           ? (event) => {
                               event.preventDefault();
+                              cancelPendingSelect();
                               copyCell(displayValue, `${i}:${col.idx}`);
                             }
                           : undefined
