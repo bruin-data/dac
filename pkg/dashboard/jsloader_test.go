@@ -11,6 +11,37 @@ import (
 // TSX loader tests
 // ---------------------------------------------------------------------------
 
+func TestLoadTSXFile_WidgetCrossFilter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mapping.dashboard.tsx")
+	source := `export default (
+      <Dashboard name="Mappings">
+        <Filter name="region" type="select" />
+        <Row><Table name="Results" sql="SELECT customer_region FROM customers"
+          crossFilter={[{ field: "customer_region", filter: "region" }]} /></Row>
+      </Dashboard>
+    )`
+	assertNoErr(t, os.WriteFile(path, []byte(source), 0o600))
+	d, err := LoadTSXFile(path)
+	assertNoErr(t, err)
+	assertNoErr(t, Validate(d))
+	mappings := d.Rows[0].Widgets[0].CrossFilter
+	if len(mappings) != 1 || mappings[0].Field != "customer_region" || mappings[0].Filter != "region" {
+		t.Fatalf("lost TSX mappings: %+v", mappings)
+	}
+	for _, raw := range []any{true, map[string]any{"dimensions": []any{"customer_region"}}, []any{}, []any{map[string]any{"field": 123, "filter": "region"}}, []any{map[string]any{"field": "region", "filter": "region", "extra": true}}} {
+		w := vnodeToWidget(&vnode{Tag: "Table", Props: map[string]any{"name": "Results", "sql": "SELECT region FROM customers", "crossFilter": raw}})
+		d.Rows[0].Widgets[0] = w
+		assertValidationContains(t, Validate(d), "crossFilter")
+	}
+	if w := vnodeToWidget(&vnode{Tag: "Table", Props: map[string]any{"crossFilter": nil}}); w.CrossFilter != nil {
+		t.Fatal("undefined crossFilter must mean automatic matching")
+	}
+	legacy := strings.Replace(source, `<Filter name="region" type="select" />`, `<Filter name="region" type="select" crossFilter={{ dimensions: ["customer_region"] }} />`, 1)
+	assertNoErr(t, os.WriteFile(path, []byte(legacy), 0o600))
+	_, err = LoadTSXFile(path)
+	assertErr(t, err)
+}
+
 func TestVnodeToFilter_Tab(t *testing.T) {
 	f := vnodeToFilter(&vnode{Props: map[string]interface{}{
 		"name": "cohort",

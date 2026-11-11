@@ -10,6 +10,7 @@ export interface DataClient {
     dashboardName: string,
     widgetId: string,
     filters?: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<WidgetData>;
   fetchFilterOptions(
     dashboardName: string,

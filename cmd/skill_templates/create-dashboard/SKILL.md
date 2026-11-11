@@ -248,7 +248,21 @@ Select filters support `multiple: true` for multi-select. The value is a list â€
 {% endif %}
 ```
 
-Filter values are kept in the URL query string, so you can share a filtered dashboard as a link. Each filter becomes one query parameter named after it, for example `?region=Europe&date_range=last_30_days`. When a select has `multiple: true` the values are comma separated, and a `date-range` is either a preset key or `start..end`. Anything read from the URL is checked against the filter's type and options, and ignored if it doesn't match.
+Filter values are kept in the URL query string, so you can share a filtered dashboard as a link. Each filter becomes one query parameter named after it, for example `?region=Europe&date_range=last_30_days`. When a select has `multiple: true` each value is a repeated parameter (`?region=Europe&region=APAC`), and a `date-range` is either a preset key or `start..end`. Anything read from the URL is checked against the filter's type and options, and ignored if it doesn't match.
+
+### Cross Filtering
+
+Click chart/table/pivot dimensions to update same-named filters. Put explicit mappings on each widget when names differ; this list replaces automatic matching:
+
+```yaml
+crossFilter:
+  - field: customer_region
+    filter: region
+  - field: sales_channel
+    filter: channel
+```
+
+`field` is a returned dimension; `filter` is an existing dashboard filter. In TSX, use `crossFilter={[{ field: "customer_region", filter: "region" }]}` on the widget. Receiving queries use `filters.<name>`. All charts except histogram/gauge support dimension clicks, including Vega-Lite marks with directly encoded scalar fields. Heatmap cells and Sankey links can select both dimensions. Drag line/area charts to select dates; calendar, candlestick, sparkline and XmR points select one day. Click again to undo; **Reset filters** restores defaults. For multi-select, use `multiple: true` and `default: []`.
 
 ## Current Viewer (`bruin.user_email`)
 

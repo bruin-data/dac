@@ -37,7 +37,7 @@ import { DataClientProvider, type DataClient } from "@bruin-data/dac-ui";
 const client: DataClient = {
   listDashboards: async () => [...],
   getDashboard: async (name) => {...},
-  fetchWidgetData: async (dashboardName, widgetId, filters) => ({ columns: [{ name: "revenue" }], rows: [[1200]] }),
+  fetchWidgetData: async (dashboardName, widgetId, filters, signal) => ({ columns: [{ name: "revenue" }], rows: [[1200]] }),
   fetchFilterOptions: async (dashboardName, filterName, filters) => ["EU", "US"],
 };
 
@@ -68,7 +68,7 @@ function Dashboard({ name }: { name: string }) {
 
   return (
     <TemplateProvider template={bruinDarkTemplate} className="h-full">
-      <BruinFilterBar filters={filterDefs} values={values} onChange={(n, v) => setFilters({ ...values, [n]: v })} />
+      <BruinFilterBar filters={filterDefs} values={values} onChange={(n, v) => setFilters((prev) => ({ ...(prev ?? values), [n]: v }))} />
       {dashboard.rows.map((row, i) => (
         <BruinRow key={i} height={row.height}>
           {row.widgets.map((widget, j) => {
@@ -91,7 +91,7 @@ Render it as `<Dashboard key={name} name={name} />` so filter state resets when 
 
 `TemplateProvider` takes the same templates and tokens as [themes](./themes.md). Its `className` replaces the default `min-h-screen` sizing.
 
-The individual widgets (`ChartWidget`, `TableWidget`, `MetricWidget`, `TextWidget`) take `{ widget, data }` and can be rendered on their own.
+The individual widgets (`ChartWidget`, `TableWidget`, `MetricWidget`, `TextWidget`) take `{ widget, data }` and can be rendered on their own. `DataWidget` handles fetching and rendering. Cross filtering is available in `dac serve` only; composed dashboards render widgets without click selections.
 
 ## Content Security Policy
 

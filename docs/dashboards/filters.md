@@ -196,6 +196,27 @@ A filter's `tab` must match a tab some row uses — `dac validate` and Bruin Clo
 | `year_to_date` | January 1 to today |
 | `all_time` | 1970-01-01 to 2099-12-31 |
 
+## Cross Filtering
+
+Click a chart, table, or pivot dimension to update a filter. Names match by default. Add `crossFilter` to a widget to use only its explicit field/filter pairs:
+
+```yaml
+rows:
+  - widgets:
+      - name: Sales Breakdown
+        type: table
+        sql: SELECT customer_region, sales_channel FROM sales
+        crossFilter:
+          - field: customer_region
+            filter: region
+          - field: sales_channel
+            filter: channel
+```
+
+`field` is the returned dimension; `filter` names an existing dashboard filter. A field must be used by the chart and present in its results; missing or unused fields do not emit selections. Mappings apply only to their widget, including individual widget tabs. Receiving queries use `filters.<name>` to narrow results.
+
+For multi-select, use `multiple: true` and `default: []` on the filter. Drag across line/area charts to select dates; calendar, candlestick, sparkline and XmR points can select one day. Only those charts can target a `date-range` filter, and only through their `x` field; `dac validate` rejects any other date-range mapping. All chart types except histogram and gauge support dimension clicks; Vega-Lite requires a directly encoded scalar field on the clicked mark. See [chart behavior](/dashboards/widgets#cross-filtering). Click the **filter icon with a small × badge** beside a widget title to clear that widget's selections and restore its previous filter values; other widgets' selections remain. Click again or click empty chart space also undoes a selection. **Reset filters** restores defaults. Clicks in other widgets add to or remove from a multi-select without moving its origin. Manual changes replace that filter's widget selection; definition reloads and external URL changes forget click origins. Pivot totals and static exports are non-interactive.
+
 ## Sharing Filter State via URL
 
 Filter values are reflected in the page's URL query string. Each filter is one query parameter keyed by its `name`:

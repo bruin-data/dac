@@ -1,6 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import { getStaticPayload } from "../api/client";
 import { dataClientKey, useDataClient } from "../api/dataClient";
+import { queryFilterReferences } from "../lib/crossFilter";
 import type { Dashboard, Filter } from "../types/dashboard";
 
 /** Resolve options independently so a slow or failed filter query never blocks widgets. */
@@ -55,10 +56,7 @@ function optionQueryDependencies(
   filters: Filter[],
   values: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  const dependencies = new Set(
-    [...query.matchAll(/\bfilters\s*(?:\.\s*([A-Za-z_]\w*)|\[\s*(["'])(.*?)\2\s*\])/g)]
-      .map((match) => match[1] ?? match[3]),
-  );
+  const dependencies = queryFilterReferences({ sql: query });
   return Object.fromEntries(filters.filter((filter) => dependencies.has(filter.name)).map((filter) => [
     filter.name, values[filter.name] !== undefined ? values[filter.name] : filter.default,
   ]));

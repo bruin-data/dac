@@ -79,6 +79,9 @@ export interface Widget {
   col?: number;
   height?: number | string;
 
+  /** Explicit dimension-to-filter pairs; omit for automatic same-name matching. */
+  crossFilter?: { field: string; filter: string }[];
+
   // Sub-views of a `type: tabs` widget; each tab is a complete widget.
   // Each tab is a complete widget (own type/chart).
   tabs?: Widget[];

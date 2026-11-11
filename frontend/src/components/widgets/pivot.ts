@@ -26,6 +26,19 @@ export interface PivotResult {
   columnKinds: string[];
   rowKinds: string[];
   columnValues: (number | null)[];
+  rowDimensions: Record<string, unknown>[];
+  columnDimensions: Record<string, unknown>[];
+}
+
+/** Raw dimension coordinates, never the formatted headers or aggregated values. */
+export function pivotCellDimensions(result: PivotResult, row: number, column: number): Record<string, unknown> {
+  if (result.rowKinds[row] !== "leaf" || result.rows[row]?.[column] == null) return {};
+  if (result.columnKinds[column] === "label") {
+    const field = result.columns[column];
+    return result.rows[row][column] === "" ? {} : { [field]: result.rowDimensions[row][field] };
+  }
+  return result.columnKinds[column] === "leaf"
+    ? { ...result.rowDimensions[row], ...result.columnDimensions[column] } : {};
 }
 
 /** Carry each measure's format to its generated leaf, subtotal and total columns. */
@@ -205,12 +218,13 @@ export function pivotData(columns: string[], rows: unknown[][], pivot: PivotConf
     const base = seg.kind === "subtotal" ? `${seg.path[seg.path.length - 1]} Total` : seg.path.join(LABEL_SEP);
     return valDefs.length > 1 ? `${base} — ${valueLabel(v)}` : base;
   };
-  const colUnits: { cks: string[]; i: number; header: string; kind: string }[] = [];
+  const colUnits: { cks: string[]; i: number; header: string; kind: string; dimensions: Record<string, unknown> }[] = [];
   for (const seg of axisSegments(orderedColKeys, colKeyVals, colDefs)) {
-    valDefs.forEach((v, i) => colUnits.push({ cks: seg.keys, i, header: colHeader(seg, v), kind: seg.kind }));
+    const dimensions = seg.kind === "leaf" ? Object.fromEntries(colDefs.map((field, i) => [field.field, seg.path[i]])) : {};
+    valDefs.forEach((v, i) => colUnits.push({ cks: seg.keys, i, header: colHeader(seg, v), kind: seg.kind, dimensions }));
   }
   if (showColTotals) {
-    valDefs.forEach((v, i) => colUnits.push({ cks: orderedColKeys, i, header: valDefs.length > 1 ? `Grand Total — ${valueLabel(v)}` : "Grand Total", kind: "grandtotal" }));
+    valDefs.forEach((v, i) => colUnits.push({ cks: orderedColKeys, i, header: valDefs.length > 1 ? `Grand Total — ${valueLabel(v)}` : "Grand Total", kind: "grandtotal", dimensions: {} }));
   }
 
   // Uniquify headers so duplicate value labels / total-named data don't collide.
@@ -250,5 +264,8 @@ export function pivotData(columns: string[], rows: unknown[][], pivot: PivotConf
   });
   const rowKinds = rowSegs.map((seg) => seg.kind || "leaf");
 
-  return { columns: outColumns, rows: outRows, columnKinds, rowKinds, columnValues };
+  const rowDimensions = rowSegs.map((seg) => seg.kind === "leaf"
+    ? Object.fromEntries(rowDefs.map((field, i) => [field.field, seg.path[i]])) : {});
+  const columnDimensions = [...rowDefs.map(() => ({})), ...colUnits.map((unit) => unit.dimensions)];
+  return { columns: outColumns, rows: outRows, columnKinds, rowKinds, columnValues, rowDimensions, columnDimensions };
 }

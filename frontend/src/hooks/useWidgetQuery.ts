@@ -16,7 +16,7 @@ export function useWidgetQuery(
   const client = useDataClient();
   return useQuery<WidgetData>({
     queryKey: ["widget-data", dashboardName, widgetId, filters, dataClientKey(client)],
-    queryFn: () => client.fetchWidgetData(dashboardName, widgetId, filters),
+    queryFn: ({ signal }) => client.fetchWidgetData(dashboardName, widgetId, filters, signal),
     enabled: enabled && !!dashboardName && !!widgetId,
     placeholderData: keepPreviousData,
   });
