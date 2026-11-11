@@ -318,15 +318,68 @@ func TestRun_EmbeddedHelpUsesHostName(t *testing.T) {
 }
 
 func TestSkillRefreshHint(t *testing.T) {
-	if got := skillRefreshHint(NewApp(BuildInfo{})); !strings.Contains(got, "`dac upgrade`") {
-		t.Fatalf("standalone hint should point at dac upgrade, got %q", got)
+	standalone := skillRefreshHint(NewApp(BuildInfo{}))("/work/project")
+	if standalone != "Run `dac upgrade` to update the CLI and refresh your project's copy." {
+		t.Fatalf("standalone hint changed, got %q", standalone)
 	}
 
 	app := NewApp(BuildInfo{Embedded: true})
 	app.Name = "bruin dac"
-	got := skillRefreshHint(app)
-	if !strings.Contains(got, "`bruin dac skills update`") || strings.Contains(got, "upgrade") {
-		t.Fatalf("embedded hint should point at bruin dac skills update, got %q", got)
+	hint := skillRefreshHint(app)
+	if got := hint("/work/project"); got != "Run `bruin dac skills update --dir /work/project` to refresh your project's copy." {
+		t.Fatalf("unexpected embedded hint %q", got)
+	}
+	if got := hint("/work/my project"); !strings.Contains(got, "--dir '/work/my project'`") {
+		t.Fatalf("embedded hint should quote paths with spaces, got %q", got)
+	}
+}
+
+// Following the embedded notice from a dashboard subdirectory must refresh the
+// stale copy in the project root, not install a second copy in the subdirectory.
+func TestEmbeddedSkillNoticeFromSubdirUpdatesProjectRoot(t *testing.T) {
+	root := t.TempDir()
+	skillPath := filepath.Join(root, ".claude", "skills", "create-dashboard", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(skillPath, []byte("---\nname: create-dashboard\n---\nold body"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dashboards := filepath.Join(root, "dashboards")
+	if err := os.MkdirAll(dashboards, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	app := NewApp(BuildInfo{Embedded: true})
+	app.Name = "bruin dac"
+	notices := skillUpdateNotices(dashboards, skillRefreshHint(app))
+	if len(notices) != 1 {
+		t.Fatalf("expected 1 notice, got %v", notices)
+	}
+	_, after, _ := strings.Cut(notices[0], "Run `")
+	command, _, _ := strings.Cut(after, "`")
+	fields := strings.Fields(command)
+	if len(fields) < 3 || strings.Join(fields[:2], " ") != "bruin dac" {
+		t.Fatalf("unexpected hint command %q", command)
+	}
+
+	t.Chdir(dashboards)
+	args := append([]string{"bruin dac"}, fields[2:]...)
+	captureStdout(t, func() {
+		if err := Run(context.Background(), args, nil, BuildInfo{Embedded: true}); err != nil {
+			t.Fatalf("%v failed: %v", args, err)
+		}
+	})
+
+	data, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != createDashboardSkill {
+		t.Fatalf("project root skill was not refreshed")
+	}
+	if _, err := os.Stat(filepath.Join(dashboards, ".claude")); !os.IsNotExist(err) {
+		t.Fatalf("hint installed a second skill copy in the dashboard dir (err=%v)", err)
 	}
 }
 

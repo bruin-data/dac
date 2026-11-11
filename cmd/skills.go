@@ -268,9 +268,10 @@ func selectSkills(names []string) ([]bundledSkill, error) {
 // dashboard directory; the project root (the nearest ancestor containing a
 // .claude directory) is discovered by walking upward. Skills that are not
 // installed produce no notice — there is nothing to update. This is passive:
-// it never modifies files. `dac upgrade` performs the actual update. hint is
-// the follow-up instruction appended to each notice (see skillRefreshHint).
-func skillUpdateNotices(startDir, hint string) []string {
+// it never modifies files. `dac upgrade` performs the actual update. hint
+// builds the follow-up instruction appended to each notice from the discovered
+// project root (see skillRefreshHint).
+func skillUpdateNotices(startDir string, hint func(root string) string) []string {
 	root, ok := findProjectRoot(startDir)
 	if !ok {
 		return nil
@@ -284,7 +285,7 @@ func skillUpdateNotices(startDir, hint string) []string {
 			continue
 		}
 		if parseSkillVersion(skill.Content) > parseSkillVersion(string(data)) {
-			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\n%s", skill.Name, hint))
+			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\n%s", skill.Name, hint(root)))
 		}
 	}
 	return notices
@@ -292,12 +293,28 @@ func skillUpdateNotices(startDir, hint string) []string {
 
 // skillRefreshHint tells the user how to refresh a stale skill. Standalone dac
 // points at `dac upgrade`; an embedded build has no upgrade command (the host
-// binary ships the newer skill), so it points at `skills update` instead.
-func skillRefreshHint(cmd *cli.Command) string {
+// binary ships the newer skill), so it points at `skills update` instead. That
+// command writes into --dir without walking upward, so the hint names the
+// project root where the stale copy was found, not the dashboard directory.
+func skillRefreshHint(cmd *cli.Command) func(root string) string {
 	if buildInfoFrom(cmd).Embedded {
-		return fmt.Sprintf("Run `%s skills update` to refresh your project's copy.", cmd.Root().Name)
+		program := cmd.Root().Name
+		return func(root string) string {
+			return fmt.Sprintf("Run `%s skills update --dir %s` to refresh your project's copy.", program, shellQuote(root))
+		}
 	}
-	return "Run `dac upgrade` to update the CLI and refresh your project's copy."
+	return func(string) string {
+		return "Run `dac upgrade` to update the CLI and refresh your project's copy."
+	}
+}
+
+// shellQuote single-quotes s for a POSIX shell unless it is made only of
+// characters that never need quoting.
+func shellQuote(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-+:@") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // printSkillUpdateNotices writes skill staleness notices to stderr so they
