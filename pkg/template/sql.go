@@ -176,12 +176,10 @@ func captureSQLExpressions(source, capture, list string) (string, error) {
 		token := stream.Current()
 		switch token.Type {
 		case tokens.BlockBegin:
-			if next := stream.Peek(); next == nil || next.Type != tokens.Name || !sqlTags[next.Val] {
-				name := ""
-				if next != nil {
-					name = next.Val
-				}
-				return "", fmt.Errorf("{%% %s %%} blocks are not supported in SQL templates", name)
+			if next := stream.Peek(); next == nil || next.Type != tokens.Name {
+				return "", fmt.Errorf("SQL template blocks must start with a tag name")
+			} else if !sqlTags[next.Val] {
+				return "", fmt.Errorf("{%% %s %%} blocks are not supported in SQL templates", next.Val)
 			}
 		case tokens.VariableBegin:
 			start = token.Pos + len(token.Val)

@@ -121,7 +121,7 @@ Examples:
 
 SQL queries are processed through Jinja before execution. Semantic filter values are also templated before the backend compiles them to SQL. Server-side SQL rendering confines template outputs to numeric values or ordinary single-quoted string literals; dynamic identifiers and SQL fragments are rejected. SQL templates cannot load additional templates through Jinja `include`, `import`, or `extends`; use the dashboard query `file` field for external SQL files. See [filter validation and SQL safety](/dashboards/filters#server-validation-and-sql-safety) for supported values and migration restrictions.
 
-Templating follows Python Jinja2: `or` and `and` return one of their operands, so outputting `filters.region or 'All'` renders the selected region, or `All` when it is empty. Loops expose `loop.length`, `loop.previtem`, `loop.nextitem`, `loop.cycle(...)`, `loop.changed(...)` and `loop.depth`. Templated text renders `\r\n` line endings as `\n`. Templated semantic filter values drop one trailing newline; SQL keeps it. SQL without Jinja tags is sent unchanged.
+Templating follows Python Jinja2: `or` and `and` return one of their operands, so outputting `filters.region or 'All'` renders the selected region, or `All` when it is empty. Loops expose `loop.length`, `loop.previtem`, `loop.nextitem`, `loop.cycle(...)`, `loop.changed(...)` and `loop.depth`. Templated text renders `\r\n` and `\r` line endings as `\n`. Templated semantic filter values drop one trailing newline; SQL keeps it. SQL without Jinja tags is sent unchanged.
 
 ### Variable Interpolation
 

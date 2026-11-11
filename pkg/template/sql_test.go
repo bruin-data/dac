@@ -114,6 +114,11 @@ func TestRenderSQLRejectsUnsafeOutputs(t *testing.T) {
 		{"call macro", `{% macro m() %}{{ caller() }}{% endmacro %}SELECT {% call m() %}{{ filters.x }}{% endcall %}`, "1=1 OR true"},
 		{"do", "SELECT 1 {% do filters.x %}", "private"},
 		{"trans", "SELECT '{% trans v=filters.x %}{{ v }}{% endtrans %}'", "private"},
+		{"whitespace-controlled call", "SELECT * FROM t WHERE id = {%- call filters.x.strip() -%}{%- endcall %}", "0 UNION SELECT secret FROM private"},
+		{"unknown tag", "SELECT {% custom filters.x %}", "private"},
+		{"nameless tag", "SELECT {% 'x' %}", "private"},
+		{"comment tag", "SELECT 1 {% comment %}{{ filters.x }}{% endcomment %}", "private"},
+		{"import", "{% from 'x' import y %}SELECT '{{ filters.x }}'", "private"},
 		// Offsets from a lexer that read each "\r\n" as "\n" once fell short of
 		// the output, leaving it uncaptured, with the capture call in the comment.
 		{"crlf lines before jinja comment", strings.Repeat("-- header\r\n", 20) + "SELECT * FROM t WHERE id = {# id from the filter bar #}{{ filters.x }}", "0 UNION SELECT secret FROM private"},
