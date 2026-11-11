@@ -189,7 +189,7 @@ func TestSkillUpdateNotices_FlagsButDoesNotModify(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	notices := skillUpdateNotices(dir)
+	notices := skillUpdateNotices(dir, skillRefreshHint(NewApp(BuildInfo{Version: "test"})))
 	if len(notices) != 1 {
 		t.Fatalf("expected 1 notice, got %d: %v", len(notices), notices)
 	}

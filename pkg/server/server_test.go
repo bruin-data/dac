@@ -184,3 +184,40 @@ metrics:
 
 	assertEqual(t, w.Code, http.StatusOK)
 }
+
+func TestNew_BruinPathRunsQueriesThroughConfiguredBinary(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "args.log")
+	bruinPath := filepath.Join(dir, "host-bruin")
+	script := `#!/bin/sh
+printf '%s\n' "$@" >> "` + logPath + `"
+printf '{"columns":[{"name":"n","type":"INTEGER"}],"rows":[[1]]}'
+`
+	if err := os.WriteFile(bruinPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing named bruin is reachable on PATH.
+	t.Setenv("PATH", t.TempDir())
+
+	s, err := New(Config{
+		DashboardDir: "../../testdata/dashboards",
+		TemplateName: "bruin",
+		BruinPath:    bruinPath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/query", strings.NewReader(`{"connection":"warehouse","sql":"SELECT 99"}`))
+	w := httptest.NewRecorder()
+	s.mux.ServeHTTP(w, req)
+
+	assertEqual(t, w.Code, http.StatusOK)
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("configured bruin was not called: %v", err)
+	}
+	if !strings.Contains(string(data), "-q\nSELECT 99\n") {
+		t.Fatalf("unexpected bruin args:\n%s", data)
+	}
+}

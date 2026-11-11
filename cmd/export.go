@@ -61,6 +61,7 @@ func exportSlidesCmd() *cli.Command {
 				Filters:      filters,
 				ConfigFile:   configFile,
 				Environment:  cmd.Root().String("environment"),
+				BruinPath:    buildInfoFrom(cmd).BruinPath,
 			})
 			if err != nil {
 				return err

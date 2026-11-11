@@ -47,12 +47,15 @@ func initCmd() *cli.Command {
 			if cmd.Args().Len() > 0 {
 				target = cmd.Args().First()
 			}
-			return runInit(target, cmd.String("template"), cmd.Bool("force"))
+			return runInit(target, cmd.String("template"), cmd.Bool("force"), cmd.Root().Name, buildInfoFrom(cmd).BruinPath == "")
 		},
 	}
 }
 
-func runInit(target, template string, force bool) error {
+// runInit scaffolds a project. program is the command users type to run dac
+// ("dac", or e.g. "bruin dac" when embedded) and is used in the printed next
+// steps; bruinOnPath adds the reminder that live queries need bruin on PATH.
+func runInit(target, template string, force bool, program string, bruinOnPath bool) error {
 	template = normalizeInitTemplate(template)
 	telemetry.SetTemplateName(template)
 	telemetry.SendEvent("template_selected", analytics.Properties{
@@ -121,10 +124,12 @@ func runInit(target, template string, force bool) error {
 	fmt.Println()
 	fmt.Println("Next steps:")
 	fmt.Printf("  cd %s\n", shellPath(target))
-	fmt.Println("  dac validate --dir .")
-	fmt.Println("  dac serve --dir . --open")
-	fmt.Println()
-	fmt.Println("If you want to execute live queries, make sure the Bruin CLI is installed and on your PATH.")
+	fmt.Printf("  %s validate --dir .\n", program)
+	fmt.Printf("  %s serve --dir . --open\n", program)
+	if bruinOnPath {
+		fmt.Println()
+		fmt.Println("If you want to execute live queries, make sure the Bruin CLI is installed and on your PATH.")
+	}
 
 	return nil
 }

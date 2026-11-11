@@ -48,6 +48,20 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           TELEMETRY_KEY: ${{ secrets.TELEMETRY_KEY }}
 
+      # Package the exact base:"/" frontend the release binaries embed (built by
+      # the goreleaser before hooks into frontend/dist) so embedding binaries,
+      # e.g. `bruin dac`, can bundle the same UI. Must run before any other step
+      # rebuilds frontend/dist.
+      - name: Upload standalone frontend for embedding binaries
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          test -f frontend/dist/index.html || { echo "frontend/dist/index.html missing after goreleaser" >&2; exit 1; }
+          tar -czf dac-frontend-standalone.tar.gz -C frontend/dist .
+          sha256sum dac-frontend-standalone.tar.gz > dac-frontend-standalone.tar.gz.sha256
+          gh release upload "${{ github.ref_name }}" dac-frontend-standalone.tar.gz dac-frontend-standalone.tar.gz.sha256 --clobber
+
       # Build the relative-path embed variant for the Bruin VS Code extension
       # and attach it as a release asset (separate from the binary's base:"/" build).
       - name: Build & upload embed frontend for the VS Code extension

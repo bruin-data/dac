@@ -26,7 +26,8 @@ type Config struct {
 	TemplateName string
 	ConfigFile   string
 	Environment  string
-	Frontend     fs.FS // embedded frontend FS
+	BruinPath    string // bruin binary for queries; empty means "bruin" on PATH
+	Frontend     fs.FS  // embedded frontend FS
 }
 
 // Build produces a self-contained static directory for a single dashboard.
@@ -58,6 +59,7 @@ func Build(ctx context.Context, cfg Config) error {
 
 	// Create query backend.
 	backend := &query.BruinCLIBackend{
+		BruinPath:   cfg.BruinPath,
 		ConfigFile:  cfg.ConfigFile,
 		Environment: cfg.Environment,
 	}

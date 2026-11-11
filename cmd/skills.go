@@ -268,8 +268,9 @@ func selectSkills(names []string) ([]bundledSkill, error) {
 // dashboard directory; the project root (the nearest ancestor containing a
 // .claude directory) is discovered by walking upward. Skills that are not
 // installed produce no notice — there is nothing to update. This is passive:
-// it never modifies files. `dac upgrade` performs the actual update.
-func skillUpdateNotices(startDir string) []string {
+// it never modifies files. `dac upgrade` performs the actual update. hint is
+// the follow-up instruction appended to each notice (see skillRefreshHint).
+func skillUpdateNotices(startDir, hint string) []string {
 	root, ok := findProjectRoot(startDir)
 	if !ok {
 		return nil
@@ -283,16 +284,26 @@ func skillUpdateNotices(startDir string) []string {
 			continue
 		}
 		if parseSkillVersion(skill.Content) > parseSkillVersion(string(data)) {
-			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\nRun `dac upgrade` to update the CLI and refresh your project's copy.", skill.Name))
+			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\n%s", skill.Name, hint))
 		}
 	}
 	return notices
 }
 
+// skillRefreshHint tells the user how to refresh a stale skill. Standalone dac
+// points at `dac upgrade`; an embedded build has no upgrade command (the host
+// binary ships the newer skill), so it points at `skills update` instead.
+func skillRefreshHint(cmd *cli.Command) string {
+	if buildInfoFrom(cmd).Embedded {
+		return fmt.Sprintf("Run `%s skills update` to refresh your project's copy.", cmd.Root().Name)
+	}
+	return "Run `dac upgrade` to update the CLI and refresh your project's copy."
+}
+
 // printSkillUpdateNotices writes skill staleness notices to stderr so they
 // stay out of any machine-readable stdout.
-func printSkillUpdateNotices(startDir string) {
-	for _, notice := range skillUpdateNotices(startDir) {
+func printSkillUpdateNotices(cmd *cli.Command, startDir string) {
+	for _, notice := range skillUpdateNotices(startDir, skillRefreshHint(cmd)) {
 		fmt.Fprintln(os.Stderr, notice)
 	}
 }

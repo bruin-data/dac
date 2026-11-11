@@ -43,6 +43,7 @@ type Config struct {
 	Filters      map[string]any
 	ConfigFile   string
 	Environment  string
+	BruinPath    string // bruin binary for queries; empty means "bruin" on PATH
 }
 
 // Export creates a Google Slides presentation from a dashboard and returns its URL.
@@ -62,6 +63,7 @@ func Export(ctx context.Context, cfg Config) (string, error) {
 
 	// Execute queries.
 	backend := &query.BruinCLIBackend{
+		BruinPath:   cfg.BruinPath,
 		ConfigFile:  cfg.ConfigFile,
 		Environment: cfg.Environment,
 	}

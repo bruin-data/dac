@@ -14,7 +14,7 @@ func TestInitCommand_CreatesStarterProject(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "starter")
 
 	output := captureStdout(t, func() {
-		if err := runInit(dir, "starter", false); err != nil {
+		if err := runInit(dir, "starter", false, "dac", true); err != nil {
 			t.Fatalf("init failed: %v", err)
 		}
 	})
@@ -60,7 +60,7 @@ func TestInitCommand_CreatesStarterProject(t *testing.T) {
 func TestInitCommand_SQLTemplateSkipsSemanticFiles(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "sql")
 
-	if err := runInit(dir, "sql", false); err != nil {
+	if err := runInit(dir, "sql", false, "dac", true); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "dashboards/sales.yml")); err != nil {
@@ -104,7 +104,7 @@ func TestInitCommand_RefusesOverwriteWithoutForce(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	err := runInit(dir, "starter", false)
+	err := runInit(dir, "starter", false, "dac", true)
 	if err == nil {
 		t.Fatal("expected overwrite conflict")
 	}
@@ -120,7 +120,7 @@ func TestInitCommand_ForceOverwritesScaffoldFiles(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	if err := runInit(dir, "starter", true); err != nil {
+	if err := runInit(dir, "starter", true, "dac", true); err != nil {
 		t.Fatalf("init --force failed: %v", err)
 	}
 	data, err := os.ReadFile(path)
@@ -139,7 +139,7 @@ func TestInitCommand_RefusesSkillOverwriteWithoutForce(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	err := runInit(dir, "starter", false)
+	err := runInit(dir, "starter", false, "dac", true)
 	if err == nil {
 		t.Fatal("expected overwrite conflict")
 	}
@@ -155,7 +155,7 @@ func TestInitCommand_ForceReplacesCodexSkillDirectoryWithSymlink(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	if err := runInit(dir, "starter", true); err != nil {
+	if err := runInit(dir, "starter", true, "dac", true); err != nil {
 		t.Fatalf("init --force failed: %v", err)
 	}
 	assertCodexSkillSymlink(t, dir)
