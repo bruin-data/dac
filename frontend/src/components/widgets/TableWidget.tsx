@@ -599,6 +599,19 @@ export function TableWidget({ widget, data }: Props) {
     if (copiedCellTimerRef.current != null) window.clearTimeout(copiedCellTimerRef.current);
     if (pendingSelectRef.current) window.clearTimeout(pendingSelectRef.current.timer);
   }, []);
+  // Pressing anything outside the table (a reset, the filter bar, another widget) applies a
+  // pending click first, so the later action wins instead of being undone by the timer.
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      const pending = pendingSelectRef.current;
+      if (!pending || outlineRootRef.current?.contains(event.target as Node)) return;
+      window.clearTimeout(pending.timer);
+      pendingSelectRef.current = null;
+      pending.run();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, []);
 
   // All data columns by name → index, so cross-column rules can reference any
   // column (even ones not shown).

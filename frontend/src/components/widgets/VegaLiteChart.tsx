@@ -83,6 +83,37 @@ function isObject(value: unknown): value is JSONObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+const DATUM_FIELD = /datum\[\s*"((?:\\.|[^"\\])*)"\s*\]|datum\[\s*'((?:\\.|[^'\\])*)'\s*\]|datum\.([A-Za-z_$][\w$]*)/g;
+
+/** Fields each compiled mark encodes, so a click in one view never selects another view's dimensions. */
+function compiledMarkFields(vgSpec: unknown): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  const collect = (value: unknown, fields: Set<string>) => {
+    if (Array.isArray(value)) value.forEach((entry) => collect(entry, fields));
+    if (!isObject(value)) return;
+    // Field accessors and expression strings escape literal dots; datums don't.
+    if (typeof value.field === "string") fields.add(value.field.replace(/\\(.)/g, "$1"));
+    if (typeof value.signal === "string") {
+      for (const match of value.signal.matchAll(DATUM_FIELD)) fields.add((match[1] ?? match[2] ?? match[3]).replace(/\\(.)/g, "$1"));
+    }
+    Object.values(value).forEach((entry) => collect(entry, fields));
+  };
+  const walk = (marks: unknown) => {
+    if (!Array.isArray(marks)) return;
+    for (const mark of marks) {
+      if (!isObject(mark)) continue;
+      if (mark.type !== "group" && typeof mark.name === "string") {
+        const fields = new Set<string>();
+        collect(mark.encode, fields);
+        result.set(mark.name, fields);
+      }
+      walk(mark.marks);
+    }
+  };
+  if (isObject(vgSpec)) walk(vgSpec.marks);
+  return result;
+}
+
 function toRecords(data: WidgetData): JSONObject[] {
   return data.rows.map((row) => {
     const record: JSONObject = {};
@@ -354,11 +385,19 @@ export function VegaLiteChart({ widget, data }: Props) {
           }
           return datum;
         };
+        const markFields = compiledMarkFields(result.vgSpec);
+        // Composed views can share rows; only the clicked mark's own encodings may select.
+        const bindingsFor = (item?: Item | null) => {
+          const name = (item?.mark as { name?: string } | undefined)?.name;
+          const fields = name ? markFields.get(name) : undefined;
+          const bindings = interactionRef.current.bindings;
+          return fields ? bindings.filter((binding) => fields.has(binding.field)) : bindings;
+        };
         const select = (item?: Item | null) => {
           const datum = datumFor(item);
           if (!datum) return;
           const seen = new Set<string>();
-          const selections = interactionRef.current.bindings.filter((binding) => {
+          const selections = bindingsFor(item).filter((binding) => {
             if (seen.has(binding.filter.name) || !binding.canSelect(datum[binding.field])) return false;
             seen.add(binding.filter.name);
             return true;
@@ -382,7 +421,7 @@ export function VegaLiteChart({ widget, data }: Props) {
             // Text spans can share their parent's scene item; keep one focus target.
             if ((element.parentElement as (Element & { __data__?: Item }) | null)?.__data__ === item) continue;
             const datum = datumFor(item);
-            const matches = datum ? interactionRef.current.bindings.filter((binding) => binding.accepts(datum[binding.field])) : [];
+            const matches = datum ? bindingsFor(item).filter((binding) => binding.accepts(datum[binding.field])) : [];
             const enabled = matches.some((binding) => binding.ready);
             const selected = matches.filter((binding) => binding.isSource && binding.active)
               .every((binding) => binding.isSelected(datum?.[binding.field]));
