@@ -161,8 +161,9 @@ func newlineSQL(sql, nl, out string) string {
 	return strings.NewReplacer(" NL ", nl, "OUT", out).Replace(sql)
 }
 
-// The capture step must wrap every output exactly; any \r in its input would
-// let lexer offsets drift from the text it slices, so it must fail instead.
+// The capture step must wrap every output exactly. Its refusal of input with
+// \r depends on gonja normalizing newlines (v2.7.0 did not); the guarantee is
+// RenderSQL normalizing first, covered by TestRenderSQLLineEndings.
 func TestCaptureSQLExpressionsLineEndings(t *testing.T) {
 	for _, tt := range newlineCases {
 		for _, nl := range newlines {
@@ -268,7 +269,11 @@ func TestRenderSQLJinjaOperators(t *testing.T) {
 		{"and value", "SELECT '{{ filters.x and 'set' }}'", "SELECT 'set'", map[string]any{"x": "EU"}},
 		{"numeric or", "SELECT {{ filters.n or 10 }}", "SELECT  10 ", map[string]any{"n": 0}},
 		{"loop nextitem", "SELECT {% for x in filters.x %}'{{ x }}'{% if loop.nextitem %},{% endif %}{% endfor %}", "SELECT 'a','b'", map[string]any{"x": []any{"a", "b"}}},
-		{"trailing newline", "SELECT '{{ filters.x }}'\n", "SELECT 'EU'", map[string]any{"x": "EU"}},
+		// Unlike Jinja2's default, SQL keeps its trailing newline: the semantic
+		// engine joins fragments with " AND ", after which a final line comment
+		// would hide the next condition.
+		{"trailing newline", "SELECT '{{ filters.x }}'\n", "SELECT 'EU'\n", map[string]any{"x": "EU"}},
+		{"trailing line comment", "c = '{{ filters.x }}' -- from the filter bar\n", "c = 'EU' -- from the filter bar\n", map[string]any{"x": "EU"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -285,4 +290,10 @@ func TestRenderSQLJinjaOperators(t *testing.T) {
 	if sql, err := RenderSQL("SELECT {{ filters.x or 1 }}", map[string]any{"x": "1 OR 1=1"}); err == nil {
 		t.Errorf("unsafe operand accepted: %q", sql)
 	}
+}
+
+func TestRenderSQLRecoversTemplatePanics(t *testing.T) {
+	// gonja panics parsing an empty raw block; these must return, not panic.
+	_, _ = RenderSQL("SELECT 1 {% raw %}{% endraw %}", nil)
+	_, _ = Render("x {% raw %}{% endraw %}", nil)
 }

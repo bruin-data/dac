@@ -137,3 +137,19 @@ func TestRenderSemanticQuery_OrFallback(t *testing.T) {
 		}
 	}
 }
+
+// A fragment ending in a line comment keeps its newline, so the conditions the
+// semantic engine joins after it with " AND " are not commented out.
+func TestRenderSemanticQuery_TrailingLineComment(t *testing.T) {
+	query := sem.Query{Filters: []sem.Filter{
+		{Expression: "country = '{{ filters.country }}' -- picked in the filter bar\n"},
+		{Expression: "region = 'tenant_a'"},
+	}}
+	out, err := renderSemanticQuery(query, map[string]any{"country": "US"})
+	if err != nil {
+		t.Fatalf("renderSemanticQuery: %v", err)
+	}
+	if got, want := out.Filters[0].Expression, "country = 'US' -- picked in the filter bar\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}

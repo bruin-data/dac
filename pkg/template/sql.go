@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/nikolalohinski/gonja/v2"
+	"github.com/nikolalohinski/gonja/v2/config"
 	"github.com/nikolalohinski/gonja/v2/exec"
 	"github.com/nikolalohinski/gonja/v2/loaders"
 	"github.com/nikolalohinski/gonja/v2/tokens"
@@ -60,10 +61,11 @@ type sqlOutput struct {
 // captures every output before it can enter SQL. Outputs are substituted only
 // inside ordinary single-quoted literals, or as numbers outside literals.
 // Never use Render for SQL fragments containing request-controlled values.
-func RenderSQL(source string, filters map[string]any) (string, error) {
+func RenderSQL(source string, filters map[string]any) (sql string, err error) {
 	if !strings.Contains(source, "{{") && !strings.Contains(source, "{%") {
 		return source, nil
 	}
+	defer recoverTemplatePanic(&err)
 	// The Jinja lexer reads "\r\n" and a bare "\r" as "\n", as Python Jinja2
 	// does, and renders them that way. Normalize first, so the capture step's
 	// lexer offsets index this exact text and substituteSQLValues checks the
@@ -119,7 +121,7 @@ func RenderSQL(source string, filters map[string]any) (string, error) {
 	// Resolve SQL files at the dashboard layer and render only this source.
 	root := "/" + prefix
 	loader := loaders.MustNewMemoryLoader(map[string]string{root: rewritten})
-	tpl, err := exec.NewTemplate(root, gonja.DefaultConfig, loader, gonja.DefaultEnvironment)
+	tpl, err := exec.NewTemplate(root, sqlConfig(), loader, gonja.DefaultEnvironment)
 	if err != nil {
 		return "", fmt.Errorf("parsing SQL template: %w", err)
 	}
@@ -133,18 +135,26 @@ func RenderSQL(source string, filters map[string]any) (string, error) {
 	return substituteSQLValues(out.String(), prefix, values)
 }
 
+// sqlConfig keeps the trailing newline Jinja2 drops by default: the semantic
+// engine joins rendered fragments with " AND ", so a fragment ending in a line
+// comment would otherwise comment out the conditions after it.
+func sqlConfig() *config.Config {
+	cfg := gonja.DefaultConfig.Inherit()
+	cfg.KeepTrailingNewline = true
+	return cfg
+}
+
 // Use the Jinja lexer, not a regexp: delimiters inside strings and comments
 // must not be mistaken for output boundaries. Preserve whitespace control.
 func captureSQLExpressions(source, capture, list string) (string, error) {
-	lexer := tokens.NewLexer(source, gonja.DefaultConfig)
+	cfg := sqlConfig()
 	// Token offsets index the lexer's normalized input. Slicing source with
 	// them would misplace output boundaries, leaving outputs uncaptured,
-	// unless both are the same text. Dropping a final newline moves no offset.
-	if lexer.Input != source && lexer.Input+"\n" != source {
+	// unless both are the same text.
+	if tokens.NewLexer(source, cfg).Input != source {
 		return "", fmt.Errorf("SQL template must be newline-normalized before capture")
 	}
-	go lexer.Run()
-	stream := tokens.NewStream(lexer.Tokens)
+	stream := tokens.LexAll(source, cfg)
 	var out strings.Builder
 	last, start := 0, -1
 	var expression []*tokens.Token

@@ -12,10 +12,11 @@ import (
 
 // Render processes a Jinja template string with the given filter values.
 // It is for non-SQL values; use RenderSQL for SQL text or expressions.
-func Render(templateStr string, filters map[string]any) (string, error) {
+func Render(templateStr string, filters map[string]any) (out string, err error) {
 	if !strings.Contains(templateStr, "{{") && !strings.Contains(templateStr, "{%") {
 		return templateStr, nil
 	}
+	defer recoverTemplatePanic(&err)
 
 	tpl, err := gonja.FromString(templateStr)
 	if err != nil {
@@ -30,6 +31,15 @@ func Render(templateStr string, filters map[string]any) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// recoverTemplatePanic turns a gonja panic (for example on an empty
+// {% raw %} block) into an error. Widget queries render on their own
+// goroutines, where a panic would stop the whole server.
+func recoverTemplatePanic(err *error) {
+	if r := recover(); r != nil {
+		*err = fmt.Errorf("rendering template: %v", r)
+	}
 }
 
 func renderContext(filters map[string]any) *exec.Context {
