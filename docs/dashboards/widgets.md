@@ -9,7 +9,7 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 | `name` | string | Yes (optional on `tabs`) | Display name |
 | `type` | string | Yes | `metric`, `chart`, `table`, `pivot_table`, `text`, `image`, `divider`, or `tabs` |
 | `col` | integer | No | Column span from 1 to 12 |
-| `description` | string | No | Optional tooltip or subtitle |
+| `description` | string | No | Shown in an info tooltip beside the widget title |
 | `crossFilter` | array | No | Explicit `{field, filter}` pairs for cross-filter clicks; omit for same-name matching |
 | `tabs` | list | No | Complete widgets shown as tabs of a `type: tabs` widget — see [Widget tabs](/dashboards/layout#widget-tabs) |
 
@@ -926,7 +926,7 @@ The dashboard header has an **Export** menu:
 
 In `dac serve`, CSV exports reflect the active filter values at the time of the click. Static dashboard CSV exports use the baked query results. Text, divider, and image widgets are skipped in CSV exports. Widgets with query errors or no rows are omitted from the dashboard CSV.
 
-PNG and PDF exports capture the visible rendered view, excluding viewer controls such as export buttons and YAML controls. For tabbed dashboards, they capture the currently active tab.
+PNG and PDF exports capture the visible rendered view, excluding viewer controls such as export buttons and YAML controls. Widget descriptions live in info tooltips, so they are not included. For tabbed dashboards, they capture the currently active tab.
 
 ## Cross Filtering
 
@@ -938,4 +938,4 @@ Line/area charts support date-range dragging. Calendar days, candlesticks, spark
 
 Vega-Lite clicks use directly encoded, non-binned fields from the clicked mark's datum, including grouping fields retained after aggregation. In layered or composed specs, a mark selects only the fields its own view encodes. Derived bins/time units, aggregate values, full-series line/area paths, guides and backgrounds do not emit selections. Use point marks on Vega line/area charts for dimension clicks. Existing Vega interactions remain active.
 
-Receiving queries must consume the target filter to narrow results. With an active selection, a **filter icon with a small × badge** appears beside the widget title: click it to restore that widget's pre-click filter values while keeping other widgets' selections. Clicking the widget title, description or empty chart space also resets that widget; **Reset filters** restores defaults. See [Cross filtering](/dashboards/filters#cross-filtering).
+Receiving queries must consume the target filter to narrow results. With an active selection, a **filter icon with a small × badge** appears beside the widget title: click it to restore that widget's pre-click filter values while keeping other widgets' selections. Clicking the widget title or empty chart space also resets that widget; **Reset filters** restores defaults. See [Cross filtering](/dashboards/filters#cross-filtering).
