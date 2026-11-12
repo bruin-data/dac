@@ -459,3 +459,36 @@ func TestResolveWidgetJobs_TabFiltersRendered(t *testing.T) {
 		assertNotContains(t, j.SQL, "{{")
 	}
 }
+
+// Strict templates error on undefined names, but a declared filter that is
+// unset renders as empty, so guarded optional filters keep working.
+func TestResolveWidgetJobs_StrictUndefined(t *testing.T) {
+	widget := func(sql string) *dashboard.Dashboard {
+		return &dashboard.Dashboard{
+			Filters: []dashboard.Filter{
+				{Name: "region", Type: "text"},
+				{Name: "platforms", Type: "select", Multiple: true},
+				{Name: "range", Type: "date-range"},
+			},
+			Name:       "test",
+			Connection: "conn",
+			Rows:       []dashboard.Row{{Widgets: []dashboard.Widget{{Name: "w", Type: "table", SQL: sql}}}},
+		}
+	}
+
+	d := widget("SELECT 1{% if filters.region %} AND r = '{{ filters.region }}'{% endif %}" +
+		"{% if filters.platforms %} AND p IN ('{{ filters.platforms | join(\"','\") }}'){% endif %}" +
+		"{% if filters.range %} AND d >= '{{ filters.range.start }}'{% endif %}")
+	jobs, err := ResolveWidgetJobs(d, d.DefaultFilters())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || jobs[0].SQL != "SELECT 1" {
+		t.Fatalf("got %+v", jobs)
+	}
+
+	d = widget("SELECT 1 WHERE r = '{{ filters.regoin }}'")
+	if jobs, err := ResolveWidgetJobs(d, d.DefaultFilters()); err == nil {
+		t.Fatalf("undefined filter rendered: %+v", jobs)
+	}
+}

@@ -113,3 +113,28 @@ func TestNormalizeUnquotedYAMLDates(t *testing.T) {
 		t.Errorf("unexpected normalized values: %v", values)
 	}
 }
+
+// Strict templates need every declared filter defined: one without a default
+// is present as nil, which validation reads as unset.
+func TestDefaultFiltersIncludeUnsetFilters(t *testing.T) {
+	d := &Dashboard{Filters: []Filter{
+		{Name: "region", Type: "text"},
+		{Name: "platforms", Type: "select", Multiple: true},
+		{Name: "range", Type: "date-range"},
+		{Name: "as_of", Type: "date"},
+		{Name: "n", Type: "number"},
+		{Name: "country", Type: "select", Default: "US"},
+	}}
+	got := d.DefaultFilters()
+	for _, name := range []string{"region", "platforms", "range", "as_of", "n"} {
+		if v, ok := got[name]; !ok || v != nil {
+			t.Errorf("%s: got %v (present %v), want nil", name, v, ok)
+		}
+	}
+	if got["country"] != "US" {
+		t.Errorf("country: got %v", got["country"])
+	}
+	if err := d.ValidateFilterValues(d.NormalizeFilterValues(got)); err != nil {
+		t.Fatal(err)
+	}
+}

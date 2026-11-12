@@ -130,9 +130,11 @@ func (d *Dashboard) ValidateFilterValues(values map[string]any) error {
 }
 
 func validateFilterValue(f Filter, value any) error {
-	// A cleared input (e.g. an emptied number box) is an empty value, not an
-	// error; it carries nothing into SQL and templates can test for it.
-	if (value == nil || value == "") && f.Type != "date-range" && !f.Multiple {
+	// nil is an unset filter, as DefaultFilters reports one without a
+	// default; omitting it means the same. A cleared input (e.g. an emptied
+	// number box) is an empty value, not an error; it carries nothing into
+	// SQL and templates can test for it.
+	if value == nil || (value == "" && f.Type != "date-range" && !f.Multiple) {
 		return nil
 	}
 	switch f.Type {

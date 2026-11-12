@@ -16,6 +16,8 @@ type SemanticJob struct {
 	// It is passed to the engine so queries can reference dimensions on joined
 	// models (e.g. "customers.country").
 	Models map[string]*sem.Model
+	// ProjectRoot confines files that templated filter values include.
+	ProjectRoot string
 }
 
 func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, error) {
@@ -36,11 +38,12 @@ func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, err
 			conn = d.Connection
 		}
 		return &SemanticJob{
-			Model:      model,
-			ModelName:  modelName,
-			Connection: conn,
-			Query:      semanticQueryFromNamedQuery(q),
-			Models:     d.semanticModels,
+			Model:       model,
+			ModelName:   modelName,
+			Connection:  conn,
+			Query:       semanticQueryFromNamedQuery(q),
+			Models:      d.semanticModels,
+			ProjectRoot: d.projectRoot,
 		}, true, nil
 	}
 
@@ -66,11 +69,12 @@ func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, err
 	}
 
 	return &SemanticJob{
-		Model:      model,
-		ModelName:  modelName,
-		Connection: conn,
-		Query:      semanticQueryFromWidget(w),
-		Models:     d.semanticModels,
+		Model:       model,
+		ModelName:   modelName,
+		Connection:  conn,
+		Query:       semanticQueryFromWidget(w),
+		Models:      d.semanticModels,
+		ProjectRoot: d.projectRoot,
 	}, true, nil
 }
 

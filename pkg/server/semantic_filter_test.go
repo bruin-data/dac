@@ -1,9 +1,12 @@
 package server
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
+	"github.com/bruin-data/dac/pkg/dashboard"
 )
 
 // TestRenderSemanticQuery_MultiSelectFilter covers multi-select filters: a
@@ -20,7 +23,7 @@ func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 
 	t.Run("filled list stays a list", func(t *testing.T) {
 		filters := map[string]any{"platform": []interface{}{"ios", "android"}}
-		out, err := renderSemanticQuery(query, filters)
+		out, err := renderSemanticQuery(query, filters, "")
 		if err != nil {
 			t.Fatalf("renderSemanticQuery: %v", err)
 		}
@@ -38,7 +41,7 @@ func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 
 	t.Run("empty list drops the filter", func(t *testing.T) {
 		filters := map[string]any{"platform": []interface{}{}}
-		out, err := renderSemanticQuery(query, filters)
+		out, err := renderSemanticQuery(query, filters, "")
 		if err != nil {
 			t.Fatalf("renderSemanticQuery: %v", err)
 		}
@@ -57,7 +60,8 @@ func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 		out, err := renderSemanticQuery(q, map[string]any{
 			"team":    []interface{}{},
 			"team_id": []interface{}{"7"},
-		})
+		}, "")
+
 		if err != nil {
 			t.Fatalf("renderSemanticQuery: %v", err)
 		}
@@ -72,7 +76,7 @@ func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 				Expression: "platform IN ('{{ filters.platform | join(\"','\") }}')",
 			}},
 		}
-		out, err := renderSemanticQuery(exprQuery, map[string]any{"platform": []interface{}{}})
+		out, err := renderSemanticQuery(exprQuery, map[string]any{"platform": []interface{}{}}, "")
 		if err != nil {
 			t.Fatalf("renderSemanticQuery: %v", err)
 		}
@@ -83,7 +87,7 @@ func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 
 	t.Run("scalar still renders to a string", func(t *testing.T) {
 		filters := map[string]any{"platform": "ios"}
-		out, err := renderSemanticQuery(query, filters)
+		out, err := renderSemanticQuery(query, filters, "")
 		if err != nil {
 			t.Fatalf("renderSemanticQuery: %v", err)
 		}
@@ -102,7 +106,7 @@ func TestRenderSemanticQuery_MultiSelectFilter(t *testing.T) {
 func TestRenderTemplateValue_ListRefOnlyWhenBare(t *testing.T) {
 	filters := map[string]any{"channel": []interface{}{"online", "retail"}}
 
-	if got, _ := renderTemplateValue("{{ filters.channel }}", filters); !isList(got) {
+	if got, _ := renderTemplateValue("{{ filters.channel }}", filters, ""); !isList(got) {
 		t.Errorf("bare reference should stay a list, got %T (%v)", got, got)
 	}
 
@@ -110,7 +114,7 @@ func TestRenderTemplateValue_ListRefOnlyWhenBare(t *testing.T) {
 		"{{ filters.channel | join(\"','\") }}",
 		"prefix {{ filters.channel }}",
 	} {
-		got, err := renderTemplateValue(in, filters)
+		got, err := renderTemplateValue(in, filters, "")
 		if err != nil {
 			t.Fatalf("renderTemplateValue(%q): %v", in, err)
 		}
@@ -128,7 +132,7 @@ func TestRenderSemanticQuery_OrFallback(t *testing.T) {
 		Value:     "{{ filters.region or 'All' }}",
 	}}}
 	for region, want := range map[string]string{"EU": "EU", "": "All"} {
-		out, err := renderSemanticQuery(query, map[string]any{"region": region})
+		out, err := renderSemanticQuery(query, map[string]any{"region": region}, "")
 		if err != nil {
 			t.Fatalf("renderSemanticQuery: %v", err)
 		}
@@ -145,11 +149,42 @@ func TestRenderSemanticQuery_TrailingLineComment(t *testing.T) {
 		{Expression: "country = '{{ filters.country }}' -- picked in the filter bar\n"},
 		{Expression: "region = 'tenant_a'"},
 	}}
-	out, err := renderSemanticQuery(query, map[string]any{"country": "US"})
+	out, err := renderSemanticQuery(query, map[string]any{"country": "US"}, "")
 	if err != nil {
 		t.Fatalf("renderSemanticQuery: %v", err)
 	}
 	if got, want := out.Filters[0].Expression, "country = 'US' -- picked in the filter bar\n"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// Templated semantic filter values include files from the dashboard project.
+func TestRenderSemanticQuery_IncludeFromProject(t *testing.T) {
+	d, err := dashboard.LoadFile("../../testdata/project/dashboards/semantic-sales.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, ok, err := d.ResolveWidgetSemanticJob(&d.Rows[0].Widgets[0])
+	if err != nil || !ok {
+		t.Fatalf("resolving semantic job: %v, %v", ok, err)
+	}
+	if want := filepath.Clean("../../testdata/project"); job.ProjectRoot != want {
+		t.Fatalf("ProjectRoot = %q, want %q", job.ProjectRoot, want)
+	}
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "country.txt"), []byte("{{ filters.country }}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	query := sem.Query{Filters: []sem.Filter{{Dimension: "country", Operator: "equals", Value: "{% include 'country.txt' %}"}}}
+	out, err := renderSemanticQuery(query, map[string]any{"country": "CA"}, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Filters[0].Value != "CA" {
+		t.Fatalf("got %v", out.Filters[0].Value)
+	}
+	if _, err := renderSemanticQuery(query, map[string]any{"country": "CA"}, ""); err == nil {
+		t.Fatal("included a file without a project root")
 	}
 }

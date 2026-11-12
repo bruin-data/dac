@@ -123,6 +123,8 @@ SQL queries are processed through Jinja before execution. Semantic filter values
 
 Templating follows Python Jinja2: `or` and `and` return one of their operands, so outputting `filters.region or 'All'` renders the selected region, or `All` when it is empty. Loops expose `loop.length`, `loop.previtem`, `loop.nextitem`, `loop.cycle(...)`, `loop.changed(...)` and `loop.depth`. Templated text renders `\r\n` and `\r` line endings as `\n`. Templated semantic filter values drop one trailing newline; SQL keeps it. SQL without Jinja tags is sent unchanged.
 
+Undefined names are errors, as in Bruin: a misspelled `filters.regoin` fails the query instead of rendering as empty. Every filter the dashboard declares is defined; one with no value is `none`, so `{% if filters.region %}` and `filters.region or 'All'` still work, and `is defined` and `default(...)` handle names that may be missing. Templated semantic filter values can `include` files by path relative to the project root, under Bruin's rules: absolute paths, paths that leave the project, and symlinks are rejected.
+
 ### Variable Interpolation
 
 ```sql

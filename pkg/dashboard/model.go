@@ -496,10 +496,12 @@ type SemanticSort struct {
 
 // DefaultFilters returns a map of filter names to their default values.
 // For date-range filters, string defaults like "last_30_days" are resolved
-// to {start, end} maps so that query templating works correctly.
+// to {start, end} maps so that query templating works correctly. A filter
+// without a default maps to nil, so strict templates can reference it.
 func (d *Dashboard) DefaultFilters() map[string]any {
 	defaults := make(map[string]any)
 	for _, f := range d.Filters {
+		defaults[f.Name] = nil
 		if f.Default != nil {
 			val := f.Default
 			if f.Type == "date-range" {

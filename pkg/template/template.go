@@ -6,19 +6,38 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nikolalohinski/gonja/v2"
+	"github.com/nikolalohinski/gonja/v2/config"
 	"github.com/nikolalohinski/gonja/v2/exec"
 )
 
+// templateConfig is dac's own rather than gonja.DefaultConfig, which an
+// embedding binary shares and may change. It is strict like bruin's: an
+// undefined name is an error, not an empty string.
+func templateConfig() *config.Config {
+	cfg := config.New()
+	cfg.StrictUndefined = true
+	return cfg
+}
+
 // Render processes a Jinja template string with the given filter values.
 // It is for non-SQL values; use RenderSQL for SQL text or expressions.
-func Render(templateStr string, filters map[string]any) (out string, err error) {
+// Templates can include files under projectRoot, with bruin's rules.
+func Render(templateStr string, filters map[string]any, projectRoot string) (out string, err error) {
 	if !strings.Contains(templateStr, "{{") && !strings.Contains(templateStr, "{%") {
 		return templateStr, nil
 	}
 	defer recoverTemplatePanic(&err)
 
-	tpl, err := gonja.FromString(templateStr)
+	var root *os.Root
+	if projectRoot != "" {
+		// As in bruin, an unavailable or symlinked root disables file access
+		// but still renders inline templates.
+		root, _ = openRepositoryRoot(projectRoot)
+		if root != nil {
+			defer root.Close()
+		}
+	}
+	tpl, err := templateFromString(templateStr, root)
 	if err != nil {
 		return "", fmt.Errorf("parsing template: %w", err)
 	}

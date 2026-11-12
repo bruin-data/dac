@@ -309,7 +309,7 @@ func TestRenderSQLRecoversTemplatePanics(t *testing.T) {
 	if _, err := RenderSQL("SELECT 1 {% raw %}{% endraw %}", nil); err == nil {
 		t.Error("RenderSQL: expected an error")
 	}
-	if _, err := Render("x {% raw %}{% endraw %}", nil); err == nil {
+	if _, err := Render("x {% raw %}{% endraw %}", nil, ""); err == nil {
 		t.Error("Render: expected an error")
 	}
 }

@@ -39,7 +39,7 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 		}
 	}
 
-	query, err := renderSemanticQuery(job.Query, filters)
+	query, err := renderSemanticQuery(job.Query, filters, job.ProjectRoot)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -150,7 +150,7 @@ func renderSemanticModel(model *sem.Model, filters map[string]any) (*sem.Model, 
 	return &clone, nil
 }
 
-func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, error) {
+func renderSemanticQuery(query sem.Query, filters map[string]any, projectRoot string) (sem.Query, error) {
 	rendered := query
 	if len(query.Dimensions) > 0 {
 		rendered.Dimensions = append([]sem.DimensionRef(nil), query.Dimensions...)
@@ -181,7 +181,7 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter expression: %w", err)
 		}
-		rf.Value, err = renderTemplateValue(filter.Value, filters)
+		rf.Value, err = renderTemplateValue(filter.Value, filters, projectRoot)
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
 		}
@@ -290,7 +290,7 @@ func bareFilterRef(s string) (string, bool) {
 	return strings.TrimPrefix(inner, "filters."), strings.HasPrefix(inner, "filters.")
 }
 
-func renderTemplateValue(value any, filters map[string]any) (any, error) {
+func renderTemplateValue(value any, filters map[string]any, projectRoot string) (any, error) {
 	switch typed := value.(type) {
 	case string:
 		// Keep a lone list reference as a list; gonja would stringify it to
@@ -300,11 +300,11 @@ func renderTemplateValue(value any, filters map[string]any) (any, error) {
 				return v, nil
 			}
 		}
-		return tmpl.Render(typed, filters)
+		return tmpl.Render(typed, filters, projectRoot)
 	case []string:
 		out := make([]string, len(typed))
 		for i, item := range typed {
-			rendered, err := tmpl.Render(item, filters)
+			rendered, err := tmpl.Render(item, filters, projectRoot)
 			if err != nil {
 				return nil, err
 			}
@@ -314,7 +314,7 @@ func renderTemplateValue(value any, filters map[string]any) (any, error) {
 	case []interface{}:
 		out := make([]interface{}, len(typed))
 		for i, item := range typed {
-			rendered, err := renderTemplateValue(item, filters)
+			rendered, err := renderTemplateValue(item, filters, projectRoot)
 			if err != nil {
 				return nil, err
 			}
@@ -324,7 +324,7 @@ func renderTemplateValue(value any, filters map[string]any) (any, error) {
 	case map[string]interface{}:
 		out := make(map[string]interface{}, len(typed))
 		for key, item := range typed {
-			rendered, err := renderTemplateValue(item, filters)
+			rendered, err := renderTemplateValue(item, filters, projectRoot)
 			if err != nil {
 				return nil, err
 			}

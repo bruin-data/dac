@@ -135,13 +135,13 @@ func RenderSQL(source string, filters map[string]any) (sql string, err error) {
 	return substituteSQLValues(out.String(), prefix, values)
 }
 
-// sqlConfig is fixed rather than copied from gonja.DefaultConfig, which an
+// sqlConfig derives from templateConfig, not gonja.DefaultConfig, which an
 // embedding binary may change (line statements would add tags this lexer
 // cannot see). It keeps the trailing newline Jinja2 drops by default: the
 // semantic engine joins rendered fragments with " AND ", so a fragment ending
 // in a line comment would otherwise comment out the conditions after it.
 func sqlConfig() *config.Config {
-	cfg := config.New()
+	cfg := templateConfig()
 	cfg.KeepTrailingNewline = true
 	return cfg
 }
