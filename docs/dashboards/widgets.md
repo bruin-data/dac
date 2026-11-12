@@ -15,6 +15,8 @@ Widgets are the visual building blocks of a dashboard. Each widget occupies a nu
 
 Data-backed widgets (`metric`, `chart`, `table`) also need a query source: `query` (named query reference), `sql` (inline), `file` (external `.sql` path), a semantic reference (`metric:` for metric widgets, `dimension:` + `metrics:` for charts), or `data` (inline static values — see [Inline data](#inline-data)). See [Queries & Templating](/dashboards/queries) for the full reference, including the `connection` override.
 
+Hover or keyboard-focus the description info button to read its help text. For long descriptions, use the arrow keys, Page Up/Down, or Home/End while the button is focused to scroll the tooltip; Escape dismisses it.
+
 ## Number and currency formats
 
 Use a string or object in `value.format`, `x/y/y2.format`, or table `columns[].number`:

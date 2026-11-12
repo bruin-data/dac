@@ -40,6 +40,22 @@ export function InfoTooltip({ description, name }: { description: string; name?:
         // Open only for keyboard focus; window refocus after a mouse click would otherwise reopen it.
         onFocus={(event) => { if (event.currentTarget.matches(":focus-visible")) show(); }}
         onBlur={scheduleHide}
+        onKeyDown={(event) => {
+          const tooltip = popoverRef.current;
+          if (!open || !tooltip) return;
+          const scrollTargets: Record<string, number> = {
+            ArrowDown: tooltip.scrollTop + 40,
+            ArrowUp: tooltip.scrollTop - 40,
+            PageDown: tooltip.scrollTop + tooltip.clientHeight,
+            PageUp: tooltip.scrollTop - tooltip.clientHeight,
+            Home: 0,
+            End: tooltip.scrollHeight,
+          };
+          if (!Object.prototype.hasOwnProperty.call(scrollTargets, event.key)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          tooltip.scrollTop = scrollTargets[event.key];
+        }}
         onClick={(event) => { event.stopPropagation(); show(); }}
         className="ml-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dac-accent)]"
       >
