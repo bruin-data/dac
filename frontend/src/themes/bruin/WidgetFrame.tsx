@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import type { WidgetFrameProps } from "../../types/template";
 import { useTemplate } from "../TemplateProvider";
 import { RowHeightContext } from "../RowContext";
+import { InfoTooltip } from "../../components/InfoTooltip";
 import { QueryInfo } from "../../components/widgets/QueryInfo";
 import { WidgetExportButton } from "../../components/widgets/WidgetExportButton";
 import { CrossFilterContext, CrossFilterWidgetContext } from "../../hooks/useCrossFilter";
@@ -59,9 +60,10 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
     const single = images.length === 1;
     return (
       <div className={`${containerClass.image} flex flex-col`}>
-        {widget.name && (
-          <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] mb-1.5">
-            {widget.name}
+        {(widget.name || widget.description) && (
+          <div className="flex shrink-0 items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] mb-1.5">
+            <span>{widget.name}</span>
+            {widget.description && <InfoTooltip description={widget.description} name={widget.name} />}
           </div>
         )}
         {data?.error && (
@@ -119,8 +121,9 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
   return (
     <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? (isTable ? containerClass.table : containerClass.text)} ${isVegaChart ? "min-h-0 min-w-0 flex flex-col" : ""}`}>
       {widget.type !== "text" && (
-        <div data-dac-reset className={`flex shrink-0 items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] ${widget.description ? "mb-0.5" : "mb-1.5"} ${isTable ? "px-4" : ""}`}>
+        <div data-dac-reset className={`flex shrink-0 items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] mb-1.5 ${isTable ? "px-4" : ""}`}>
           <span>{widget.name}</span>
+          {widget.description && <InfoTooltip description={widget.description} name={widget.name} />}
           {widgetId && crossFilter?.reset && resetNames.length > 0 && (
             <button type="button" data-dac-control data-dac-export-control
               title="Clear this widget's selection" aria-label="Clear this widget's selection"
@@ -143,11 +146,6 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
               {data?.query && <QueryInfo query={data.query} />}
             </span>
           )}
-        </div>
-      )}
-      {widget.type !== "text" && widget.description && (
-        <div data-dac-reset className={`shrink-0 text-[11px] leading-snug text-[var(--dac-text-muted)] opacity-70 mb-1.5 ${isTable ? "px-4" : ""}`}>
-          {widget.description}
         </div>
       )}
 
