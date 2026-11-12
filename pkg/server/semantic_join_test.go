@@ -161,3 +161,21 @@ func TestCompileSemanticJob_RendersOnlyJoinedModels(t *testing.T) {
 		t.Fatalf("joined model rendered an undefined name: %s", sql)
 	}
 }
+
+// Joins are followed by target model (which may differ from the join name)
+// and transitively, as the engine walks them.
+func TestJoinedModels(t *testing.T) {
+	regions := &sem.Model{Name: "regions"}
+	customers := &sem.Model{Name: "customers", Joins: []sem.Join{{Name: "region", Model: "regions"}}}
+	orders := &sem.Model{Name: "orders", Joins: []sem.Join{{Name: "buyer", Model: " customers "}}}
+	other := &sem.Model{Name: "other", Joins: []sem.Join{{Name: "orders"}}}
+	job := &dashboard.SemanticJob{
+		Model:     orders,
+		ModelName: "orders",
+		Models:    map[string]*sem.Model{"orders": orders, "customers": customers, "regions": regions, "other": other},
+	}
+	got := joinedModels(job)
+	if len(got) != 3 || got["orders"] != orders || got["customers"] != customers || got["regions"] != regions {
+		t.Fatalf("got %v", got)
+	}
+}

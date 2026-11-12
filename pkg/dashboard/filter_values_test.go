@@ -151,3 +151,14 @@ func TestValidateFilterValuesRejectsClearingDefaults(t *testing.T) {
 		}
 	}
 }
+
+// A later filter of the same name without a default keeps the earlier default.
+func TestDefaultFiltersKeepDefaultOfDuplicateName(t *testing.T) {
+	d := &Dashboard{Filters: []Filter{
+		{Name: "range", Type: "date-range", Default: "last_30_days"},
+		{Name: "range", Type: "date-range"},
+	}}
+	if got := d.DefaultFilters()["range"]; got == nil {
+		t.Fatal("default dropped")
+	}
+}

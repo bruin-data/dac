@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -91,6 +92,19 @@ func TestRender_IncludeDepthLimited(t *testing.T) {
 			t.Errorf("%q: recursive include rendered %d bytes", tmpl, len(got))
 		}
 	}
+	// "ignore missing" skips the depth error; fan-out must still stop.
+	writeFile(t, filepath.Join(root, "fan.txt"), "{% include 'fan.txt' ignore missing %}{% include 'fan.txt' ignore missing %}")
+	done := make(chan error, 1)
+	go func() {
+		_, err := Render("{% include 'fan.txt' %}", nil, root)
+		done <- err
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("fan-out include did not stop")
+	}
+
 	// Nesting below the limit still works.
 	for i := 0; i < maxIncludeDepth-1; i++ {
 		writeFile(t, filepath.Join(root, "chain", fmt.Sprintf("%d.txt", i)), fmt.Sprintf("{%% include '%d.txt' %%}", i+1))

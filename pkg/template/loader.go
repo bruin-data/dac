@@ -3,7 +3,7 @@ package template
 // Ported from bruin's pkg/jinja/repository_loader.go (bruin-data/bruin at
 // e774d47787669106e7b6cc428959674c6ec70b46), so templates read files under
 // the same rules in dac and in bruin. Keep the two in sync; dac adds only the
-// include depth limit and its own config.
+// include limits and its own config.
 
 import (
 	"bytes"
@@ -22,15 +22,21 @@ import (
 // Resolved identifiers are virtual, not host absolute paths.
 const templateFileID = "\x00repo/"
 
-// maxIncludeDepth bounds nested include, import and extends. A template that
-// includes itself, possibly through a path taken from a filter value, would
-// otherwise recurse until the process runs out of memory.
-const maxIncludeDepth = 32
+// maxIncludeDepth bounds nested include, import and extends, and
+// maxIncludes their total per render. A template that includes itself,
+// possibly through a path taken from a filter value, would otherwise recurse
+// until the process runs out of memory; "ignore missing" skips the depth
+// error, so fan-out needs the total too.
+const (
+	maxIncludeDepth = 32
+	maxIncludes     = 1000
+)
 
 type repositoryLoader struct {
-	root  *os.Root
-	dir   string
-	depth int
+	root     *os.Root
+	dir      string
+	depth    int
+	includes *int
 }
 
 func openRepositoryRoot(path string) (*os.Root, error) {
@@ -104,17 +110,21 @@ func (l *repositoryLoader) Inherit(from string) (loaders.Loader, error) {
 	if l.depth >= maxIncludeDepth {
 		return nil, fmt.Errorf("templates cannot nest more than %d includes", maxIncludeDepth)
 	}
+	if *l.includes >= maxIncludes {
+		return nil, fmt.Errorf("templates cannot include more than %d files", maxIncludes)
+	}
+	*l.includes++
 	id, err := l.Resolve(from)
 	if err != nil {
 		return nil, err
 	}
-	return &repositoryLoader{root: l.root, dir: filepath.Dir(strings.TrimPrefix(id, templateFileID)), depth: l.depth + 1}, nil
+	return &repositoryLoader{root: l.root, dir: filepath.Dir(strings.TrimPrefix(id, templateFileID)), depth: l.depth + 1, includes: l.includes}, nil
 }
 
 // Unlike bruin's, this takes dac's own config instead of gonja.DefaultConfig.
 func templateFromString(source string, root *os.Root) (*exec.Template, error) {
 	const inlineID = "\x00inline"
-	loader, err := loaders.NewShiftedLoader(inlineID, strings.NewReader(source), &repositoryLoader{root: root})
+	loader, err := loaders.NewShiftedLoader(inlineID, strings.NewReader(source), &repositoryLoader{root: root, includes: new(int)})
 	if err != nil {
 		return nil, err
 	}

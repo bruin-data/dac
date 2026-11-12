@@ -501,7 +501,9 @@ type SemanticSort struct {
 func (d *Dashboard) DefaultFilters() map[string]any {
 	defaults := make(map[string]any)
 	for _, f := range d.Filters {
-		defaults[f.Name] = nil
+		if _, ok := defaults[f.Name]; !ok {
+			defaults[f.Name] = nil
+		}
 		if f.Default != nil {
 			val := f.Default
 			if f.Type == "date-range" {
