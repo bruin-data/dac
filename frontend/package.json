@@ -73,5 +73,10 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.30.1",
     "vite": "^8.1.6"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
   }
 }
