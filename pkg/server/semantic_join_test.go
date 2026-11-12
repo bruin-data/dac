@@ -124,3 +124,40 @@ func TestCompileSemanticJob_UnqualifiedJoinedGranularity(t *testing.T) {
 		t.Fatalf("expected rename signup_date_month -> signup_date, got %q (%v)", got, renames)
 	}
 }
+
+// Only the models a job can reach are rendered: a model this widget does not
+// use may reference filters this dashboard does not declare.
+func TestCompileSemanticJob_RendersOnlyJoinedModels(t *testing.T) {
+	other := &sem.Model{
+		Name:     "other",
+		Source:   sem.Source{Table: "other"},
+		Segments: []sem.Segment{{Name: "mine", Filter: "{% if filters.region %}region = '{{ filters.region }}'{% else %}1=1{% endif %}"}},
+	}
+	customers := &sem.Model{
+		Name:       "customers",
+		Source:     sem.Source{Table: "customers"},
+		PrimaryKey: "customer_id",
+		Dimensions: []sem.Dimension{{Name: "country", Type: "string", Expression: "{% if filters.lower %}lower(country){% else %}country{% endif %}"}},
+	}
+	orders := &sem.Model{
+		Name:       "orders",
+		Source:     sem.Source{Table: "orders"},
+		PrimaryKey: "order_id",
+		Joins:      []sem.Join{{Name: "customers", Relationship: "many_to_one", ForeignKey: "customer_id"}},
+		Metrics:    []sem.Metric{{Name: "n", Expression: "count(*)"}},
+	}
+	job := &dashboard.SemanticJob{
+		Model:     orders,
+		ModelName: "orders",
+		Models:    map[string]*sem.Model{"orders": orders, "customers": customers, "other": other},
+		Query:     sem.Query{Dimensions: []sem.DimensionRef{{Name: "customers.country"}}, Metrics: []string{"n"}},
+	}
+	// "region" is not declared here; "lower" is, but unset.
+	if _, _, _, err := compileSemanticJob(job, map[string]any{"lower": nil}); err != nil {
+		t.Fatalf("an unused model failed the job: %v", err)
+	}
+	// The joined model is still rendered, strictly.
+	if sql, _, _, err := compileSemanticJob(job, map[string]any{}); err == nil {
+		t.Fatalf("joined model rendered an undefined name: %s", sql)
+	}
+}

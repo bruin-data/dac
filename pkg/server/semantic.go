@@ -21,10 +21,13 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 		return "", "", nil, err
 	}
 
-	// Render every model in the project so queries that reference dimensions on
-	// joined models compile against rendered (templated) expressions too.
-	models := make(map[string]*sem.Model, len(job.Models))
-	for name, m := range job.Models {
+	// Render the models the engine can reach through joins, so queries that
+	// reference dimensions on joined models compile against rendered
+	// (templated) expressions too. Other models in the project may reference
+	// filters this dashboard does not declare, which strict templates reject.
+	reachable := joinedModels(job)
+	models := make(map[string]*sem.Model, len(reachable))
+	for name, m := range reachable {
 		rendered, err := renderSemanticModel(m, filters)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("rendering semantic model %q: %w", name, err)
@@ -54,6 +57,37 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 	}
 
 	return sql, job.Connection, semanticColumnRenames(model, query), nil
+}
+
+// joinedModels returns the job's primary model and every model reachable from
+// it through joins, looked up by name as the semantic engine does.
+func joinedModels(job *dashboard.SemanticJob) map[string]*sem.Model {
+	out := map[string]*sem.Model{}
+	queue := []*sem.Model{job.Model}
+	if m, ok := job.Models[job.ModelName]; ok {
+		out[job.ModelName] = m
+		queue = append(queue, m)
+	}
+	for len(queue) > 0 {
+		m := queue[0]
+		queue = queue[1:]
+		if m == nil {
+			continue
+		}
+		for _, join := range m.Joins {
+			name := strings.TrimSpace(join.Model)
+			if name == "" {
+				name = strings.TrimSpace(join.Name)
+			}
+			if target, ok := job.Models[name]; ok {
+				if _, seen := out[name]; !seen {
+					out[name] = target
+					queue = append(queue, target)
+				}
+			}
+		}
+	}
+	return out
 }
 
 // semanticColumnRenames maps the column names the engine emits back to the

@@ -138,3 +138,16 @@ func TestDefaultFiltersIncludeUnsetFilters(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A defaulted date range or multi-select cannot be cleared by a request.
+func TestValidateFilterValuesRejectsClearingDefaults(t *testing.T) {
+	d := &Dashboard{Filters: []Filter{
+		{Name: "range", Type: "date-range", Default: "last_30_days"},
+		{Name: "platforms", Type: "select", Multiple: true, Default: []any{"ios"}},
+	}}
+	for _, name := range []string{"range", "platforms"} {
+		if err := d.ValidateFilterValues(map[string]any{name: nil}); err == nil {
+			t.Errorf("%s: null accepted for a filter with a default", name)
+		}
+	}
+}

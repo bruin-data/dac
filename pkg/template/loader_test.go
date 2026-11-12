@@ -1,6 +1,7 @@
 package template
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -55,9 +56,10 @@ func TestRender_IncludeConfinedToProject(t *testing.T) {
 		"import":              "{% import '../secret.txt' as s %}",
 		"extends":             "{% extends '../secret.txt' %}",
 		"filter value path":   "{% include filters.path %}",
+		"filter value escape": "{% include filters.rel %}",
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got, err := Render(tmpl, map[string]any{"path": secret}, root); err == nil {
+			if got, err := Render(tmpl, map[string]any{"path": secret, "rel": "../secret.txt"}, root); err == nil {
 				t.Fatalf("read outside the project: %q", got)
 			}
 		})
@@ -77,4 +79,24 @@ func TestRender_IncludeConfinedToProject(t *testing.T) {
 		assertNoErr(t, err)
 		assertEqual(t, got, "inline")
 	}
+}
+
+// A template that includes itself must fail, not exhaust memory.
+func TestRender_IncludeDepthLimited(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "self.txt"), "x{% include 'self.txt' %}")
+	writeFile(t, filepath.Join(root, "dashboard.yml"), "value: \"{% include filters.path %}\"")
+	for _, tmpl := range []string{"{% include 'self.txt' %}", "{% include filters.path %}"} {
+		if got, err := Render(tmpl, map[string]any{"path": "dashboard.yml"}, root); err == nil {
+			t.Errorf("%q: recursive include rendered %d bytes", tmpl, len(got))
+		}
+	}
+	// Nesting below the limit still works.
+	for i := 0; i < maxIncludeDepth-1; i++ {
+		writeFile(t, filepath.Join(root, "chain", fmt.Sprintf("%d.txt", i)), fmt.Sprintf("{%% include '%d.txt' %%}", i+1))
+	}
+	writeFile(t, filepath.Join(root, "chain", fmt.Sprintf("%d.txt", maxIncludeDepth-1)), "end")
+	got, err := Render("{% include 'chain/0.txt' %}", nil, root)
+	assertNoErr(t, err)
+	assertEqual(t, got, "end")
 }

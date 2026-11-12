@@ -256,7 +256,13 @@ func (s *Server) handleGetTheme(w http.ResponseWriter, r *http.Request) {
 // in a dashboard, including semantic metric and dimensional widgets that
 // reference a semantic model.
 func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]WidgetJob, error) {
-	filters = d.NormalizeFilterValues(filters)
+	// Strict templates need every declared filter; fill in what the caller
+	// left out with its default, or nil.
+	merged := d.DefaultFilters()
+	for k, v := range filters {
+		merged[k] = v
+	}
+	filters = d.NormalizeFilterValues(merged)
 	if err := d.ValidateFilterValues(filters); err != nil {
 		return nil, err
 	}

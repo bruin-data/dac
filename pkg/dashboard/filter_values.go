@@ -130,11 +130,15 @@ func (d *Dashboard) ValidateFilterValues(values map[string]any) error {
 }
 
 func validateFilterValue(f Filter, value any) error {
-	// nil is an unset filter, as DefaultFilters reports one without a
-	// default; omitting it means the same. A cleared input (e.g. an emptied
-	// number box) is an empty value, not an error; it carries nothing into
-	// SQL and templates can test for it.
-	if value == nil || (value == "" && f.Type != "date-range" && !f.Multiple) {
+	// A cleared input (e.g. an emptied number box) is an empty value, not an
+	// error; it carries nothing into SQL and templates can test for it.
+	if (value == nil || value == "") && f.Type != "date-range" && !f.Multiple {
+		return nil
+	}
+	// DefaultFilters reports a date range or multi-select without a default
+	// as nil: unset, as omitting it means. One with a default cannot be
+	// cleared, so a request cannot drop the restriction it applies.
+	if value == nil && f.Default == nil {
 		return nil
 	}
 	switch f.Type {

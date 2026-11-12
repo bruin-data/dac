@@ -487,6 +487,11 @@ func TestResolveWidgetJobs_StrictUndefined(t *testing.T) {
 		t.Fatalf("got %+v", jobs)
 	}
 
+	// A caller may pass only request values; unset filters are filled in.
+	if jobs, err := ResolveWidgetJobs(d, map[string]any{"region": "EU"}); err != nil || !strings.Contains(jobs[0].SQL, "r = 'EU'") {
+		t.Fatalf("partial filters: %+v, %v", jobs, err)
+	}
+
 	d = widget("SELECT 1 WHERE r = '{{ filters.regoin }}'")
 	if jobs, err := ResolveWidgetJobs(d, d.DefaultFilters()); err == nil {
 		t.Fatalf("undefined filter rendered: %+v", jobs)

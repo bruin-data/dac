@@ -3,6 +3,7 @@ package server
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
@@ -164,7 +165,7 @@ func TestRenderSemanticQuery_IncludeFromProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	job, ok, err := d.ResolveWidgetSemanticJob(&d.Rows[0].Widgets[0])
+	job, ok, err := d.ResolveWidgetSemanticJob(&d.Rows[0].Widgets[1])
 	if err != nil || !ok {
 		t.Fatalf("resolving semantic job: %v, %v", ok, err)
 	}
@@ -172,10 +173,21 @@ func TestRenderSemanticQuery_IncludeFromProject(t *testing.T) {
 		t.Fatalf("ProjectRoot = %q, want %q", job.ProjectRoot, want)
 	}
 
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "country.txt"), []byte("{{ filters.country }}"), 0o600); err != nil {
+	// End to end, the job's project root confines includes.
+	job.ProjectRoot = t.TempDir()
+	if err := os.WriteFile(filepath.Join(job.ProjectRoot, "country.txt"), []byte("{{ filters.country }}"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	job.Query.Filters[0].Value = "{% include 'country.txt' %}"
+	sql, _, _, err := compileSemanticJob(job, map[string]any{"country": "CA"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sql, "'CA'") {
+		t.Fatalf("included value missing: %s", sql)
+	}
+
+	root := job.ProjectRoot
 	query := sem.Query{Filters: []sem.Filter{{Dimension: "country", Operator: "equals", Value: "{% include 'country.txt' %}"}}}
 	out, err := renderSemanticQuery(query, map[string]any{"country": "CA"}, root)
 	if err != nil {
