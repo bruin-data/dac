@@ -23,6 +23,7 @@ type Environment struct {
 // different fields, but they all share a name. We use a map for the rest
 // since .bruin.yml supports dozens of connection types.
 type Connection struct {
+	Type string `yaml:"-"` // Connection bucket, populated by FindConnection.
 	Name string `yaml:"name"`
 	// Extra holds all other fields (host, port, database, etc.).
 	Extra map[string]any `yaml:",inline"`
@@ -88,9 +89,10 @@ func (c *Config) GetEnvironment(name string) (*Environment, error) {
 
 // FindConnection looks up a connection by name across all connection types in an environment.
 func (e *Environment) FindConnection(name string) (*Connection, error) {
-	for _, conns := range e.Connections {
+	for kind, conns := range e.Connections {
 		for _, c := range conns {
 			if c.Name == name {
+				c.Type = kind
 				return &c, nil
 			}
 		}

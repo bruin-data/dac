@@ -49,7 +49,7 @@ func resolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboa
 		if resolveErr != nil {
 			return resolveErr
 		}
-		sql, connection, _, err = compileSemanticJob(job, filters)
+		sql, connection, _, err = compileSemanticJob(job, filters, backend)
 		if o.Metric != nil {
 			for _, metric := range job.Model.Metrics {
 				if metric.Name == metricField && metric.Format != nil {
@@ -61,7 +61,11 @@ func resolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboa
 			}
 		}
 	} else {
-		sql, err = tmpl.RenderSQL(o.Query, filters)
+		var dialect string
+		dialect, err = query.ConnectionType(connection, backend)
+		if err == nil {
+			sql, err = tmpl.RenderSQL(o.Query, filters, dialect)
+		}
 	}
 	if err != nil {
 		return err

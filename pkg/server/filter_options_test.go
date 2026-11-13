@@ -249,7 +249,7 @@ rows:
 		{"invalid static selection", "POST", `{"filters":{"region":"unknown"}}`, 400, ""},
 		{"invalid multi selection", "POST", `{"filters":{"statuses":"pending"}}`, 400, ""},
 		{"invalid numeric type", "POST", `{"filters":{"min_amount":"100"}}`, 400, ""},
-		{"unsafe quote", "POST", `{"filters":{"search":"x' OR 1=1 --"}}`, 400, ""},
+		{"unused apostrophe", "POST", `{"filters":{"search":"x' OR 1=1 --"}}`, 200, "SELECT city FROM orders WHERE region = 'Europe' AND status IN ('pending') AND year = '2024' AND amount >= 0"},
 		{"unsafe backslash", "POST", `{"filters":{"search":"x\\"}}`, 400, ""},
 		{"unsafe control", "POST", `{"filters":{"search":"x\n"}}`, 400, ""},
 	} {

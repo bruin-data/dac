@@ -109,7 +109,7 @@ func checkCmd() *cli.Command {
 					fmt.Printf("  ✓ %-30s  static\n", name)
 				}
 
-				jobs, err := server.ResolveWidgetJobs(d, defaults)
+				jobs, err := server.ResolveWidgetJobs(d, defaults, backend)
 				if err != nil {
 					fmt.Printf("  ✗ query resolution failed: %s\n", err)
 					totalErrors++

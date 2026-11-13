@@ -68,7 +68,7 @@ func queryCmd() *cli.Command {
 
 			if dashboardName != "" && widgetName != "" {
 				source = "dashboard"
-				sql, connection, err = resolveWidgetQuery(dir, dashboardName, widgetName)
+				sql, connection, err = resolveWidgetQuery(dir, dashboardName, widgetName, backend)
 				if err != nil {
 					return err
 				}
@@ -108,9 +108,7 @@ func queryCmd() *cli.Command {
 	}
 }
 
-// connectionType resolves a connection name to its type bucket (e.g. "duckdb",
-// "bigquery") for telemetry. Returns empty string if not found — telemetry is
-// best-effort and never blocks the user's query.
+// connectionType returns the configured database type for telemetry.
 func connectionType(cfg *config.Config, environment, name string) string {
 	if cfg == nil {
 		return ""
@@ -119,18 +117,15 @@ func connectionType(cfg *config.Config, environment, name string) string {
 	if err != nil || env == nil {
 		return ""
 	}
-	for connType, conns := range env.Connections {
-		for _, c := range conns {
-			if c.Name == name {
-				return connType
-			}
-		}
+	conn, err := env.FindConnection(name)
+	if err != nil {
+		return ""
 	}
-	return ""
+	return conn.Type
 }
 
 // resolveWidgetQuery finds a widget in a dashboard and returns its resolved, templated SQL.
-func resolveWidgetQuery(dir, dashboardName, widgetName string) (string, string, error) {
+func resolveWidgetQuery(dir, dashboardName, widgetName string, backends ...query.Backend) (string, string, error) {
 	dashboards, err := dashboard.LoadDir(dir)
 	if err != nil {
 		return "", "", fmt.Errorf("loading dashboards: %w", err)
@@ -149,7 +144,7 @@ func resolveWidgetQuery(dir, dashboardName, widgetName string) (string, string, 
 		return "", "", err
 	}
 
-	jobs, err := server.ResolveWidgetJobs(d, d.DefaultFilters())
+	jobs, err := server.ResolveWidgetJobs(d, d.DefaultFilters(), backends...)
 	if err != nil {
 		return "", "", fmt.Errorf("resolving widget jobs: %w", err)
 	}

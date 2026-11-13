@@ -141,7 +141,7 @@ func validateCmd() *cli.Command {
 }
 
 func validateDashboardWithDatabase(ctx context.Context, backend query.Backend, d *dashboard.Dashboard) ([]databaseValidationResult, error) {
-	jobs, err := server.ResolveWidgetJobs(d, d.DefaultFilters())
+	jobs, err := server.ResolveWidgetJobs(d, d.DefaultFilters(), backend)
 	if err != nil {
 		return nil, fmt.Errorf("query resolution failed: %w", err)
 	}

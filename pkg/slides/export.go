@@ -70,7 +70,7 @@ func Export(ctx context.Context, cfg Config) (string, error) {
 		filters[k] = v
 	}
 
-	jobs, err := server.ResolveWidgetJobs(d, filters)
+	jobs, err := server.ResolveWidgetJobs(d, filters, backend)
 	if err != nil {
 		return "", fmt.Errorf("resolving queries: %w", err)
 	}

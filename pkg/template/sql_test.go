@@ -125,3 +125,59 @@ func TestRenderSQLCannotIncludeUncapturedFiles(t *testing.T) {
 		t.Fatalf("included unprotected SQL: %s", sql)
 	}
 }
+
+func TestRenderSQLDialectEscaping(t *testing.T) {
+	for _, dialect := range []string{"bigquery", "google_cloud_platform", "postgres", "redshift", "snowflake", "mysql", "mssql", "duckdb", "sqlite"} {
+		t.Run(dialect, func(t *testing.T) {
+			quote := "''"
+			if dialect == "bigquery" || dialect == "google_cloud_platform" {
+				quote = `\'`
+			}
+			for _, tc := range []struct{ source, want string }{
+				{`SELECT '{{ filters.value }}'`, "SELECT 'Summer" + quote + "s End'"},
+				{`SELECT '{{ filters.value }}%'`, "SELECT 'Summer" + quote + "s End%'"},
+				{`SELECT '{{ filters.attack }}'`, "SELECT 'x" + quote + ") OR 1=1 --'"},
+				{`SELECT '{{ filters.value | replace("Summer", "Summer'") }}'`, "SELECT 'Summer" + quote + quote + "s End'"},
+			} {
+				got, err := RenderSQL(tc.source, map[string]any{"value": "Summer's End", "attack": "x') OR 1=1 --"}, dialect)
+				if err != nil || got != tc.want {
+					t.Fatalf("%s: got %q, %v; want %q", tc.source, got, err, tc.want)
+				}
+			}
+			for _, operator := range []string{"IN", "NOT IN"} {
+				got, err := RenderSQL(`SELECT * FROM t WHERE country `+operator+` ('{{ filters.values | join("','") }}')`, map[string]any{"values": []any{"Summer's End", "Kids' Toys", "x') OR 1=1 --"}}, dialect)
+				want := "SELECT * FROM t WHERE country " + operator + " ('Summer" + quote + "s End','Kids" + quote + " Toys','x" + quote + ") OR 1=1 --')"
+				if err != nil || got != want {
+					t.Fatalf("got %q, %v; want %q", got, err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderSQLDialectEscapingKeepsUnsafeContextsBlocked(t *testing.T) {
+	for _, dialect := range []string{"bigquery", "postgres", "mysql"} {
+		for _, source := range []string{
+			`SELECT {{ filters.value }}`, `SELECT * FROM {{ filters.value }}`,
+			"SELECT `{{ filters.value }}`", `SELECT "{{ filters.value }}"`,
+			`SELECT [{{ filters.value }}]`, `SELECT 1 -- {{ filters.value }}`,
+			`SELECT /* {{ filters.value }} */ 1`, `SELECT $$'{{ filters.value }}'$$`,
+			`SELECT r'{{ filters.value }}'`, `SELECT R'{{ filters.value }}'`,
+			`SELECT b'{{ filters.value }}'`, `SELECT rb'{{ filters.value }}'`,
+			`SELECT E'{{ filters.value }}'`, `SELECT N'{{ filters.value }}'`,
+			`SELECT '''{{ filters.value }}'''`,
+		} {
+			if sql, err := RenderSQL(source, map[string]any{"value": "x') OR 1=1 --"}, dialect); err == nil {
+				t.Fatalf("%s accepted unsafe context %s: %s", dialect, source, sql)
+			}
+		}
+		for _, value := range []string{`x\'`, "x\n'", "x\x00'"} {
+			if sql, err := RenderSQL(`SELECT '{{ filters.value }}'`, map[string]any{"value": value}, dialect); err == nil {
+				t.Fatalf("accepted %q: %s", value, sql)
+			}
+		}
+	}
+	if sql, err := RenderSQL(`SELECT '{{ filters.value }}'`, map[string]any{"value": "Summer's End"}, "unknown"); err == nil {
+		t.Fatalf("unknown dialect accepted quotes: %s", sql)
+	}
+}

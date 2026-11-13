@@ -174,7 +174,7 @@ func (s *Server) handleBatchQuery(w http.ResponseWriter, r *http.Request) {
 		filters[k] = v
 	}
 
-	jobs, err := ResolveWidgetJobs(d, filters)
+	jobs, err := ResolveWidgetJobs(d, filters, s.backend)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -255,12 +255,12 @@ func (s *Server) handleGetTheme(w http.ResponseWriter, r *http.Request) {
 // ResolveWidgetJobs builds the list of SQL jobs for all data-bearing widgets
 // in a dashboard, including semantic metric and dimensional widgets that
 // reference a semantic model.
-func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]WidgetJob, error) {
+func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any, backends ...query.Backend) ([]WidgetJob, error) {
 	filters = d.NormalizeFilterValues(filters)
 	if err := d.ValidateFilterValues(filters); err != nil {
 		return nil, err
 	}
-	if err := tmpl.ValidateSQLValue(filters); err != nil {
+	if err := tmpl.ValidateSemanticValue(filters); err != nil {
 		return nil, err
 	}
 	var jobs []WidgetJob
@@ -272,7 +272,7 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 			if widget.HasTabs() {
 				for k := range widget.Tabs {
 					tab := widget.ResolvedTab(k)
-					job, err := resolveWidgetJob(d, filters, WidgetTabID(i, j, tab.Name), &tab)
+					job, err := resolveWidgetJob(d, filters, WidgetTabID(i, j, tab.Name), &tab, backends...)
 					if err != nil {
 						return nil, err
 					}
@@ -283,7 +283,7 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 				continue
 			}
 
-			job, err := resolveWidgetJob(d, filters, WidgetID(i, j), &widget)
+			job, err := resolveWidgetJob(d, filters, WidgetID(i, j), &widget, backends...)
 			if err != nil {
 				return nil, err
 			}
@@ -298,7 +298,7 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any) ([]Widget
 
 // resolveWidgetJob builds the job for one widget (or tab) under the given id, or
 // nil when it carries no data (text/divider) or resolves to empty SQL.
-func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string, widget *dashboard.Widget) (*WidgetJob, error) {
+func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string, widget *dashboard.Widget, backends ...query.Backend) (*WidgetJob, error) {
 	if widget.Type == dashboard.WidgetTypeText || widget.Type == dashboard.WidgetTypeDivider {
 		return nil, nil
 	}
@@ -310,7 +310,7 @@ func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string,
 	if semanticJob, handled, err := d.ResolveWidgetSemanticJob(widget); err != nil {
 		return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
 	} else if handled {
-		sql, conn, renames, err := compileSemanticJob(semanticJob, filters)
+		sql, conn, renames, err := compileSemanticJob(semanticJob, filters, backends...)
 		if err != nil {
 			return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
 		}
@@ -328,7 +328,11 @@ func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string,
 	// Always render: even with no filters, SQL may reference the `bruin`
 	// namespace (e.g. {{ bruin.user_email }}). RenderSQL() short-circuits
 	// templates with no placeholders.
-	sql, err = tmpl.RenderSQL(sql, filters)
+	dialect, err := query.ConnectionType(conn, backends...)
+	if err != nil {
+		return nil, err
+	}
+	sql, err = tmpl.RenderSQL(sql, filters, dialect)
 	if err != nil {
 		return nil, fmt.Errorf("template error: %w", err)
 	}
@@ -426,7 +430,7 @@ func (s *Server) handleStreamQuery(w http.ResponseWriter, r *http.Request) {
 		filters[k] = v
 	}
 
-	jobs, err := ResolveWidgetJobs(d, filters)
+	jobs, err := ResolveWidgetJobs(d, filters, s.backend)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -504,7 +508,7 @@ func (s *Server) handleWidgetQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve all jobs and find the one matching this widget ID.
-	jobs, err := ResolveWidgetJobs(d, filters)
+	jobs, err := ResolveWidgetJobs(d, filters, s.backend)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

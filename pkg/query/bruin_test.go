@@ -77,3 +77,22 @@ exit 1
 		t.Fatalf("expected bruin error in message, got %v", err)
 	}
 }
+
+func TestConnectionTypeReadsConfigUpdates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".bruin.yml")
+	definition := "default_environment: prod\nenvironments:\n  prod:\n    connections:\n      google_cloud_platform:\n        - name: warehouse\n"
+	if err := os.WriteFile(path, []byte(definition), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// A long-running server must see config edits rather than reuse a stale snapshot.
+	server := NewCachedBackend(&BruinCLIBackend{ConfigFile: path}, 0)
+	if got, err := ConnectionType("warehouse", server); err != nil || got != "google_cloud_platform" {
+		t.Fatalf("initial config: %q, %v", got, err)
+	}
+	if err := os.WriteFile(path, []byte(strings.ReplaceAll(definition, "google_cloud_platform", "postgres")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ConnectionType("warehouse", server); err != nil || got != "postgres" {
+		t.Fatalf("updated config: %q, %v", got, err)
+	}
+}
