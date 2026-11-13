@@ -65,8 +65,8 @@ rows:
 		sql        string
 	}{
 		{name: "empty static list executes query; first column, deduplication and scalars", path: "Options%20Demo/filters/region/options",
-			rows:   [][]any{{"Europe", "ignored"}, {"APAC", 99}, {nil}, {}, {float64(1000001)}, {true}, {"APAC"}, {"Xi'an"}},
-			status: 200, values: []string{"Europe", "APAC", "1000001", "true"},
+			rows:   [][]any{{"Europe", "ignored"}, {"APAC", 99}, {nil}, {}, {float64(1000001)}, {true}, {"APAC"}, {"Xi'an"}, {"bad\\"}, {"bad\n"}},
+			status: 200, values: []string{"Europe", "APAC", "1000001", "true", "Xi'an"},
 			connection: "dashboard-connection", sql: "SELECT region, ignored FROM regions ORDER BY region"},
 		{name: "multi-select connection override", path: "Options%20Demo/filters/status/options",
 			rows: [][]any{{"pending"}}, status: 200, values: []string{"pending"},

@@ -104,7 +104,7 @@ func resolveFilterOptions(ctx context.Context, backend query.Backend, d *dashboa
 		if err != nil {
 			return fmt.Errorf("query must return scalar values in its first column")
 		}
-		if tmpl.ValidateSQLValue(value) != nil || seen[value] {
+		if tmpl.ValidateSemanticValue(value) != nil || seen[value] {
 			continue
 		}
 		seen[value] = true

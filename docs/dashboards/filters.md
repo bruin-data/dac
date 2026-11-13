@@ -318,7 +318,7 @@ Batch, streaming, and individual widget queries validate request values and reso
 
 Text, date, and select values must be interpolated inside ordinary single-quoted SQL literals, as shown above. Only numeric outputs can appear unquoted. Filters cannot supply table names, column names, comments, or arbitrary SQL fragments. Jinja conditionals and loops still work, as does the documented multi-select `join("','")` pattern.
 
-DAC escapes apostrophes in SQL template values such as `Summer's End`, including multi-select `IN` / `NOT IN` values. BigQuery uses backslash escaping; Postgres, Redshift, Snowflake, MySQL, SQL Server, DuckDB, and SQLite use doubled apostrophes. SQL templates reject apostrophes for unknown connection types.
+DAC escapes apostrophes in SQL template values such as `Summer's End`, including multi-select `IN` / `NOT IN` values. BigQuery uses backslash escaping; Postgres, Redshift, Snowflake, MySQL, SQL Server, DuckDB, and SQLite use doubled apostrophes. SQL templates reject apostrophes for unknown connection types; use `--config` if DAC cannot resolve the connection type.
 
 SQL string placeholders must use ordinary single quotes. Backslashes and control characters in values, dynamic identifiers, SQL fragments, and ambiguous literal/comment syntax remain unsupported. These rules also apply after Jinja transformations, in named queries, widget tabs, and templated semantic expressions.
 

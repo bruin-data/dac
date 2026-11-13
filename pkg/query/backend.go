@@ -27,7 +27,7 @@ func ConnectionType(connection string, backends ...Backend) (string, error) {
 		return ConnectionType(connection, cached.Backend)
 	}
 	bruin, ok := backend.(*BruinCLIBackend)
-	if !ok {
+	if !ok || bruin.ConfigFile == "" {
 		return "", nil
 	}
 	cfg, err := config.Load(bruin.ConfigFile)
