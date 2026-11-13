@@ -303,11 +303,17 @@ func TestDACBruinPath_ServeUsesIt(t *testing.T) {
 		t.Fatal("dac serve did not start")
 	}
 
-	resp, err := http.Post(addr+"/api/v1/query", "application/json", strings.NewReader(`{"connection":"warehouse","sql":"SELECT 99"}`))
+	// The client timeout covers reading the body too, so a stuck child fails
+	// the test instead of hanging the whole run.
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Post(addr+"/api/v1/query", "application/json", strings.NewReader(`{"connection":"warehouse","sql":"SELECT 99"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("query status %d: %s", resp.StatusCode, body)
