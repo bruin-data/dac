@@ -37,12 +37,12 @@ func checkCmd() *cli.Command {
 				return err
 			}
 
-			configFile, _, err := resolveConfig(cmd, dir)
+			configFile, cfg, err := resolveConfig(cmd, dir)
 			if err != nil {
 				return fmt.Errorf("config error: %w", err)
 			}
 
-			backend := newBackend(cmd, configFile)
+			backend := newBackend(cmd, configFile, cfg)
 
 			dashboards, err := loadDashboards(dir)
 			if err != nil {

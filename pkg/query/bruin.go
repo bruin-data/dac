@@ -6,13 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+
+	"github.com/bruin-data/dac/pkg/config"
 )
 
 // BruinCLIBackend implements Backend by shelling out to `bruin query`.
 type BruinCLIBackend struct {
-	BruinPath   string // Path to bruin binary (default: "bruin" from PATH)
-	ConfigFile  string // Path to .bruin.yml
-	Environment string // Target environment
+	BruinPath   string         // Path to bruin binary (default: "bruin" from PATH)
+	ConfigFile  string         // Path to .bruin.yml
+	Config      *config.Config // Preloaded for one CLI operation; servers leave this nil.
+	Environment string         // Target environment
 }
 
 // bruinQueryResponse mirrors the JSON output of `bruin query --output json`.

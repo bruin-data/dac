@@ -32,7 +32,7 @@ func connectionsCmd() *cli.Command {
 				return err
 			}
 
-			backend := newBackend(cmd, configFile)
+			backend := newBackend(cmd, configFile, cfg)
 
 			type connResult struct {
 				name     string

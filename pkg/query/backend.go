@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"sync"
 
 	"github.com/bruin-data/dac/pkg/config"
 )
@@ -19,28 +20,47 @@ type DryRunner interface {
 
 // ConnectionType looks up the configured database type using the existing config loader.
 func ConnectionType(connection string, backends ...Backend) (string, error) {
-	if len(backends) == 0 {
-		return "", nil
+	return NewConnectionTypeResolver(backends...)(connection)
+}
+
+// NewConnectionTypeResolver shares one lazy config read within a resolution batch.
+// Create a new resolver for each batch so subsequent requests see config edits.
+func NewConnectionTypeResolver(backends ...Backend) func(string) (string, error) {
+	environment := sync.OnceValues(func() (*config.Environment, error) {
+		if len(backends) == 0 {
+			return nil, nil
+		}
+		backend := backends[0]
+		for {
+			cached, ok := backend.(*CachedBackend)
+			if !ok {
+				break
+			}
+			backend = cached.Backend
+		}
+		bruin, ok := backend.(*BruinCLIBackend)
+		if !ok || bruin.ConfigFile == "" {
+			return nil, nil
+		}
+		cfg := bruin.Config
+		if cfg == nil {
+			var err error
+			cfg, err = config.Load(bruin.ConfigFile)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return cfg.GetEnvironment(bruin.Environment)
+	})
+	return func(connection string) (string, error) {
+		env, err := environment()
+		if err != nil || env == nil {
+			return "", err
+		}
+		conn, err := env.FindConnection(connection)
+		if err != nil {
+			return "", err
+		}
+		return conn.Type, nil
 	}
-	backend := backends[0]
-	if cached, ok := backend.(*CachedBackend); ok {
-		return ConnectionType(connection, cached.Backend)
-	}
-	bruin, ok := backend.(*BruinCLIBackend)
-	if !ok || bruin.ConfigFile == "" {
-		return "", nil
-	}
-	cfg, err := config.Load(bruin.ConfigFile)
-	if err != nil {
-		return "", err
-	}
-	env, err := cfg.GetEnvironment(bruin.Environment)
-	if err != nil {
-		return "", err
-	}
-	conn, err := env.FindConnection(connection)
-	if err != nil {
-		return "", err
-	}
-	return conn.Type, nil
 }

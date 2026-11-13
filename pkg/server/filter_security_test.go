@@ -248,19 +248,27 @@ func TestRawSQLApostrophesUseQueryConnectionDialect(t *testing.T) {
 	}
 	backend := query.NewCachedBackend(&query.BruinCLIBackend{ConfigFile: cfg}, 0)
 	for _, operator := range []string{"IN", "NOT IN"} {
+		source := `SELECT * FROM sales WHERE country ` + operator + ` ('{{ filters.country | join("','") }}')`
 		d := &dashboard.Dashboard{
 			Connection: "primary",
 			Filters:    []dashboard.Filter{{Name: "country", Type: "select", Multiple: true}},
-			Queries:    map[string]dashboard.Query{"named": {Connection: "warehouse", SQL: `SELECT * FROM sales WHERE country ` + operator + ` ('{{ filters.country | join("','") }}')`}},
-			Rows:       []dashboard.Row{{Widgets: []dashboard.Widget{{Type: dashboard.WidgetTypeTabs, Tabs: []dashboard.Widget{{Name: "Named", Type: "table", QueryRef: "named"}}}}}},
+			Queries:    map[string]dashboard.Query{"named": {Connection: "warehouse", SQL: source}},
+			Rows: []dashboard.Row{{Widgets: []dashboard.Widget{
+				{Type: dashboard.WidgetTypeTabs, Tabs: []dashboard.Widget{{Name: "Named", Type: "table", QueryRef: "named"}}},
+				{Name: "Default", Type: "table", SQL: source},
+			}}},
 		}
 		jobs, err := ResolveWidgetJobs(d, map[string]any{"country": []any{"Summer's End", "Kids' Toys"}}, backend)
 		if err != nil {
 			t.Fatal(err)
 		}
 		want := `SELECT * FROM sales WHERE country ` + operator + ` ('Summer\'s End','Kids\' Toys')`
-		if len(jobs) != 1 || jobs[0].SQL != want || jobs[0].Connection != "warehouse" {
+		if len(jobs) != 2 || jobs[0].SQL != want || jobs[0].Connection != "warehouse" {
 			t.Fatalf("wrong query connection/escaping: %+v", jobs)
+		}
+		want = `SELECT * FROM sales WHERE country ` + operator + ` ('Summer''s End','Kids'' Toys')`
+		if jobs[1].SQL != want || jobs[1].Connection != "primary" {
+			t.Fatalf("wrong dashboard connection/escaping: %+v", jobs[1])
 		}
 	}
 }

@@ -9,17 +9,16 @@ import (
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
 	"github.com/bruin-data/dac/pkg/dashboard"
-	querybackend "github.com/bruin-data/dac/pkg/query"
 	tmpl "github.com/bruin-data/dac/pkg/template"
 )
 
-func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any, backends ...querybackend.Backend) (string, string, map[string]string, error) {
+func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any, dialects ...string) (string, string, map[string]string, error) {
 	if err := tmpl.ValidateSemanticValue(filters); err != nil {
 		return "", "", nil, err
 	}
-	dialect, err := querybackend.ConnectionType(job.Connection, backends...)
-	if err != nil {
-		return "", "", nil, err
+	dialect := ""
+	if len(dialects) > 0 {
+		dialect = dialects[0]
 	}
 	model, err := renderSemanticModel(job.Model, filters, dialect)
 	if err != nil {

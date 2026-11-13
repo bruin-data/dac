@@ -59,7 +59,7 @@ func queryCmd() *cli.Command {
 				return fmt.Errorf("config error: %w", err)
 			}
 
-			backend := newBackend(cmd, configFile)
+			backend := newBackend(cmd, configFile, cfg)
 
 			var sql, connection, source string
 

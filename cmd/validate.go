@@ -45,11 +45,11 @@ func validateCmd() *cli.Command {
 			tsxLoadDryRuns := 0
 
 			if withDatabase {
-				configFile, _, err := resolveConfig(cmd, dir)
+				configFile, cfg, err := resolveConfig(cmd, dir)
 				if err != nil {
 					return fmt.Errorf("config error: %w", err)
 				}
-				backend = newBackend(cmd, configFile)
+				backend = newBackend(cmd, configFile, cfg)
 				loadOptions = append(loadOptions, dashboard.WithQueryFunc(func(connection, sql string) (map[string]interface{}, error) {
 					if err := dryRunQuery(ctx, backend, connection, sql); err != nil {
 						return nil, err
