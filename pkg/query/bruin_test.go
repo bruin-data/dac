@@ -95,4 +95,14 @@ func TestConnectionTypeReadsConfigUpdates(t *testing.T) {
 	if got, err := ConnectionType("warehouse", server); err != nil || got != "postgres" {
 		t.Fatalf("updated config: %q, %v", got, err)
 	}
+	definition = "environments:\n  default:\n    connections:\n      google_cloud_platform:\n        - name: warehouse\n  prod:\n    connections:\n      postgres:\n        - name: warehouse\n"
+	if err := os.WriteFile(path, []byte(definition), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ environment, want string }{{"", "google_cloud_platform"}, {"prod", "postgres"}} {
+		backend := &BruinCLIBackend{ConfigFile: path, Environment: tc.environment}
+		if got, err := ConnectionType("warehouse", backend); err != nil || got != tc.want {
+			t.Fatalf("environment %q: %q, %v; want %q", tc.environment, got, err, tc.want)
+		}
+	}
 }

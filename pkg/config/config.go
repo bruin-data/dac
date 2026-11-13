@@ -71,6 +71,10 @@ func (c *Config) GetEnvironment(name string) (*Environment, error) {
 		name = c.DefaultEnvironment
 	}
 	if name == "" {
+		// Bruin uses the "default" environment when none is specified.
+		if env, ok := c.Environments["default"]; ok {
+			return &env, nil
+		}
 		// If there's exactly one environment, use it.
 		if len(c.Environments) == 1 {
 			for _, env := range c.Environments {
