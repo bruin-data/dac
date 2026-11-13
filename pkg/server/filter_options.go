@@ -34,7 +34,7 @@ func (s *Server) handleFilterOptions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := tmpl.ValidateSQLValue(filters); err != nil {
+	if err := tmpl.ValidateSemanticValue(filters); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/bruin-data/dac/pkg/config"
 )
 
 func TestBruinCLIBackendDryRun(t *testing.T) {
@@ -75,5 +77,51 @@ exit 1
 	}
 	if !strings.Contains(err.Error(), "table not found") {
 		t.Fatalf("expected bruin error in message, got %v", err)
+	}
+}
+
+func TestConnectionTypeReadsConfigUpdates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".bruin.yml")
+	server := NewCachedBackend(&BruinCLIBackend{ConfigFile: path}, 0)
+	resolve := NewConnectionTypeResolver(server)
+	definition := "default_environment: prod\nenvironments:\n  prod:\n    connections:\n      google_cloud_platform:\n        - name: warehouse\n        - name: secondary\n"
+	if err := os.WriteFile(path, []byte(definition), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := resolve("warehouse"); err != nil || got != "google_cloud_platform" {
+		t.Fatalf("initial config: %q, %v", got, err)
+	}
+	loaded, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := ConnectionType("warehouse", &BruinCLIBackend{ConfigFile: path, Config: loaded}); err != nil || got != "google_cloud_platform" {
+		t.Fatalf("preloaded CLI config was read again: %q, %v", got, err)
+	}
+	if got, err := resolve("secondary"); err != nil || got != "google_cloud_platform" {
+		t.Fatalf("shared config was read again: %q, %v", got, err)
+	}
+	if err := os.WriteFile(path, []byte(strings.ReplaceAll(definition, "google_cloud_platform", "postgres")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := resolve("warehouse"); err != nil || got != "google_cloud_platform" {
+		t.Fatalf("config changed within a resolution batch: %q, %v", got, err)
+	}
+	// The next resolution must see config edits rather than reuse a stale snapshot.
+	if got, err := ConnectionType("warehouse", server); err != nil || got != "postgres" {
+		t.Fatalf("updated config: %q, %v", got, err)
+	}
+	definition = "environments:\n  default:\n    connections:\n      google_cloud_platform:\n        - name: warehouse\n  prod:\n    connections:\n      postgres:\n        - name: warehouse\n"
+	if err := os.WriteFile(path, []byte(definition), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ environment, want string }{{"", "google_cloud_platform"}, {"prod", "postgres"}} {
+		backend := &BruinCLIBackend{ConfigFile: path, Environment: tc.environment}
+		if got, err := ConnectionType("warehouse", backend); err != nil || got != tc.want {
+			t.Fatalf("environment %q: %q, %v; want %q", tc.environment, got, err, tc.want)
+		}
 	}
 }

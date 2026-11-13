@@ -139,6 +139,9 @@ func TestSemanticAuthorLiteralsMayContainQuotes(t *testing.T) {
 func TestSemanticQueriesRejectUnsafeInterpolation(t *testing.T) {
 	for _, expression := range []bool{false, true} {
 		for _, value := range []any{"US' OR 1=1 --", `US\`, []any{"US", "x') OR 1=1 --"}} {
+			if text, ok := value.(string); !expression && ok && text == "US' OR 1=1 --" {
+				continue
+			}
 			t.Run("semantic", func(t *testing.T) {
 				d, err := dashboard.LoadOneByName("../../testdata/project", "Semantic Sales")
 				if err != nil {
@@ -166,8 +169,8 @@ func TestSemanticQueriesRejectUnsafeInterpolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	job.Query.Filters[0].Value = `{{ filters.country | replace("X", "'") }}`
-	if sql, _, _, err := compileSemanticJob(job, map[string]any{"country": "X OR 1=1 --"}); err == nil {
-		t.Fatalf("unsafe transformed semantic value accepted: %s", sql)
+	if sql, _, _, err := compileSemanticJob(job, map[string]any{"country": "X OR 1=1 --"}); err != nil || !strings.Contains(sql, "''' OR 1=1 --'") {
+		t.Fatalf("transformed semantic value was not quoted: %s, %v", sql, err)
 	}
 	job.Query.Filters = []sem.Filter{{Expression: "{{ filters.country }}"}}
 	if sql, _, _, err := compileSemanticJob(job, map[string]any{"country": "true OR true"}); err == nil {
@@ -199,6 +202,73 @@ func TestNamedQueriesAndTabsRejectUnsafeInterpolation(t *testing.T) {
 			if (strings.Contains(value, "'") || strings.Contains(sql, "FROM")) && err == nil {
 				t.Fatalf("unsafe tab accepted: %s, %s", sql, value)
 			}
+		}
+	}
+}
+
+func TestSemanticMultiSelectApostrophes(t *testing.T) {
+	for _, operator := range []string{"in", "not_in"} {
+		t.Run(operator, func(t *testing.T) {
+			d, err := dashboard.LoadOneByName("../../testdata/project", "Semantic Sales")
+			if err != nil {
+				t.Fatal(err)
+			}
+			d.Filters[0].Multiple = true
+			d.Filters[0].Options = nil
+			d.Queries["countries"] = dashboard.Query{Metrics: []string{"revenue"}, Filters: []dashboard.SemanticQueryFilter{{Dimension: "country", Operator: operator, Value: "{{ filters.country }}"}}}
+			d.Rows = []dashboard.Row{{Widgets: []dashboard.Widget{{Name: "Countries", Type: "table", QueryRef: "countries"}}}}
+			cfg := filepath.Join(t.TempDir(), ".bruin.yml")
+			if err := os.WriteFile(cfg, []byte("environments:\n  test:\n    connections:\n      google_cloud_platform:\n        - name: "+d.Connection+"\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			backend := query.NewCachedBackend(&query.BruinCLIBackend{ConfigFile: cfg}, 0)
+			jobs, err := ResolveWidgetJobs(d, map[string]any{"country": []any{"Summer's End", "Kids' Toys", "x') OR 1=1 --", `x") OR 1=1 --`}}, backend)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(jobs) != 1 {
+				t.Fatalf("expected one job, got %d", len(jobs))
+			}
+			sql := jobs[0].SQL
+			want := `IN ("Summer's End", "Kids' Toys", "x') OR 1=1 --", "x\") OR 1=1 --")`
+			if operator == "not_in" {
+				want = "NOT " + want
+			}
+			if !strings.Contains(sql, want) {
+				t.Fatalf("unescaped values: %s", sql)
+			}
+		})
+	}
+}
+
+func TestRawSQLApostrophesUseQueryConnectionDialect(t *testing.T) {
+	cfg := filepath.Join(t.TempDir(), ".bruin.yml")
+	if err := os.WriteFile(cfg, []byte("environments:\n  test:\n    connections:\n      postgres:\n        - name: primary\n      google_cloud_platform:\n        - name: warehouse\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	backend := query.NewCachedBackend(&query.BruinCLIBackend{ConfigFile: cfg}, 0)
+	for _, operator := range []string{"IN", "NOT IN"} {
+		source := `SELECT * FROM sales WHERE country ` + operator + ` ('{{ filters.country | join("','") }}')`
+		d := &dashboard.Dashboard{
+			Connection: "primary",
+			Filters:    []dashboard.Filter{{Name: "country", Type: "select", Multiple: true}},
+			Queries:    map[string]dashboard.Query{"named": {Connection: "warehouse", SQL: source}},
+			Rows: []dashboard.Row{{Widgets: []dashboard.Widget{
+				{Type: dashboard.WidgetTypeTabs, Tabs: []dashboard.Widget{{Name: "Named", Type: "table", QueryRef: "named"}}},
+				{Name: "Default", Type: "table", SQL: source},
+			}}},
+		}
+		jobs, err := ResolveWidgetJobs(d, map[string]any{"country": []any{"Summer's End", "Kids' Toys"}}, backend)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := `SELECT * FROM sales WHERE country ` + operator + ` ('Summer\'s End','Kids\' Toys')`
+		if len(jobs) != 2 || jobs[0].SQL != want || jobs[0].Connection != "warehouse" {
+			t.Fatalf("wrong query connection/escaping: %+v", jobs)
+		}
+		want = `SELECT * FROM sales WHERE country ` + operator + ` ('Summer''s End','Kids'' Toys')`
+		if jobs[1].SQL != want || jobs[1].Connection != "primary" {
+			t.Fatalf("wrong dashboard connection/escaping: %+v", jobs[1])
 		}
 	}
 }

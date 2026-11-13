@@ -95,7 +95,7 @@ func Build(ctx context.Context, cfg Config) error {
 	}
 
 	// Resolve widget jobs.
-	jobs, err := server.ResolveWidgetJobs(d, filters)
+	jobs, err := server.ResolveWidgetJobs(d, filters, backend)
 	if err != nil {
 		return fmt.Errorf("resolving widget jobs: %w", err)
 	}

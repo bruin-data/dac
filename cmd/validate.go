@@ -45,11 +45,11 @@ func validateCmd() *cli.Command {
 			tsxLoadDryRuns := 0
 
 			if withDatabase {
-				configFile, _, err := resolveConfig(cmd, dir)
+				configFile, cfg, err := resolveConfig(cmd, dir)
 				if err != nil {
 					return fmt.Errorf("config error: %w", err)
 				}
-				backend = newBackend(cmd, configFile)
+				backend = newBackend(cmd, configFile, cfg)
 				loadOptions = append(loadOptions, dashboard.WithQueryFunc(func(connection, sql string) (map[string]interface{}, error) {
 					if err := dryRunQuery(ctx, backend, connection, sql); err != nil {
 						return nil, err
@@ -141,7 +141,7 @@ func validateCmd() *cli.Command {
 }
 
 func validateDashboardWithDatabase(ctx context.Context, backend query.Backend, d *dashboard.Dashboard) ([]databaseValidationResult, error) {
-	jobs, err := server.ResolveWidgetJobs(d, d.DefaultFilters())
+	jobs, err := server.ResolveWidgetJobs(d, d.DefaultFilters(), backend)
 	if err != nil {
 		return nil, fmt.Errorf("query resolution failed: %w", err)
 	}

@@ -3,7 +3,7 @@ module github.com/bruin-data/dac
 go 1.26.10
 
 require (
-	github.com/bruin-data/bruin/semantic-engine v0.0.0-20261027105030-c69c7f06e8bf
+	github.com/bruin-data/bruin/semantic-engine v0.0.0-20261113113326-75e20447328d
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dop251/goja v0.0.0-20260305124333-6a7976c22267
 	github.com/dustin/go-humanize v1.0.1

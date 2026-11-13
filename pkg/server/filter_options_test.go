@@ -65,8 +65,8 @@ rows:
 		sql        string
 	}{
 		{name: "empty static list executes query; first column, deduplication and scalars", path: "Options%20Demo/filters/region/options",
-			rows:   [][]any{{"Europe", "ignored"}, {"APAC", 99}, {nil}, {}, {float64(1000001)}, {true}, {"APAC"}, {"Xi'an"}},
-			status: 200, values: []string{"Europe", "APAC", "1000001", "true"},
+			rows:   [][]any{{"Europe", "ignored"}, {"APAC", 99}, {nil}, {}, {float64(1000001)}, {true}, {"APAC"}, {"Xi'an"}, {"bad\\"}, {"bad\n"}},
+			status: 200, values: []string{"Europe", "APAC", "1000001", "true", "Xi'an"},
 			connection: "dashboard-connection", sql: "SELECT region, ignored FROM regions ORDER BY region"},
 		{name: "multi-select connection override", path: "Options%20Demo/filters/status/options",
 			rows: [][]any{{"pending"}}, status: 200, values: []string{"pending"},
@@ -249,7 +249,7 @@ rows:
 		{"invalid static selection", "POST", `{"filters":{"region":"unknown"}}`, 400, ""},
 		{"invalid multi selection", "POST", `{"filters":{"statuses":"pending"}}`, 400, ""},
 		{"invalid numeric type", "POST", `{"filters":{"min_amount":"100"}}`, 400, ""},
-		{"unsafe quote", "POST", `{"filters":{"search":"x' OR 1=1 --"}}`, 400, ""},
+		{"unused apostrophe", "POST", `{"filters":{"search":"x' OR 1=1 --"}}`, 200, "SELECT city FROM orders WHERE region = 'Europe' AND status IN ('pending') AND year = '2024' AND amount >= 0"},
 		{"unsafe backslash", "POST", `{"filters":{"search":"x\\"}}`, 400, ""},
 		{"unsafe control", "POST", `{"filters":{"search":"x\n"}}`, 400, ""},
 	} {

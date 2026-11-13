@@ -19,27 +19,33 @@ import (
 // ValidateSQLValue rejects characters that cannot be interpolated portably
 // across the SQL dialects supported by the CLI backend. That backend has no
 // bind-parameter API; guessing a dialect's escaping rules is unsafe.
-func ValidateSQLValue(value any) error {
+func ValidateSQLValue(value any) error { return validateSQLValue(value, "'\\") }
+
+// ValidateSemanticValue allows apostrophes: the semantic compiler quotes values.
+// Keep backslashes and controls restricted for dialects without explicit escaping.
+func ValidateSemanticValue(value any) error { return validateSQLValue(value, "\\") }
+
+func validateSQLValue(value any, forbidden string) error {
 	switch v := value.(type) {
 	case string:
-		if strings.ContainsAny(v, "'\\") || strings.ContainsFunc(v, unicode.IsControl) {
-			return fmt.Errorf("SQL filter values cannot contain quotes, backslashes, or control characters")
+		if strings.ContainsAny(v, forbidden) || strings.ContainsFunc(v, unicode.IsControl) {
+			return fmt.Errorf("SQL filter values cannot contain %q or control characters", forbidden)
 		}
 	case []string:
 		for _, item := range v {
-			if err := ValidateSQLValue(item); err != nil {
+			if err := validateSQLValue(item, forbidden); err != nil {
 				return err
 			}
 		}
 	case []any:
 		for _, item := range v {
-			if err := ValidateSQLValue(item); err != nil {
+			if err := validateSQLValue(item, forbidden); err != nil {
 				return err
 			}
 		}
 	case map[string]any:
 		for _, item := range v {
-			if err := ValidateSQLValue(item); err != nil {
+			if err := validateSQLValue(item, forbidden); err != nil {
 				return err
 			}
 		}
@@ -60,12 +66,13 @@ type sqlOutput struct {
 // captures every output before it can enter SQL. Outputs are substituted only
 // inside ordinary single-quoted literals, or as numbers outside literals.
 // Never use Render for SQL fragments containing request-controlled values.
-func RenderSQL(source string, filters map[string]any) (string, error) {
+func RenderSQL(source string, filters map[string]any, dialects ...string) (string, error) {
 	if !strings.Contains(source, "{{") && !strings.Contains(source, "{%") {
 		return source, nil
 	}
-	if err := ValidateSQLValue(filters); err != nil {
-		return "", err
+	dialect := ""
+	if len(dialects) > 0 {
+		dialect = dialects[0]
 	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
@@ -99,10 +106,15 @@ func RenderSQL(source string, filters map[string]any) (string, error) {
 		default:
 			return "", fmt.Errorf("SQL selections must be a list")
 		}
-		if err := ValidateSQLValue(items); err != nil {
-			return "", err
+		escaped := make([]string, len(items))
+		for i, item := range items {
+			var err error
+			escaped[i], err = escapeSQLText(item, dialect)
+			if err != nil {
+				return "", err
+			}
 		}
-		values = append(values, sqlOutput{text: strings.Join(items, "','"), list: true})
+		values = append(values, sqlOutput{text: strings.Join(escaped, "','"), list: true})
 		return fmt.Sprintf("%s%dEND", prefix, len(values)-1), nil
 	}
 	// Included/imported filesystem templates would bypass output capture.
@@ -120,7 +132,7 @@ func RenderSQL(source string, filters map[string]any) (string, error) {
 	if err := tpl.Execute(&out, ctx); err != nil {
 		return "", fmt.Errorf("rendering SQL template: %w", err)
 	}
-	return substituteSQLValues(out.String(), prefix, values)
+	return substituteSQLValues(out.String(), prefix, values, dialect)
 }
 
 // Use the Jinja lexer, not a regexp: delimiters inside strings and comments
@@ -178,12 +190,13 @@ func captureSQLExpressions(source, capture, list string) (string, error) {
 	return out.String(), nil
 }
 
-func substituteSQLValues(sql, prefix string, values []sqlOutput) (string, error) {
+func substituteSQLValues(sql, prefix string, values []sqlOutput, dialect string) (string, error) {
 	var out strings.Builder
 	// A deliberately conservative lexer: only ordinary single-quoted strings
 	// support text interpolation. Identifiers, comments, dollar quoted
 	// strings and dialect-specific escaped literals cannot contain outputs.
 	state, delimiter := "", ""
+	ordinaryString := false
 	depth, dollarStart := 0, 0
 	// Past the last output nothing more is substituted, so dialect syntax the
 	// lexer cannot follow (backslash escapes, unknown dollar tags) is harmless.
@@ -227,8 +240,13 @@ func substituteSQLValues(sql, prefix string, values []sqlOutput) (string, error)
 				return "", fmt.Errorf("SQL filter values inside '[...]' cannot contain ']'")
 			}
 			if state == "'" {
+				// Raw/bytes prefixes and triple quotes use different escaping rules.
+				if !ordinaryString && (value.list || strings.Contains(value.text, "'")) {
+					return "", fmt.Errorf("quoted filter values require ordinary single-quoted SQL literals")
+				}
 				if !value.list {
-					if err := ValidateSQLValue(value.text); err != nil {
+					value.text, err = escapeSQLText(value.text, dialect)
+					if err != nil {
 						return "", err
 					}
 				}
@@ -339,6 +357,7 @@ func substituteSQLValues(sql, prefix string, values []sqlOutput) (string, error)
 				}
 				syncs = append(syncs, end)
 				state = string(c)
+				ordinaryString = false
 			case c == '$' && (i+1 < len(sql) && sql[i+1] >= '0' && sql[i+1] <= '9' || out.Len() > 0 && identifierByte(out.String()[out.Len()-1])):
 				// Positional references ($1) and '$' inside identifiers (a$b)
 				// never open a dollar-quoted string.
@@ -359,6 +378,7 @@ func substituteSQLValues(sql, prefix string, values []sqlOutput) (string, error)
 				return "", fmt.Errorf("unsupported dollar syntax in SQL template")
 			case c == '\'' || c == '"' || c == '`':
 				state = string(c)
+				ordinaryString = i == 0 || !identifierByte(sql[i-1])
 			case c == '[' && bracketIdentifier(sql[i+1:], prefix):
 				// DuckDB reads [...] as a list, i.e. as code.
 				if codeAmbiguous(sql[i+1 : bracketEnd(sql, i+1)]) {
@@ -434,4 +454,23 @@ func bracketIdentifier(rest, prefix string) bool {
 	}
 	c := rest[0]
 	return c == '_' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= 0x80
+}
+
+// escapeSQLText returns text for the inside of an ordinary single-quoted literal.
+// Backslashes and controls remain restricted; unknown dialects fail closed on quotes.
+func escapeSQLText(value, dialect string) (string, error) {
+	if err := ValidateSemanticValue(value); err != nil {
+		return "", err
+	}
+	if !strings.Contains(value, "'") {
+		return value, nil
+	}
+	switch dialect {
+	case "bigquery", "google_cloud_platform":
+		return strings.ReplaceAll(value, "'", "\\'"), nil
+	case "postgres", "redshift", "snowflake", "mysql", "mssql", "duckdb", "sqlite":
+		return strings.ReplaceAll(value, "'", "''"), nil
+	default:
+		return "", fmt.Errorf("apostrophes in SQL filter values require a supported connection dialect")
+	}
 }

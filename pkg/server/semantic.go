@@ -12,11 +12,15 @@ import (
 	tmpl "github.com/bruin-data/dac/pkg/template"
 )
 
-func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (string, string, map[string]string, error) {
-	if err := tmpl.ValidateSQLValue(filters); err != nil {
+func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any, dialects ...string) (string, string, map[string]string, error) {
+	if err := tmpl.ValidateSemanticValue(filters); err != nil {
 		return "", "", nil, err
 	}
-	model, err := renderSemanticModel(job.Model, filters)
+	dialect := ""
+	if len(dialects) > 0 {
+		dialect = dialects[0]
+	}
+	model, err := renderSemanticModel(job.Model, filters, dialect)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -25,7 +29,7 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 	// joined models compile against rendered (templated) expressions too.
 	models := make(map[string]*sem.Model, len(job.Models))
 	for name, m := range job.Models {
-		rendered, err := renderSemanticModel(m, filters)
+		rendered, err := renderSemanticModel(m, filters, dialect)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("rendering semantic model %q: %w", name, err)
 		}
@@ -39,7 +43,7 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 		}
 	}
 
-	query, err := renderSemanticQuery(job.Query, filters)
+	query, err := renderSemanticQuery(job.Query, filters, dialect)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -48,6 +52,7 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any) (str
 	if err != nil {
 		return "", "", nil, err
 	}
+	engine.Dialect = dialect
 	sql, err := engine.GenerateSQL(&query)
 	if err != nil {
 		return "", "", nil, err
@@ -91,7 +96,7 @@ func semanticOutputAlias(model *sem.Model, ref sem.DimensionRef) string {
 	return alias
 }
 
-func renderSemanticModel(model *sem.Model, filters map[string]any) (*sem.Model, error) {
+func renderSemanticModel(model *sem.Model, filters map[string]any, dialects ...string) (*sem.Model, error) {
 	if model == nil {
 		return nil, fmt.Errorf("semantic model is required")
 	}
@@ -99,7 +104,7 @@ func renderSemanticModel(model *sem.Model, filters map[string]any) (*sem.Model, 
 	clone := *model
 	clone.Source = model.Source
 	var err error
-	clone.Source.Table, err = renderTemplateString(model.Source.Table, filters)
+	clone.Source.Table, err = renderTemplateString(model.Source.Table, filters, dialects...)
 	if err != nil {
 		return nil, fmt.Errorf("rendering semantic source table: %w", err)
 	}
@@ -107,14 +112,14 @@ func renderSemanticModel(model *sem.Model, filters map[string]any) (*sem.Model, 
 	clone.Dimensions = make([]sem.Dimension, len(model.Dimensions))
 	for i, dim := range model.Dimensions {
 		clonedDim := dim
-		clonedDim.Expression, err = renderTemplateString(dim.Expression, filters)
+		clonedDim.Expression, err = renderTemplateString(dim.Expression, filters, dialects...)
 		if err != nil {
 			return nil, fmt.Errorf("rendering dimension %q expression: %w", dim.Name, err)
 		}
 		if len(dim.Granularities) > 0 {
 			clonedDim.Granularities = make(map[string]string, len(dim.Granularities))
 			for key, value := range dim.Granularities {
-				clonedDim.Granularities[key], err = renderTemplateString(value, filters)
+				clonedDim.Granularities[key], err = renderTemplateString(value, filters, dialects...)
 				if err != nil {
 					return nil, fmt.Errorf("rendering dimension %q granularity %q: %w", dim.Name, key, err)
 				}
@@ -126,11 +131,11 @@ func renderSemanticModel(model *sem.Model, filters map[string]any) (*sem.Model, 
 	clone.Metrics = make([]sem.Metric, len(model.Metrics))
 	for i, metric := range model.Metrics {
 		clonedMetric := metric
-		clonedMetric.Expression, err = renderTemplateString(metric.Expression, filters)
+		clonedMetric.Expression, err = renderTemplateString(metric.Expression, filters, dialects...)
 		if err != nil {
 			return nil, fmt.Errorf("rendering metric %q expression: %w", metric.Name, err)
 		}
-		clonedMetric.Filter, err = renderTemplateString(metric.Filter, filters)
+		clonedMetric.Filter, err = renderTemplateString(metric.Filter, filters, dialects...)
 		if err != nil {
 			return nil, fmt.Errorf("rendering metric %q filter: %w", metric.Name, err)
 		}
@@ -140,7 +145,7 @@ func renderSemanticModel(model *sem.Model, filters map[string]any) (*sem.Model, 
 	clone.Segments = make([]sem.Segment, len(model.Segments))
 	for i, segment := range model.Segments {
 		clonedSegment := segment
-		clonedSegment.Filter, err = renderTemplateString(segment.Filter, filters)
+		clonedSegment.Filter, err = renderTemplateString(segment.Filter, filters, dialects...)
 		if err != nil {
 			return nil, fmt.Errorf("rendering segment %q filter: %w", segment.Name, err)
 		}
@@ -150,7 +155,7 @@ func renderSemanticModel(model *sem.Model, filters map[string]any) (*sem.Model, 
 	return &clone, nil
 }
 
-func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, error) {
+func renderSemanticQuery(query sem.Query, filters map[string]any, dialects ...string) (sem.Query, error) {
 	rendered := query
 	if len(query.Dimensions) > 0 {
 		rendered.Dimensions = append([]sem.DimensionRef(nil), query.Dimensions...)
@@ -177,7 +182,7 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 		}
 		rf := filter
 		var err error
-		rf.Expression, err = renderTemplateString(filter.Expression, filters)
+		rf.Expression, err = renderTemplateString(filter.Expression, filters, dialects...)
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter expression: %w", err)
 		}
@@ -185,11 +190,10 @@ func renderSemanticQuery(query sem.Query, filters map[string]any) (sem.Query, er
 		if err != nil {
 			return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
 		}
-		// The engine escapes author-written literals (e.g. "Kids' Toys"); only
-		// values changed by templating, which may embed request data, must
-		// also satisfy the SQL value rules.
+		// Templated values are data, quoted by the engine. Restrict their
+		// shape so no value can fall through to raw SQL formatting.
 		if !reflect.DeepEqual(rf.Value, filter.Value) {
-			if err := tmpl.ValidateSQLValue(rf.Value); err != nil {
+			if err := tmpl.ValidateSemanticValue(rf.Value); err != nil {
 				return sem.Query{}, fmt.Errorf("rendering filter value: %w", err)
 			}
 			if err := checkSemanticValueShape(rf.Operator, rf.Value); err != nil {
@@ -251,13 +255,13 @@ func checkSemanticValueShape(operator string, value any) error {
 	return nil
 }
 
-func renderTemplateString(value string, filters map[string]any) (string, error) {
+func renderTemplateString(value string, filters map[string]any, dialects ...string) (string, error) {
 	if value == "" {
 		return value, nil
 	}
 	// Render even with no filters: SQL may reference the `bruin` namespace
 	// (e.g. {{ bruin.user_email }}). RenderSQL() short-circuits plain strings.
-	return tmpl.RenderSQL(value, filters)
+	return tmpl.RenderSQL(value, filters, dialects...)
 }
 
 // filterRef matches a whole `filters.<name>` token (\b treats `_` as a word

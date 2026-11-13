@@ -51,9 +51,10 @@ func resolveConfigOptional(cmd *cli.Command, dir string) string {
 }
 
 // newBackend creates a BruinCLIBackend from the resolved config.
-func newBackend(cmd *cli.Command, configFile string) *query.BruinCLIBackend {
+func newBackend(cmd *cli.Command, configFile string, cfg *config.Config) *query.BruinCLIBackend {
 	return &query.BruinCLIBackend{
 		ConfigFile:  configFile,
+		Config:      cfg,
 		Environment: cmd.Root().String("environment"),
 	}
 }

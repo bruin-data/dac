@@ -218,7 +218,8 @@ func TestResolveWidgetJobs_JinjaFiltersRendered(t *testing.T) {
 	}
 
 	filters := map[string]any{"region": "US"}
-	jobs, err := ResolveWidgetJobs(d, filters)
+	// With no explicit config, the backend still lets Bruin discover its own.
+	jobs, err := ResolveWidgetJobs(d, filters, &query.BruinCLIBackend{})
 	if err != nil {
 		t.Fatal(err)
 	}
