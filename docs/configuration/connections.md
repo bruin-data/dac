@@ -60,7 +60,7 @@ See the [Bruin CLI documentation](https://getbruin.com/docs/bruin/) for the full
 
 Multiple environments let you switch between dev/staging/prod databases:
 
-Without `--environment`, DAC uses `default_environment`, then an environment named `default`, then the only environment if there is just one.
+Without `--environment`, DAC uses `default_environment`, or an environment named `default` when that setting is omitted.
 
 ```yaml
 default_environment: dev
