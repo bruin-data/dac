@@ -1,0 +1,329 @@
+== dac --help
+NAME:
+   dac - Dashboard-as-Code: define, validate, and serve dashboards from YAML and TSX
+
+USAGE:
+   dac [global options] [command [command options]]
+
+VERSION:
+   v1.2.3
+
+COMMANDS:
+   init             Create a new DAC project
+   serve            Start development server with live reload
+   build            Build a static dashboard with baked-in query results
+   validate         Validate dashboard definitions and semantic model references
+   check            Validate dashboards and execute all queries to verify they work
+   query            Run a SQL query against a connection
+   ls               List discovered dashboards
+   connections      Test database connections from .bruin.yml
+   skills           List, install, and update DAC agent skills
+   import           Import dashboards from external tools
+   export           Export dashboards to external formats
+   upgrade, update  Upgrade the dac CLI in place to the latest release
+   version          Show DAC version information
+   help, h          Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+   --help, -h                       show help
+   --version, -v                    print the version
+== dac init --help
+NAME:
+   dac init - Create a new DAC project
+
+USAGE:
+   dac init [options] [path]
+
+OPTIONS:
+   --template string, -t string  Project template: starter, sql, semantic, tsx (default: "starter")
+   --force, -f                   Overwrite scaffold files if they already exist
+   --help, -h                    show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac serve --help
+NAME:
+   dac serve - Start development server with live reload
+
+USAGE:
+   dac serve [options]
+
+OPTIONS:
+   --port int, -p int            Port to listen on (default: 8321)
+   --dir string, -d string       Dashboard definitions directory (default: ".")
+   --template string, -t string  Template name (bruin, bruin-dark) or path to a theme YAML file (default: "bruin")
+   --host string                 Host to bind to (default: "localhost")
+   --open                        Open browser automatically
+   --password string             Admin password for management API (admin endpoints disabled if not set)
+   --help, -h                    show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac build --help
+NAME:
+   dac build - Build a static dashboard with baked-in query results
+
+USAGE:
+   dac build [options]
+
+OPTIONS:
+   --dashboard string, -n string  Dashboard name (required)
+   --output string, -o string     Output directory (default: "build")
+   --dir string, -d string        Dashboard definitions directory (default: ".")
+   --template string, -t string   Template name or path to a theme YAML file (default: "bruin")
+   --filters string               JSON string with filter overrides
+   --help, -h                     show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac validate --help
+NAME:
+   dac validate - Validate dashboard definitions and semantic model references
+
+USAGE:
+   dac validate [options]
+
+OPTIONS:
+   --dir string, -d string  Dashboard definitions directory (default: ".")
+   --with-database          Dry-run dashboard queries against configured database connections
+   --help, -h               show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac check --help
+NAME:
+   dac check - Validate dashboards and execute all queries to verify they work
+
+USAGE:
+   dac check [options]
+
+OPTIONS:
+   --dir string, -d string  Dashboard definitions directory (default: ".")
+   --help, -h               show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac query --help
+NAME:
+   dac query - Run a SQL query against a connection
+
+USAGE:
+   dac query [options]
+
+OPTIONS:
+   --connection string, -c string  Connection name from .bruin.yml
+   --file string, -f string        Path to a .sql file to execute
+   --dir string, -d string         Dashboard definitions directory (default: ".")
+   --dashboard string              Dashboard name (to run a specific widget's query)
+   --widget string, -w string      Widget name within the dashboard
+   --output string, -o string      Output format: table, json, csv (default: "table")
+   --help, -h                      show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac ls --help
+NAME:
+   dac ls - List discovered dashboards
+
+USAGE:
+   dac ls [options]
+
+OPTIONS:
+   --dir string, -d string  Dashboard definitions directory (default: ".")
+   --help, -h               show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac connections --help
+NAME:
+   dac connections - Test database connections from .bruin.yml
+
+USAGE:
+   dac connections [options]
+
+OPTIONS:
+   --dir string, -d string  Dashboard definitions directory (default: ".")
+   --help, -h               show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac skills --help
+NAME:
+   dac skills - List, install, and update DAC agent skills
+
+USAGE:
+   dac skills [command [command options]]
+
+COMMANDS:
+   list     List bundled DAC agent skills
+   install  Install bundled DAC agent skills into a project
+   update   Update installed DAC agent skills to the bundled version
+
+OPTIONS:
+   --help, -h  show help
+== dac skills list --help
+NAME:
+   dac skills list - List bundled DAC agent skills
+
+USAGE:
+   dac skills list [options]
+
+OPTIONS:
+   --help, -h  show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac skills install --help
+NAME:
+   dac skills install - Install bundled DAC agent skills into a project
+
+USAGE:
+   dac skills install [options] [skill...]
+
+OPTIONS:
+   --dir string, -d string  Target project directory (default: ".")
+   --force, -f              Overwrite existing skill files
+   --help, -h               show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac skills update --help
+NAME:
+   dac skills update - Update installed DAC agent skills to the bundled version
+
+USAGE:
+   dac skills update [options] [skill...]
+
+OPTIONS:
+   --dir string, -d string  Target project directory (default: ".")
+   --help, -h               show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac import --help
+NAME:
+   dac import - Import dashboards from external tools
+
+USAGE:
+   dac import [command [command options]]
+
+COMMANDS:
+   metabase  Convert a Metabase dashboard to DAC YAML
+
+OPTIONS:
+   --help, -h  show help
+== dac import metabase --help
+NAME:
+   dac import metabase - Convert a Metabase dashboard to DAC YAML
+
+USAGE:
+   dac import metabase [options]
+
+OPTIONS:
+   --input string, -i string       Path to a Metabase dashboard API response JSON/YAML file
+   --url string                    Metabase base URL for live import
+   --dashboard-id string           Metabase dashboard ID for live import
+   --api-key string                Metabase API key (or set METABASE_API_KEY) [$METABASE_API_KEY]
+   --session-token string          Metabase session token (or set METABASE_SESSION_TOKEN) [$METABASE_SESSION_TOKEN]
+   --connection string, -c string  DAC connection name to set on the generated dashboard
+   --output string, -o string      Output YAML path (default: <dir>/<dashboard-slug>.yml; use - for stdout)
+   --dir string, -d string         Dashboard definitions directory (default: ".")
+   --force                         Overwrite an existing output file
+   --strict                        Fail instead of creating placeholders for unsupported Metabase cards
+   --semantic                      Generate DAC semantic models for explicit Metabase models/metrics and convert eligible widgets to semantic references
+   --semantic-strict               Fail when semantic import cannot represent a Metabase model-backed card semantically
+   --semantic-dir string           Directory for generated semantic model files (default: sibling semantic/ next to dashboards/)
+   --help, -h                      show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac export --help
+NAME:
+   dac export - Export dashboards to external formats
+
+USAGE:
+   dac export [command [command options]]
+
+COMMANDS:
+   slides  Export a dashboard to Google Slides
+
+OPTIONS:
+   --help, -h  show help
+== dac export slides --help
+NAME:
+   dac export slides - Export a dashboard to Google Slides
+
+USAGE:
+   dac export slides [options]
+
+OPTIONS:
+   --dashboard string, -n string  Dashboard name (required)
+   --credentials string           Path to Google OAuth credentials.json (default: gcloud ADC)
+   --dir string, -d string        Dashboard definitions directory (default: ".")
+   --filters string               JSON string with filter overrides
+   --help, -h                     show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac upgrade --help
+NAME:
+   dac upgrade - Upgrade the dac CLI in place to the latest release
+
+USAGE:
+   dac upgrade [options] [tag]
+
+DESCRIPTION:
+   Re-runs the official install script to replace the current binary with the latest release on the same channel. Pass --channel edge to track the edge stream, or a tag like v1.2.3 as an argument to pin to a specific version.
+
+OPTIONS:
+   --channel string  Release channel to install from (stable or edge)
+   --bindir string   Directory to install into (default: directory of the current binary)
+   --help, -h        show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging
+== dac version --help
+NAME:
+   dac version - Show DAC version information
+
+USAGE:
+   dac version [options]
+
+OPTIONS:
+   --help, -h  show help
+
+GLOBAL OPTIONS:
+   --config string, -c string       Path to .bruin.yml config file (default: auto-discover)
+   --environment string, -e string  Target environment name
+   --debug                          Enable debug logging

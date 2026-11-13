@@ -60,6 +60,7 @@ func buildCmd() *cli.Command {
 				TemplateName: cmd.String("template"),
 				ConfigFile:   configFile,
 				Environment:  cmd.Root().String("environment"),
+				BruinPath:    buildInfoFrom(cmd).BruinPath,
 				Frontend:     frontendFS,
 			})
 		},

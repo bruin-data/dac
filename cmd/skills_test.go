@@ -30,7 +30,7 @@ func TestSkillsInstall_InstallsDefaultSkill(t *testing.T) {
 	dir := t.TempDir()
 
 	output := captureStdout(t, func() {
-		if err := runSkillsInstall(dir, nil, false); err != nil {
+		if err := runSkillsInstall(dir, nil, false, BuildInfo{}); err != nil {
 			t.Fatalf("skills install failed: %v", err)
 		}
 	})
@@ -80,7 +80,7 @@ func TestSkillsInstall_RefusesOverwriteWithoutForce(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	err := runSkillsInstall(dir, []string{"create-dashboard"}, false)
+	err := runSkillsInstall(dir, []string{"create-dashboard"}, false, BuildInfo{})
 	if err == nil {
 		t.Fatal("expected overwrite conflict")
 	}
@@ -96,7 +96,7 @@ func TestSkillsInstall_RefusesCodexOverwriteWithoutForce(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	err := runSkillsInstall(dir, []string{"create-dashboard"}, false)
+	err := runSkillsInstall(dir, []string{"create-dashboard"}, false, BuildInfo{})
 	if err == nil {
 		t.Fatal("expected overwrite conflict")
 	}
@@ -115,7 +115,7 @@ func TestSkillsInstall_ForceOverwritesSkill(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	if err := runSkillsInstall(dir, []string{"create-dashboard"}, true); err != nil {
+	if err := runSkillsInstall(dir, []string{"create-dashboard"}, true, BuildInfo{}); err != nil {
 		t.Fatalf("skills install --force failed: %v", err)
 	}
 	data, err := os.ReadFile(path)
@@ -133,7 +133,7 @@ func TestSkillsInstall_ForceOverwritesSkill(t *testing.T) {
 }
 
 func TestSkillsInstall_RejectsUnknownSkill(t *testing.T) {
-	err := runSkillsInstall(t.TempDir(), []string{"missing"}, false)
+	err := runSkillsInstall(t.TempDir(), []string{"missing"}, false, BuildInfo{})
 	if err == nil {
 		t.Fatal("expected unknown skill error")
 	}
@@ -189,7 +189,7 @@ func TestSkillUpdateNotices_FlagsButDoesNotModify(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	notices := skillUpdateNotices(dir)
+	notices := skillUpdateNotices(dir, BuildInfo{})
 	if len(notices) != 1 {
 		t.Fatalf("expected 1 notice, got %d: %v", len(notices), notices)
 	}
@@ -249,7 +249,7 @@ func TestAutoUpdateStaleSkills_SilentWhenCurrentOrAbsent(t *testing.T) {
 
 	// Freshly installed skill is current with the bundled version.
 	dir := t.TempDir()
-	if err := runSkillsInstall(dir, nil, false); err != nil {
+	if err := runSkillsInstall(dir, nil, false, BuildInfo{}); err != nil {
 		t.Fatalf("skills install failed: %v", err)
 	}
 	if notices := autoUpdateStaleSkills(dir); len(notices) != 0 {

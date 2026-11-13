@@ -37,7 +37,7 @@ func validateCmd() *cli.Command {
 			if err != nil {
 				return err
 			}
-			printSkillUpdateNotices(dir)
+			printSkillUpdateNotices(dir, buildInfoFrom(cmd))
 			withDatabase := cmd.Bool("with-database")
 
 			var backend query.Backend
