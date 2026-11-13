@@ -54,6 +54,8 @@ A newer create-dashboard skill is available with the latest authoring features a
 Run `dac upgrade` to update the CLI and refresh your project's copy.
 ```
 
+Under `bruin dac` there is no `upgrade` command. The notice points at `bruin dac skills update --dir <project root>` instead, naming the directory where the stale copy was found.
+
 `dac upgrade` performs the refresh automatically: after installing the new binary it brings any installed-but-stale skills in the current project up to the bundled version and reports what changed:
 
 ```text

@@ -47,7 +47,7 @@ func serveCmd() *cli.Command {
 			if err != nil {
 				return err
 			}
-			printSkillUpdateNotices(dir)
+			printSkillUpdateNotices(dir, buildInfoFrom(cmd))
 			configFile := resolveConfigOptional(cmd, dir)
 
 			srv, err := server.New(server.Config{
@@ -57,6 +57,7 @@ func serveCmd() *cli.Command {
 				TemplateName:  cmd.String("template"),
 				ConfigFile:    configFile,
 				Environment:   cmd.Root().String("environment"),
+				BruinPath:     buildInfoFrom(cmd).BruinPath,
 				AdminPassword: cmd.String("password"),
 				Frontend:      frontendFS,
 			})

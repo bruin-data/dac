@@ -61,4 +61,6 @@ export DAC_NO_UPDATE_CHECK=1
 export DO_NOT_TRACK=1
 ```
 
-The check is also disabled for `dev` and `test-*` builds.
+The check is also disabled for `dev` and `test-*` builds, and when bruin runs dac as `bruin dac`.
+
+`bruin dac` has no `upgrade` command: bruin installs the dac version it pins.

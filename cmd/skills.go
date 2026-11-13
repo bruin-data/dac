@@ -81,7 +81,7 @@ func skillsInstallCmd() *cli.Command {
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
-			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), cmd.Bool("force"))
+			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), cmd.Bool("force"), buildInfoFrom(cmd))
 		},
 	}
 }
@@ -95,7 +95,7 @@ func skillsUpdateCmd() *cli.Command {
 			skillsDirFlag,
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
-			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), true)
+			return runSkillsInstall(cmd.String("dir"), cmd.Args().Slice(), true, buildInfoFrom(cmd))
 		},
 	}
 }
@@ -128,7 +128,7 @@ func runSkillsList() error {
 	return w.Flush()
 }
 
-func runSkillsInstall(targetDir string, names []string, force bool) error {
+func runSkillsInstall(targetDir string, names []string, force bool, build BuildInfo) error {
 	targetAbs, err := filepath.Abs(targetDir)
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func runSkillsInstall(targetDir string, names []string, force bool) error {
 		return fmt.Errorf("creating target directory: %w", err)
 	}
 
-	skills, err := selectSkills(names)
+	skills, err := selectSkills(names, build)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func runSkillsInstall(targetDir string, names []string, force bool) error {
 	return nil
 }
 
-func selectSkills(names []string) ([]bundledSkill, error) {
+func selectSkills(names []string, build BuildInfo) ([]bundledSkill, error) {
 	if len(names) == 0 {
 		return append([]bundledSkill(nil), dacSkills...), nil
 	}
@@ -255,7 +255,7 @@ func selectSkills(names []string) ([]bundledSkill, error) {
 		}
 		skill, ok := byName[name]
 		if !ok {
-			return nil, fmt.Errorf("unknown skill %q (run `dac skills list` to see available skills)", name)
+			return nil, fmt.Errorf("unknown skill %q (run `%s skills list` to see available skills)", name, build.programName())
 		}
 		selected = append(selected, skill)
 		seen[name] = true
@@ -269,7 +269,11 @@ func selectSkills(names []string) ([]bundledSkill, error) {
 // .claude directory) is discovered by walking upward. Skills that are not
 // installed produce no notice — there is nothing to update. This is passive:
 // it never modifies files. `dac upgrade` performs the actual update.
-func skillUpdateNotices(startDir string) []string {
+//
+// Under `bruin dac` there is no upgrade command, so the notice points at
+// `bruin dac skills update` instead. That command writes into --dir without
+// walking upward, so the notice names the project root, not startDir.
+func skillUpdateNotices(startDir string, build BuildInfo) []string {
 	root, ok := findProjectRoot(startDir)
 	if !ok {
 		return nil
@@ -283,7 +287,11 @@ func skillUpdateNotices(startDir string) []string {
 			continue
 		}
 		if parseSkillVersion(skill.Content) > parseSkillVersion(string(data)) {
-			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\nRun `dac upgrade` to update the CLI and refresh your project's copy.", skill.Name))
+			hint := "Run `dac upgrade` to update the CLI and refresh your project's copy."
+			if build.BruinHost {
+				hint = fmt.Sprintf("Run `%s skills update --dir %s` to refresh your project's copy.", build.programName(), shellQuote(root))
+			}
+			notices = append(notices, fmt.Sprintf("A newer %s skill is available with the latest authoring features and fixes.\n%s", skill.Name, hint))
 		}
 	}
 	return notices
@@ -291,10 +299,19 @@ func skillUpdateNotices(startDir string) []string {
 
 // printSkillUpdateNotices writes skill staleness notices to stderr so they
 // stay out of any machine-readable stdout.
-func printSkillUpdateNotices(startDir string) {
-	for _, notice := range skillUpdateNotices(startDir) {
+func printSkillUpdateNotices(startDir string, build BuildInfo) {
+	for _, notice := range skillUpdateNotices(startDir, build) {
 		fmt.Fprintln(os.Stderr, notice)
 	}
+}
+
+// shellQuote single-quotes s for a POSIX shell unless it is made only of
+// characters that never need quoting.
+func shellQuote(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-+:@") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // autoUpdateStaleSkills rewrites installed skills whose bundled version is newer

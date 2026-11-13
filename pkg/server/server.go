@@ -23,6 +23,7 @@ type Config struct {
 	TemplateName  string
 	ConfigFile    string
 	Environment   string
+	BruinPath     string // bruin binary for queries; empty means "bruin" on PATH
 	AdminPassword string
 	Frontend      fs.FS // embedded frontend files, nil for dev mode
 }
@@ -95,6 +96,7 @@ func (l *dashboardLoader) tsxOpts() []dashboard.TSXOption {
 // New creates a new server instance.
 func New(cfg Config) (*Server, error) {
 	backend := &query.BruinCLIBackend{
+		BruinPath:   cfg.BruinPath,
 		ConfigFile:  cfg.ConfigFile,
 		Environment: cfg.Environment,
 	}

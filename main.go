@@ -35,16 +35,20 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Kick off the update check in the background. The receive is gated on a
-	// short timeout below so a slow GitHub round-trip never blocks the user.
-	var updateCh <-chan update.Result
-	if checker := update.NewChecker(version); checker != nil {
-		updateCh = checker.Start(ctx)
-	}
-
+	// DAC_BRUIN_PATH and DAC_HOST are read here, once, and passed down.
 	buildInfo := cmd.BuildInfo{
 		Version: version,
 		Commit:  commit,
+	}.WithHostEnv()
+
+	// Kick off the update check in the background. The receive is gated on a
+	// short timeout below so a slow GitHub round-trip never blocks the user.
+	// Under `bruin dac`, bruin pins and installs dac, so there's nothing to nudge.
+	var updateCh <-chan update.Result
+	if !buildInfo.BruinHost {
+		if checker := update.NewChecker(version); checker != nil {
+			updateCh = checker.Start(ctx)
+		}
 	}
 
 	args := os.Args
