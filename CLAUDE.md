@@ -55,6 +55,8 @@ Bruin is an engineering-grade data tool that presents information with authority
 | `make deps` | Install Go + npm dependencies |
 | `make format` | Run `go vet` |
 | `make clean` | Remove build artifacts |
+| `make actions-lock` | Update `.github/workflows/actions.lock` after changing workflow actions (needs `gh extension install github/gh-actions-lock`) |
+| `make actions-lock-verify` | Verify workflows match `.github/workflows/actions.lock` |
 
 When verifying Go changes compile, use `go build ./...` for a quick check, but always use `make build` for a real build.
 

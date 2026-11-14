@@ -73,6 +73,16 @@ format-frontend:
 	@printf "$(OK_COLOR)>> [frontend lint] running$(NO_COLOR)\n"
 	@cd frontend && npm run lint
 
+# Requires gh extension install github/gh-actions-lock.
+.PHONY: actions-lock actions-lock-verify
+actions-lock:
+	@printf "$(OK_COLOR)==> Updating GitHub Actions lockfile$(NO_COLOR)\n"
+	@gh actions-lock
+
+actions-lock-verify:
+	@printf "$(OK_COLOR)==> Verifying GitHub Actions lockfile$(NO_COLOR)\n"
+	@gh actions-lock --verify
+
 # Run both frontend and backend with live reload
 dev:
 	@trap 'kill 0' EXIT; \

@@ -54,6 +54,7 @@ Run DAC against an example project:
 - After every change, scan `docs/` for areas the change touches and update them in the same PR — add a new doc page if nothing existing fits.
 - Update one of the curated projects in `examples/` if the authoring model changes.
 - Keep YAML and TSX behavior aligned when a feature exists in both surfaces.
+- When you add or change an action in `.github/workflows/`, run `make actions-lock` and commit the updated `.github/workflows/actions.lock` (requires `gh extension install github/gh-actions-lock`).
 
 ## Repository Map
 
