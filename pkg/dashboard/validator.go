@@ -441,6 +441,9 @@ func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
 	errs = append(errs, validateInlineData(prefix, w)...)
 
 	validatePivot(prefix, w, &errs)
+	if err := w.ValidateGrandTotal(d); err != nil {
+		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
+	}
 	validateTableColumnGroups(prefix, w, &errs)
 
 	return errs
@@ -1303,4 +1306,44 @@ func validateFormatLayer(prefix string, l FormatLayer, pivot bool, errs *[]strin
 func isPairValue(v any) bool {
 	arr, ok := v.([]interface{})
 	return ok && len(arr) == 2
+}
+
+// ValidateGrandTotal checks the option and the metrics used by a semantic table.
+func (w *Widget) ValidateGrandTotal(d *Dashboard) error {
+	switch value := w.GrandTotal.(type) {
+	case nil, bool:
+	case map[string]interface{}:
+		for key, v := range value {
+			if key != "label" {
+				return fmt.Errorf("unknown grandTotal setting: %s", key)
+			}
+			if _, ok := v.(string); !ok {
+				return fmt.Errorf("grandTotal.label must be a string")
+			}
+		}
+	default:
+		return fmt.Errorf("grandTotal must be a boolean or {label}")
+	}
+	if !w.GrandTotalEnabled() {
+		return nil
+	}
+	if w.Type != WidgetTypeTable {
+		return fmt.Errorf("grandTotal is only supported on semantic-model plain tables")
+	}
+	job, handled, err := d.ResolveWidgetSemanticJob(w)
+	if err != nil {
+		return err
+	}
+	if !handled || w.HasInlineData() {
+		return fmt.Errorf("grandTotal requires a semantic-model query; SQL and inline data are not supported")
+	}
+	if len(job.Query.Metrics) == 0 {
+		return fmt.Errorf("grandTotal requires at least one semantic metric")
+	}
+	engine, err := sem.NewEngineWithModels(job.Model, job.Models)
+	if err != nil {
+		return err
+	}
+	_, err = engine.GenerateGrandTotalSQL(&sem.Query{Metrics: job.Query.Metrics})
+	return err
 }

@@ -87,6 +87,16 @@ export function TableWidget({ widget, data }: Props) {
     setGroupState((current) => ({ ...current, [id]: !collapsed }));
   };
 
+  const grandTotal = widget.type === "table" && !!widget.grandTotal;
+  const grandTotalHeight = typeof widget.height === "string" && /^\d+(?:\.\d+)?$/.test(widget.height)
+    ? Number(widget.height) : widget.height ?? 400;
+  const grandTotalLabel = typeof widget.grandTotal === "object" ? widget.grandTotal.label ?? "Grand total" : "Grand total";
+  const grandTotalValues = useMemo(() => {
+    const result = grandTotal ? data?.grandTotal : undefined;
+    if (!result?.rows[0]) return null;
+    return new Map(result.columns.map((column, i) => [column.name.toLowerCase(), result.rows[0][i]]));
+  }, [grandTotal, data?.grandTotal]);
+
   // A pivot reshapes the result client-side; the rest of the table renders the
   // reshaped `effData` exactly as it would a plain result set.
   const pivot = useMemo(() => {
@@ -714,7 +724,7 @@ export function TableWidget({ widget, data }: Props) {
     return out;
   }, [pivot, widget.pivot, tokens]);
 
-  if (!rows.length) {
+  if (!rows.length && !grandTotalValues) {
     return <div className="text-[var(--dac-text-muted)] text-xs py-4 text-center">No data</div>;
   }
 
@@ -803,8 +813,10 @@ export function TableWidget({ widget, data }: Props) {
     else if (selection?.ready) scheduleSelect(dimensions, 0);
   };
 
+  const grandTotalLabelColumn = grandTotalValues && columns.find((column) => !grandTotalValues.has(column.name.toLowerCase()));
+
   return (
-    <div ref={outlineRootRef} className="w-full min-w-0 max-w-full" onContextMenuCapture={cancelPendingSelect}>
+    <div ref={outlineRootRef} className={`w-full min-w-0 max-w-full ${grandTotal ? "flex min-h-0 flex-col flex-1" : ""}`} onContextMenuCapture={cancelPendingSelect}>
       {!pivot && !columns.length && groupOutline.hidden.length > 0 && (
         <div role="group" aria-label="Column groups" data-dac-export-control className="flex min-h-[26px] items-start gap-1.5 overflow-x-auto px-2 py-1">
           {groupOutline.hidden.map((group) => (
@@ -814,7 +826,7 @@ export function TableWidget({ widget, data }: Props) {
           ))}
         </div>
       )}
-      {columns.length > 0 && <div className="w-full min-w-0 max-w-full overflow-x-auto whitespace-nowrap">
+      {columns.length > 0 && <div className={`w-full min-w-0 max-w-full whitespace-nowrap ${grandTotal ? "min-h-0 overflow-auto" : "overflow-x-auto"}`} style={grandTotal ? { maxHeight: grandTotalHeight } : undefined}>
       <table
         className="inline-table min-w-max align-top text-[13px] border-separate [border-spacing:1px_1px]"
         style={tableWidthStyle}
@@ -1073,6 +1085,29 @@ export function TableWidget({ widget, data }: Props) {
             );
           })}
         </tbody>
+        {grandTotalValues && (
+          <tfoot aria-label={grandTotalLabel}>
+            <tr>
+              {columns.map((col, ci) => (
+                <td
+                  key={col.name}
+                  className={`font-bold ${col.number != null ? "tabular-nums text-[12px]" : ""} ${alignClasses(col.align, col.number != null).text} ${borderClasses[ci]}`}
+                  style={{
+                    ...columnWidthStyle(col), ...frozenStyle(ci, false),
+                    position: "sticky", bottom: 0, zIndex: ci < frozenCount ? 4 : 3,
+                    backgroundColor: "var(--dac-surface)", borderTop: "1px solid var(--dac-border)",
+                    fontFamily: col.number != null ? '"Geist Mono", monospace' : undefined,
+                  }}
+                >
+                  <div className="box-border w-full overflow-hidden whitespace-nowrap text-ellipsis px-4 py-1.5" style={columnWidthStyle(col)}>
+                    {col === grandTotalLabelColumn ? grandTotalLabel : grandTotalValues.get(col.name.toLowerCase()) != null
+                      ? formatCell(grandTotalValues.get(col.name.toLowerCase()), col.number, numberFormatters.get(col.name)) : ""}
+                  </div>
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
       {/* Reserve scrollable space for controls beyond the final column. */}
       {trailingGroups.length > 0 && (

@@ -17,9 +17,11 @@ import (
 
 // WidgetJob represents a single SQL query to execute for a dashboard widget.
 type WidgetJob struct {
-	ID         string
-	SQL        string
-	Connection string
+	// GrandTotalSQL runs on Connection, like the detail query.
+	GrandTotalSQL string
+	ID            string
+	SQL           string
+	Connection    string
 	// InlineData, when set, is returned directly without executing SQL — the
 	// widget carries static data and needs no connection.
 	InlineData *dashboard.WidgetData
@@ -136,7 +138,8 @@ type batchQueryRequest struct {
 
 // WidgetQueryResult holds the result of executing a widget's SQL query.
 type WidgetQueryResult struct {
-	Columns []struct {
+	GrandTotal *WidgetQueryResult `json:"grandTotal,omitempty"`
+	Columns    []struct {
 		Name string `json:"name"`
 		Type string `json:"type,omitempty"`
 	} `json:"columns"`
@@ -300,6 +303,9 @@ func ResolveWidgetJobs(d *dashboard.Dashboard, filters map[string]any, backends 
 // resolveWidgetJob builds the job for one widget (or tab) under the given id, or
 // nil when it carries no data (text/divider) or resolves to empty SQL.
 func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string, widget *dashboard.Widget, connectionType func(string) (string, error)) (*WidgetJob, error) {
+	if err := widget.ValidateGrandTotal(d); err != nil {
+		return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
+	}
 	if widget.Type == dashboard.WidgetTypeText || widget.Type == dashboard.WidgetTypeDivider {
 		return nil, nil
 	}
@@ -319,7 +325,15 @@ func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string,
 		if err != nil {
 			return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
 		}
-		return &WidgetJob{ID: id, SQL: sql, Connection: conn, ColumnRenames: renames}, nil
+		job := &WidgetJob{ID: id, SQL: sql, Connection: conn, ColumnRenames: renames}
+		if widget.GrandTotalEnabled() {
+			grandTotalSQL, err := compileSemanticGrandTotalJob(semanticJob, filters, dialect)
+			if err != nil {
+				return nil, fmt.Errorf("widget %q grandTotal: %w", widget.Name, err)
+			}
+			job.GrandTotalSQL = grandTotalSQL
+		}
+		return job, nil
 	}
 
 	sql, conn, err := widget.ResolvedQuery(d)
@@ -383,6 +397,16 @@ func ExecuteWidgetQuery(ctx context.Context, backend query.Backend, j WidgetJob)
 	}
 	for i, row := range qr.Rows {
 		wr.Rows[i] = row
+	}
+	if j.GrandTotalSQL != "" {
+		grandTotal := ExecuteWidgetQuery(ctx, backend, WidgetJob{SQL: j.GrandTotalSQL, Connection: j.Connection})
+		if grandTotal.Error != "" {
+			return grandTotal
+		}
+		if len(grandTotal.Rows) > 1 {
+			return &WidgetQueryResult{Query: j.GrandTotalSQL, Error: "expected at most one grand-total row"}
+		}
+		wr.GrandTotal = grandTotal
 	}
 	return wr
 }

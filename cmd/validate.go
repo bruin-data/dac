@@ -157,6 +157,11 @@ func validateDashboardWithDatabase(ctx context.Context, backend query.Backend, d
 			result.err = err
 		}
 		results = append(results, result)
+		if job.GrandTotalSQL != "" {
+			result := databaseValidationResult{label: labelForWidgetJob(job, labels) + " / Grand total", connection: job.Connection}
+			result.err = dryRunQuery(ctx, backend, job.Connection, job.GrandTotalSQL)
+			results = append(results, result)
+		}
 	}
 	return results, nil
 }

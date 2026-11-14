@@ -13,6 +13,10 @@ import (
 )
 
 func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any, dialects ...string) (string, string, map[string]string, error) {
+	return compileSemanticQuery(job, filters, false, dialects...)
+}
+
+func compileSemanticQuery(job *dashboard.SemanticJob, filters map[string]any, grandTotal bool, dialects ...string) (string, string, map[string]string, error) {
 	if err := tmpl.ValidateSemanticValue(filters); err != nil {
 		return "", "", nil, err
 	}
@@ -53,7 +57,12 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any, dial
 		return "", "", nil, err
 	}
 	engine.Dialect = dialect
-	sql, err := engine.GenerateSQL(&query)
+	var sql string
+	if grandTotal {
+		sql, err = engine.GenerateGrandTotalSQL(&query)
+	} else {
+		sql, err = engine.GenerateSQL(&query)
+	}
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -356,4 +365,10 @@ func isEmptyList(v any) bool {
 		return len(typed) == 0
 	}
 	return false
+}
+
+// compileSemanticGrandTotalJob delegates grand-total SQL generation to the engine.
+func compileSemanticGrandTotalJob(job *dashboard.SemanticJob, filters map[string]any, dialects ...string) (string, error) {
+	sql, _, _, err := compileSemanticQuery(job, filters, true, dialects...)
+	return sql, err
 }

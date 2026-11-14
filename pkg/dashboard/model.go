@@ -239,7 +239,8 @@ type Widget struct {
 	RefBands []RefBand             `yaml:"refBands,omitempty" json:"refBands,omitempty"` // shaded reference bands (axis + from/to + optional label)
 
 	// Table fields
-	Columns []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
+	Columns    []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
+	GrandTotal any           `yaml:"grandTotal,omitempty" json:"grandTotal,omitempty"` // semantic tables: bool or {label}
 	// Pivot turns a table's flat result set into a spreadsheet-style pivot,
 	// computed and rendered client-side. Table widgets only — see PivotConfig.
 	Pivot *PivotConfig `yaml:"pivot,omitempty" json:"pivot,omitempty"`
@@ -1042,4 +1043,16 @@ type NoQueryError struct {
 
 func (e *NoQueryError) Error() string {
 	return "widget \"" + e.Widget + "\": no query or sql specified"
+}
+
+// GrandTotalEnabled reports whether a semantic table requests a totals query.
+func (w *Widget) GrandTotalEnabled() bool {
+	switch value := w.GrandTotal.(type) {
+	case bool:
+		return value
+	case map[string]interface{}:
+		return true
+	default:
+		return false
+	}
 }
