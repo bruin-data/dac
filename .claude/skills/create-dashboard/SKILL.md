@@ -859,6 +859,15 @@ Metric fields in the spec that have a widget or model format (a semantic widget'
 
 Data table with optional column configuration.
 
+**Semantic grand totals.** On a normal `table` using a semantic model, set
+`grandTotal: true` or `grandTotal: {label: Overall}`. The backend runs a second
+query with the same model metrics, filters, segments, and connection, without
+grouping, sorting, or a limit. The frozen total covers all filtered source records,
+even if the detail query uses `limit`. Define ratios, averages, and distinct counts
+in the model once.
+Unsupported on SQL/inline/pivot widgets. Window metrics and their dependents have
+blank grand-total cells; other metrics are still calculated.
+
 ```yaml
 - name: Recent Orders
   type: table

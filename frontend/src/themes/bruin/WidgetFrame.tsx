@@ -119,7 +119,7 @@ export function BruinWidgetFrame({ widget, data, isLoading }: WidgetFrameProps) 
   const canExport = isExportable && !isLoading;
 
   return (
-    <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? (isTable ? containerClass.table : containerClass.text)} ${isVegaChart ? "min-h-0 min-w-0 flex flex-col" : ""}`}>
+    <div data-dac-widget-frame className={`group ${containerClass[widget.type] ?? (isTable ? containerClass.table : containerClass.text)} ${isVegaChart || (isTable && !!widget.grandTotal) ? "min-h-0 min-w-0 flex flex-col" : ""}`}>
       {widget.type !== "text" && (
         <div data-dac-reset className={`flex shrink-0 items-center text-[11px] font-medium uppercase tracking-wider text-[var(--dac-text-muted)] mb-1.5 ${isTable ? "px-4" : ""}`}>
           <span>{widget.name}</span>

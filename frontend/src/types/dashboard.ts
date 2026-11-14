@@ -142,6 +142,7 @@ export interface Widget {
   close?: string;      // candlestick: close column
 
   // Table
+  grandTotal?: boolean | { label?: string };
   columns?: TableColumn[];
   pivot?: import("../components/widgets/pivot").PivotConfig;
 
@@ -319,6 +320,7 @@ export interface SemanticSort {
 }
 
 export interface WidgetData {
+  grandTotal?: WidgetData;
   columns: { name: string; type?: string }[];
   rows: unknown[][];
   query?: string;

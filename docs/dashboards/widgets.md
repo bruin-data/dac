@@ -408,6 +408,33 @@ Semantic example:
 
 Tables can mix semantic dimensions and metrics with explicit `columns` metadata for display labels and formatting.
 
+### Semantic grand totals
+
+Set `grandTotal: true` on a semantic-model table to show a frozen total row.
+Use `grandTotal: {label: Overall}` to customize its label.
+
+```yaml
+- name: Regional performance
+  type: table
+  model: sales
+  dimensions: [{name: region}]
+  metrics: [revenue, sales_count, unique_customers, avg_sale_value]
+  grandTotal: true
+  height: 300
+```
+
+The semantic engine generates a second query using the same metrics, connection,
+and row filters. The total covers **all filtered source records**, regardless of
+display sorting or `limit`. Existing metric formats apply; `height` controls
+scrolling (default maximum: 400px).
+Aggregate filters (`HAVING`) affect detail rows only.
+
+Supported for direct and named semantic queries, including tables inside tabs.
+SQL/inline/pivot tables are unsupported. Window metrics and metrics depending on
+them have blank grand-total cells. Other metrics still show their calculated totals.
+If either query fails, the widget shows its standard error. CSV export includes
+detail rows only.
+
 Table column fields:
 
 | Field | Type | Description |

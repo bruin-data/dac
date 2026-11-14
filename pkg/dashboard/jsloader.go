@@ -591,7 +591,8 @@ func vnodeToWidget(n *vnode) Widget {
 		RefBands:   asRefBands(n.Props["refBands"]),
 
 		// Table fields
-		Columns: asTableColumns(n.Props["columns"]),
+		Columns:    asTableColumns(n.Props["columns"]),
+		GrandTotal: n.Props["grandTotal"],
 
 		// Text fields
 		Content: asString(n.Props["content"]),
