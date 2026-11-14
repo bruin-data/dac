@@ -88,6 +88,8 @@ export function TableWidget({ widget, data }: Props) {
   };
 
   const grandTotal = widget.type === "table" && !!widget.grandTotal;
+  const grandTotalHeight = typeof widget.height === "string" && /^\d+(?:\.\d+)?$/.test(widget.height)
+    ? Number(widget.height) : widget.height ?? 400;
   const grandTotalLabel = typeof widget.grandTotal === "object" ? widget.grandTotal.label ?? "Grand total" : "Grand total";
   const grandTotalValues = useMemo(() => {
     const result = grandTotal ? data?.grandTotal : undefined;
@@ -824,7 +826,7 @@ export function TableWidget({ widget, data }: Props) {
           ))}
         </div>
       )}
-      {columns.length > 0 && <div className={`w-full min-w-0 max-w-full whitespace-nowrap ${grandTotal ? "min-h-0 overflow-auto" : "overflow-x-auto"}`} style={grandTotal ? { maxHeight: widget.height ?? 400 } : undefined}>
+      {columns.length > 0 && <div className={`w-full min-w-0 max-w-full whitespace-nowrap ${grandTotal ? "min-h-0 overflow-auto" : "overflow-x-auto"}`} style={grandTotal ? { maxHeight: grandTotalHeight } : undefined}>
       <table
         className="inline-table min-w-max align-top text-[13px] border-separate [border-spacing:1px_1px]"
         style={tableWidthStyle}

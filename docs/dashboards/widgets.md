@@ -426,8 +426,9 @@ Use `grandTotal: {label: Overall}` to customize its label.
 The semantic engine generates a second query using the same metrics, connection,
 and row filters. The total covers **all filtered source records**, regardless of
 display sorting or `limit`. Existing metric formats apply; `height` controls
-scrolling (default maximum: 400px).
+scrolling (default maximum: 400px). Numeric strings such as `height: "300"` use pixels.
 Aggregate filters (`HAVING`) affect detail rows only.
+The label uses the first visible dimension cell; metric-only tables show values only.
 
 Supported for direct and named semantic queries, including tables inside tabs.
 SQL/inline/pivot tables are unsupported. Window metrics and metrics depending on
