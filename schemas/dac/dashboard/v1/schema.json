@@ -804,7 +804,6 @@
       "then": { "properties": { "type": { "const": "table" } } }
     },
     "grandTotal": {
-      "description": "Semantic-model plain tables only. Recalculate model metrics over the filtered source and freeze the result at the bottom.",
       "oneOf": [
         { "type": "boolean" },
         { "type": "object", "properties": { "label": { "type": "string" } }, "additionalProperties": false }

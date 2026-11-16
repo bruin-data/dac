@@ -47,19 +47,22 @@ func TestSemanticGrandTotalReuseDefinitionsFiltersSegmentsAndConnection(t *testi
 	}
 	filters := map[string]any{"year": "2026", "regions": []any{"Europe", "Asia"}}
 	before := job.Query
+	detail, _, _, err := compileSemanticJob(job, filters)
+	if err != nil {
+		t.Fatal(err)
+	}
 	sql, err := compileSemanticGrandTotalJob(job, filters)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"year = '2026'", "count(distinct customer_id)", "avg(revenue)", "nullif(", "AS roas", "status = 'completed'", "region IN ('Europe', 'Asia')", "completed_revenue"} {
-		if !strings.Contains(sql, want) {
-			t.Errorf("totals missing %q: %s", want, sql)
-		}
+	// Check the outer total, not the embedded detail query that repeats the same filters.
+	total := strings.Replace(sql, detail, "", 1)
+	if total == sql {
+		t.Fatalf("totals do not embed the detail query: %s", sql)
 	}
-	upper := strings.ToUpper(sql)
-	for _, forbidden := range []string{"GROUP BY", "ORDER BY", "LIMIT"} {
-		if strings.Contains(upper, forbidden) {
-			t.Errorf("totals contains %s: %s", forbidden, sql)
+	for _, want := range []string{"year = '2026'", "count(distinct customer_id)", "avg(revenue)", "nullif(", "AS roas", "WHERE region IN ('Europe', 'Asia') AND status = 'completed'", "completed_revenue"} {
+		if !strings.Contains(total, want) {
+			t.Errorf("totals missing %q: %s", want, sql)
 		}
 	}
 	if len(job.Query.Dimensions) != len(before.Dimensions) || job.Query.Limit != 1 || len(job.Query.Sort) != 1 {
@@ -81,6 +84,10 @@ func TestSemanticGrandTotalReuseDefinitionsFiltersSegmentsAndConnection(t *testi
 	if jobs[0].GrandTotalSQL != sql || jobs[0].Connection != "warehouse" {
 		t.Fatal("totals job mismatch")
 	}
+	// The limited detail query decides which groups the total covers.
+	if !strings.Contains(sql, "("+jobs[0].SQL+")") {
+		t.Fatalf("totals must cover only the shown rows: %s", sql)
+	}
 }
 
 func TestSemanticGrandTotalNamedQueryInTab(t *testing.T) {
@@ -97,7 +104,7 @@ func TestSemanticGrandTotalNamedQueryInTab(t *testing.T) {
 	if jobs[0].Connection != "named-warehouse" {
 		t.Fatal(jobs[0].Connection)
 	}
-	if strings.Contains(jobs[0].GrandTotalSQL, "LIMIT") {
+	if !strings.Contains(jobs[0].GrandTotalSQL, "("+jobs[0].SQL+")") || !strings.Contains(jobs[0].SQL, "LIMIT 2") {
 		t.Fatal(jobs[0].GrandTotalSQL)
 	}
 }
@@ -131,7 +138,8 @@ func (b *grandTotalBackend) Execute(_ context.Context, conn, sql string) (*query
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.calls = append(b.calls, mockCall{Connection: conn, SQL: sql})
-	if strings.Contains(sql, "GROUP BY") {
+	// Generated totals embed the grouped detail query, so match their outer query.
+	if strings.Contains(sql, "GROUP BY") && !strings.HasSuffix(sql, ") grand_total") {
 		if b.detailError {
 			return nil, errors.New("detail failed")
 		}
@@ -299,7 +307,7 @@ func TestSemanticGrandTotalUseQueryConnectionDialect(t *testing.T) {
 	}
 }
 
-func TestSemanticGrandTotalIgnoreDisplayedRowsAndLimit(t *testing.T) {
+func TestSemanticGrandTotalQueryIndependentOfReturnedValues(t *testing.T) {
 	jobs, err := ResolveWidgetJobs(semanticGrandTotalDashboard(), map[string]any{"year": "2026", "regions": []any{}})
 	if err != nil {
 		t.Fatal(err)
@@ -316,7 +324,7 @@ func TestSemanticGrandTotalIgnoreDisplayedRowsAndLimit(t *testing.T) {
 			}
 			values := result.GrandTotal.Rows[0]
 			if values[0] != 3 || values[1] != 320 || values[2] != 1600.0/550 {
-				t.Fatalf("total must use all filtered records: %v", values)
+				t.Fatalf("unexpected totals: %v", values)
 			}
 			if len(backend.calls) != 2 || backend.calls[1].SQL != jobs[0].GrandTotalSQL {
 				t.Fatal("totals query must not depend on returned group values")
@@ -325,13 +333,13 @@ func TestSemanticGrandTotalIgnoreDisplayedRowsAndLimit(t *testing.T) {
 	}
 }
 
-func TestSemanticGrandTotalKeepRowFiltersButOmitHaving(t *testing.T) {
+func TestSemanticGrandTotalKeepRowFiltersAndApplyHavingToShownRows(t *testing.T) {
 	for _, expression := range []string{"{revenue} < 1000", "SUM(revenue) < 1000", "{% if filters.small %}{revenue} < 1000{% else %}status = 'completed'{% endif %}"} {
 		t.Run(expression, func(t *testing.T) {
 			model := semanticGrandTotalModel()
 			model.Source.Table = "orders"
 			model.Segments = append(model.Segments, sem.Segment{Name: "small", Filter: expression})
-			job := &dashboard.SemanticJob{Model: model, Query: sem.Query{Dimensions: []sem.DimensionRef{{Name: "region"}}, Metrics: []string{"revenue", "completed_revenue"}, Filters: []sem.Filter{{Expression: expression}, {Dimension: "status", Operator: "equals", Value: "completed"}}, Segments: []string{"small", "completed"}, Limit: 1}}
+			job := &dashboard.SemanticJob{Model: model, Query: sem.Query{Dimensions: []sem.DimensionRef{{Name: "region"}}, Metrics: []string{"revenue", "completed_revenue"}, Filters: []sem.Filter{{Expression: expression}, {Dimension: "status", Operator: "equals", Value: "completed"}}, Segments: []string{"small", "completed"}}}
 			filters := map[string]any{"small": true}
 			detail, _, _, err := compileSemanticJob(job, filters)
 			if err != nil {
@@ -344,13 +352,18 @@ func TestSemanticGrandTotalKeepRowFiltersButOmitHaving(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(sql, "HAVING") || strings.Contains(sql, "< 1000") {
+			// HAVING only picks the shown groups; it is not applied to the total.
+			if !strings.Contains(sql, "("+detail+")") {
 				t.Fatal(sql)
 			}
-			if !strings.Contains(sql, "WHERE status = 'completed'") || !strings.Contains(sql, "CASE WHEN status = 'completed'") {
+			total := strings.Replace(sql, detail, "", 1)
+			if strings.Contains(total, "HAVING") || strings.Contains(total, "< 1000") {
 				t.Fatal(sql)
 			}
-			if len(job.Query.Filters) != 2 || len(job.Query.Segments) != 2 || job.Query.Limit != 1 {
+			if !strings.Contains(total, "WHERE status = 'completed'") || !strings.Contains(total, "CASE WHEN status = 'completed'") {
+				t.Fatal(sql)
+			}
+			if len(job.Query.Filters) != 2 || len(job.Query.Segments) != 2 {
 				t.Fatal("mutated detail query")
 			}
 		})
