@@ -1,0 +1,13 @@
+name: orders
+label: Orders
+description: Four orders, one with no country (bruin-data/bruin#3017)
+source:
+  query: select * from (values (1, 'US'), (2, 'DE'), (3, 'FR'), (4, NULL)) t(order_id, country)
+
+dimensions:
+  - name: country
+    type: string
+
+metrics:
+  - name: order_count
+    expression: count(*)

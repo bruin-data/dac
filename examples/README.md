@@ -25,3 +25,4 @@ DAC uses Bruin connections for query execution, so install both `dac` and `bruin
 - `basic-tsx`: TSX dashboard with load-time queries that generate layout from the database
 - `semantic-yaml`: YAML dashboard backed by external semantic models in `semantic/`
 - `semantic-tsx`: TSX dashboard backed by external semantic models in `semantic/`
+- `semantic-null-filters`: structured semantic filters over a dimension with null rows (`not_in`, `not_equals`, and `in`/`not_in` lists containing `null`, direct and through a multi-select filter); each widget title names the rows it should return. Run `dac check` in that directory.

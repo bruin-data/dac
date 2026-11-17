@@ -1,0 +1,22 @@
+name: Semantic Null Filters Templated
+description: >
+  Same null case through a multi-select dashboard filter. The default
+  selection includes a real null, so the widget should return US and null.
+connection: local_duckdb
+model: orders
+
+filters:
+  - name: country
+    type: select
+    multiple: true
+    default: [US, null]
+
+rows:
+  - widgets:
+      - name: templated in US or null (want US, null)
+        type: table
+        dimensions: [{name: country}]
+        metrics: [order_count]
+        filters:
+          - {dimension: country, operator: in, value: "{{ filters.country }}"}
+        col: 12

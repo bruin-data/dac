@@ -1,0 +1,10 @@
+name: flags
+source:
+  query: select * from (values (1, true), (2, false), (3, NULL)) t(id, active)
+dimensions:
+  - name: inactive
+    type: boolean
+    expression: NOT active
+metrics:
+  - name: n
+    expression: count(*)
