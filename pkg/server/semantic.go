@@ -57,6 +57,10 @@ func compileSemanticQuery(job *dashboard.SemanticJob, filters map[string]any, gr
 		return "", "", nil, err
 	}
 	engine.Dialect = dialect
+	query, restoreValues, err := dashboard.PrepareNullInclusiveQuery(query, dialect, engine)
+	if err != nil {
+		return "", "", nil, err
+	}
 	var sql string
 	if grandTotal {
 		sql, err = engine.GenerateGrandTotalSQL(&query)
@@ -67,7 +71,7 @@ func compileSemanticQuery(job *dashboard.SemanticJob, filters map[string]any, gr
 		return "", "", nil, err
 	}
 
-	return sql, job.Connection, semanticColumnRenames(model, query), nil
+	return restoreValues(sql), job.Connection, semanticColumnRenames(model, query), nil
 }
 
 // semanticColumnRenames maps the column names the engine emits back to the
@@ -242,7 +246,13 @@ func checkSemanticValueShape(operator string, value any) error {
 		case []string:
 			ok = true
 		case []any:
-			ok = scalars(v)
+			ok = true
+			for _, item := range v {
+				if item != nil && !scalar(item) {
+					ok = false
+					break
+				}
+			}
 		default:
 			ok = scalar(v)
 		}
