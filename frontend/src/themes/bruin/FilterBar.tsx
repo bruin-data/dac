@@ -535,6 +535,10 @@ function SingleSelectFilter({
   );
 }
 
+// A real null selection (e.g. default: [US, null]) selects SQL NULL rows. It gets
+// its own option so it never turns into the string "null".
+const NULL_OPTION: Option = { label: "(null)", value: "\u0000null" };
+
 function MultiSelectFilter({
   filter,
   value,
@@ -548,7 +552,7 @@ function MultiSelectFilter({
 }) {
   const options = selectOptions(filter);
   const selected = Array.isArray(value)
-    ? value.map((v) => options.find((o) => o.value === String(v)) ?? { label: String(v), value: String(v) })
+    ? value.map((v) => v === null ? NULL_OPTION : options.find((o) => o.value === String(v)) ?? { label: String(v), value: String(v) })
     : [];
   const menuOptions = withSelected(options, selected);
   const inputId = `multi-${filter.name}`;
@@ -573,7 +577,7 @@ function MultiSelectFilter({
         isSearchable
         options={menuOptions}
         value={selected}
-        onChange={(opts) => onChange(opts.map((o) => o.value))}
+        onChange={(opts) => onChange(opts.map((o) => o.value === NULL_OPTION.value ? null : o.value))}
         placeholder="All"
         menuPortalTarget={popoverPortalTarget() as HTMLElement}
         menuPosition="fixed"

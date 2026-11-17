@@ -3,7 +3,7 @@ module github.com/bruin-data/dac
 go 1.26.10
 
 require (
-	github.com/bruin-data/bruin/semantic-engine v0.0.0-20261116051628-690a72862919
+	github.com/bruin-data/bruin/semantic-engine v0.0.0-20261117105514-1c1b40055f92
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/dop251/goja v0.0.0-20260305124333-6a7976c22267
 	github.com/dustin/go-humanize v1.0.1
@@ -39,6 +39,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
 	github.com/grafana/jsonparser v0.0.0-20250908162026-5c2524e07b4c // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

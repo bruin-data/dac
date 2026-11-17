@@ -242,7 +242,14 @@ func checkSemanticValueShape(operator string, value any) error {
 		case []string:
 			ok = true
 		case []any:
-			ok = scalars(v)
+			// A null member selects null rows in in/not_in filters.
+			ok = true
+			for _, item := range v {
+				if item != nil && !scalar(item) {
+					ok = false
+					break
+				}
+			}
 		default:
 			ok = scalar(v)
 		}
