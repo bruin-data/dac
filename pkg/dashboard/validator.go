@@ -1021,7 +1021,7 @@ func validateSemanticJob(job *SemanticJob) error {
 	if err != nil {
 		return err
 	}
-	query, _, err := PrepareNullInclusiveQuery(job.Query, "", engine)
+	query, _, err := PrepareNullInclusiveQuery(job.Query, "", engine, job.Model)
 	if err != nil {
 		return err
 	}

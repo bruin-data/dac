@@ -57,7 +57,7 @@ func compileSemanticQuery(job *dashboard.SemanticJob, filters map[string]any, gr
 		return "", "", nil, err
 	}
 	engine.Dialect = dialect
-	query, restoreValues, err := dashboard.PrepareNullInclusiveQuery(query, dialect, engine)
+	query, restoreValues, err := dashboard.PrepareNullInclusiveQuery(query, dialect, engine, model)
 	if err != nil {
 		return "", "", nil, err
 	}

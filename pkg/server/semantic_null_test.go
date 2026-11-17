@@ -105,3 +105,24 @@ func TestSemanticNullFilterKeepsLiteralsOpaque(t *testing.T) {
 		}
 	}
 }
+
+func TestSemanticNullThroughDashboardFilters(t *testing.T) {
+	model := &sem.Model{Name: "orders", Source: sem.Source{Table: "orders"}, Dimensions: []sem.Dimension{{Name: "country", Type: "string"}, {Name: "inactive", Type: "boolean", Expression: "NOT active"}}, Metrics: []sem.Metric{{Name: "order_count", Expression: "count(*)"}}}
+	d := &dashboard.Dashboard{Name: "Orders", Model: "orders", Filters: []dashboard.Filter{{Name: "country", Type: "select", Multiple: true, Default: []any{"US", nil}}}}
+	d.Rows = []dashboard.Row{{Widgets: []dashboard.Widget{
+		{Name: "Templated", Type: dashboard.WidgetTypeTable, Dimensions: []dashboard.SemanticDimensionRef{{Name: "country"}}, MetricRefs: []string{"order_count"}, Filters: []dashboard.SemanticQueryFilter{{Dimension: "country", Operator: "in", Value: "{{ filters.country }}"}}},
+		{Name: "Expression", Type: dashboard.WidgetTypeTable, Dimensions: []dashboard.SemanticDimensionRef{{Name: "inactive"}}, MetricRefs: []string{"order_count"}, Filters: []dashboard.SemanticQueryFilter{{Dimension: "inactive", Operator: "in", Value: []any{nil}}}},
+	}}}
+	d.SetProjectContext("", map[string]*sem.Model{"orders": model}, nil)
+	// A multi-select default with a null member must pass filter validation.
+	jobs, err := ResolveWidgetJobs(d, d.DefaultFilters())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Expression dimensions are grouped so IS NULL applies to the whole expression.
+	for i, want := range []string{"WHERE (country IN ('US') OR country IS NULL)", "WHERE (NOT active) IS NULL"} {
+		if !strings.Contains(jobs[i].SQL, want) {
+			t.Fatalf("missing %s: %s", want, jobs[i].SQL)
+		}
+	}
+}

@@ -11,7 +11,7 @@ func TestNullInclusiveFilterValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range []sem.Filter{{Dimension: "country", Operator: "equals", Value: []any{"US"}}, {Dimension: "country", Operator: "in", Value: []any{[]any{"US"}}}, {Dimension: "country} OR 1=1 -- {country", Operator: "equals", Value: "US"}} {
-		if _, _, err := PrepareNullInclusiveQuery(sem.Query{Dimensions: []sem.DimensionRef{{Name: "country"}}, Filters: []sem.Filter{f}}, "", engine); err == nil {
+		if _, _, err := PrepareNullInclusiveQuery(sem.Query{Dimensions: []sem.DimensionRef{{Name: "country"}}, Filters: []sem.Filter{f}}, "", engine, nil); err == nil {
 			t.Fatalf("accepted invalid filter: %+v", f)
 		}
 	}

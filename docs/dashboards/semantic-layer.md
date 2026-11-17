@@ -378,7 +378,7 @@ Exclusions keep null rows unless explicitly excluded:
 - `not_equals US` also keeps null rows; `equals US` matches only US.
 - `in [null]` selects only null rows; `not_in [null]` selects only non-null rows. `is_null` and `is_not_null` express these directly too.
 
-Other filters still combine with `AND`, so an additional `is_not_null` filter can exclude null rows. Comparison operators (`gt`, `gte`, `lt`, `lte`, `between`) and raw expression filters retain normal SQL null handling. These rules apply to YAML and TSX widgets and named queries. Use `is_null` or `is_not_null` for scalar null tests rather than `equals null` or `not_equals null`.
+Other filters still combine with `AND`, so an additional `is_not_null` filter can exclude null rows. Comparison operators (`gt`, `gte`, `lt`, `lte`, `between`) and raw expression filters retain normal SQL null handling. These rules apply to YAML and TSX widgets, named queries, and multi-select dashboard filters passed as `value: "{{ filters.country }}"`, so a selection such as `default: [US, null]` also includes null rows. Use `is_null` or `is_not_null` for scalar null tests rather than `equals null` or `not_equals null`.
 
 Structured semantic filters target dimensions. Metric-level conditions should usually be modeled as metric `filter` predicates or reusable `segments`.
 

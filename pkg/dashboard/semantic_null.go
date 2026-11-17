@@ -14,7 +14,7 @@ import (
 // null members in inclusion and exclusion lists.
 // Values are inserted only after compilation so braces in data cannot become
 // semantic references. A single replacement pass also keeps values opaque.
-func PrepareNullInclusiveQuery(q sem.Query, dialect string, engine *sem.Engine) (sem.Query, func(string) string, error) {
+func PrepareNullInclusiveQuery(q sem.Query, dialect string, engine *sem.Engine, model *sem.Model) (sem.Query, func(string) string, error) {
 	// Validate structured dimensions before converting them to expression references.
 	if _, err := engine.GenerateSQL(&q); err != nil {
 		return q, nil, err
@@ -62,10 +62,11 @@ func PrepareNullInclusiveQuery(q sem.Query, dialect string, engine *sem.Engine) 
 			replacements = append(replacements, token, literal)
 			placeholders = append(placeholders, token)
 		}
-		nullExpr := fmt.Sprintf("{%s} IS NULL", f.Dimension)
+		ref := semanticNullRef(model, f.Dimension)
+		nullExpr := ref + " IS NULL"
 		negative := f.Operator == "not_in" || f.Operator == "not_equals"
 		if negative && hasNull {
-			nullExpr = fmt.Sprintf("{%s} IS NOT NULL", f.Dimension)
+			nullExpr = ref + " IS NOT NULL"
 		}
 		if len(placeholders) == 0 {
 			q.Filters[i] = sem.Filter{Expression: nullExpr}
@@ -75,7 +76,7 @@ func PrepareNullInclusiveQuery(q sem.Query, dialect string, engine *sem.Engine) 
 		if list {
 			rhs = "(" + rhs + ")"
 		}
-		predicate := fmt.Sprintf("{%s} %s %s", f.Dimension, op, rhs)
+		predicate := fmt.Sprintf("%s %s %s", ref, op, rhs)
 		switch {
 		case negative && hasNull:
 			predicate = "(" + predicate + " AND " + nullExpr + ")"
@@ -85,6 +86,20 @@ func PrepareNullInclusiveQuery(q sem.Query, dialect string, engine *sem.Engine) 
 		q.Filters[i] = sem.Filter{Expression: predicate}
 	}
 	return q, strings.NewReplacer(replacements...).Replace, nil
+}
+
+// semanticNullRef groups expression dimensions, so "NOT active IS NULL" cannot
+// bind as NOT (active IS NULL). Plain and joined columns stay unwrapped.
+func semanticNullRef(model *sem.Model, dimension string) string {
+	ref := "{" + dimension + "}"
+	if model != nil {
+		for _, d := range model.Dimensions {
+			if d.Name == dimension && d.Expression != "" {
+				return "(" + ref + ")"
+			}
+		}
+	}
+	return ref
 }
 
 func semanticNullLiteral(value any, dialect string) (string, error) {
