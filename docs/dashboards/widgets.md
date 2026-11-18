@@ -155,7 +155,7 @@ SQL-backed example:
     SELECT month, revenue
     FROM monthly_revenue
     ORDER BY month
-  x: { field: month, type: date, format: "%b %Y" }
+  x: { field: month, type: date }
   y: { field: [revenue], type: number, title: Revenue, format: "$,.0f" }
   col: 8
 ```
@@ -179,7 +179,7 @@ Per-series style overrides live in a **widget-level `series`** map (a sibling of
 
 Label/value charts (`pie`, `treemap`, `funnel`) have no y-column series — style their **slices** with a widget-level **`slices`** map keyed by the slice's data label: `slices: { Enterprise: { color: "#8B5CF6", label: "Enterprise (2026)" } }`. `color` overrides the palette; `label` renames the displayed slice. Both optional.
 
-Without a widget or model format, ticks fall back to automatic compact formatting. `beginAtZero`, `markers`, `curve`, and `dash` (on `y`) plus the widget-level `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
+Without a widget or model format, ticks fall back to automatic compact formatting. On line, vertical bar, area, and combo charts, a date `x` axis without `x.format` labels itself: monthly data covering more than one calendar year gets calendar-aligned ticks (every 1, 2, 3, or 6 months, else every N Januaries) labelled with month and year and thinned to fit the chart width, and other date axes with more than 12 points show at most 12 labels. Every point stays plotted, month names follow the viewer's locale, and tooltips show the full date including the year. Setting `x.format` (e.g. `"%b %Y"`) turns calendar ticks off, samples labels by row position instead, and formats tooltips with the same pattern, so leave it unset on monthly trends unless you need a specific label format. `beginAtZero`, `markers`, `curve`, and `dash` (on `y`) plus the widget-level `series` apply to line/area (and combo) charts. Bare column names (`x: month`, `y: [revenue]`) are not valid — always wrap the column in `{ field: ... }`.
 
 ### Second value axis (`y2`)
 

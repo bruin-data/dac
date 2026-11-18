@@ -508,6 +508,7 @@ Reference top-level dimensions and metrics. SQL is auto-generated with GROUP BY,
 - `type` — `number` | `date` | `category`. Picks the axis scale and format language (`date` → d3-time-format, otherwise d3-format).
 - `title` — human-readable axis label.
 - `format` — structured number/currency format object or d3-format / d3-time-format string for tick labels: `"$,.0f"` → `$1,234`, `".0%"` → `12%`, `"%b %Y"` → `Jan 2024`.
+  - Date `x` axes on line/vertical bar/area/combo charts label themselves when `x.format` is unset: monthly data covering 2+ calendar years gets calendar-aligned ticks (month + year, thinned to fit the width), other date axes show at most 12 labels, and tooltips include the year. Setting `x.format` turns calendar ticks off, samples labels by row position, and applies the same format to tooltips, so omit it on monthly trends unless a specific label format is required.
 
 Line/area (and combo) charts also accept these on `y`:
 
@@ -528,7 +529,7 @@ Bare column names (`x: month`, `y: [revenue]`) are invalid — always wrap in `{
   chart: line                   # line | bar | area
   sql: |
     SELECT month, revenue, revenue_last_year FROM monthly_data ORDER BY month
-  x: { field: month, type: date, format: "%b %Y" }    # REQUIRED: x encoding
+  x: { field: month, type: date }                     # REQUIRED: x encoding (omit format for auto date labels)
   y:                                                   # REQUIRED: y encoding (field may be a list)
     field: [revenue, revenue_last_year]
     format: "$,.0f"

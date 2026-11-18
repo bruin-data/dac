@@ -24,6 +24,24 @@ const DEFAULT_CHART_HEIGHT = 240;
 const FRAME_OVERHEAD = 60;
 // Keep auto-sized value axes from consuming the plot on narrow or dual-axis charts.
 const MAX_Y_AXIS_TICK_WIDTH = 96;
+const MAX_X_AXIS_LABELS = 12;
+
+// Thin labels, never observations. Recharts can hide more on narrow charts.
+function sparseXAxisProps(rows: Record<string, unknown>[], key: string | undefined, labelBudget: number, autoDates: boolean) {
+  const interval = "preserveEnd" as const;
+  if (!key) return { interval };
+  const values = rows.map((row) => row[key]);
+  const calendar = autoDates ? calendarMonthTicks(values, labelBudget) : undefined;
+  if (calendar) return { ticks: calendar, interval };
+  if (rows.length <= MAX_X_AXIS_LABELS) return { interval };
+  // Named categories keep Recharts' overlap-based thinning so every label that fits stays.
+  if (!values.every((value): value is string => typeof value === "string" && (YEAR_MONTH_RE.test(value) || ISO_DATE_RE.test(value)))) return { interval };
+  const step = Math.ceil(rows.length / MAX_X_AXIS_LABELS);
+  return {
+    ticks: values.filter((_, i) => i % step === 0),
+    interval,
+  };
+}
 
 // CI / annotation helpers (mirror the cloud ApexCharts renderer) ───────────
 const CI_BAND_OPACITY = 0.18;
@@ -125,28 +143,83 @@ function toChartData(data: WidgetData): Record<string, unknown>[] {
   });
 }
 
-function formatAxisTick(value: unknown): string {
-  const s = String(value);
-  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})T/);
-  if (isoMatch) {
-    const [, , m, d] = isoMatch;
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const monthIdx = parseInt(m, 10) - 1;
-    const day = parseInt(d, 10);
-    if (day === 1) return months[monthIdx];
-    return `${months[monthIdx]} ${day}`;
+const YEAR_MONTH_RE = /^\d{4}-\d{2}$/;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:[ T].+)?$/;
+const MIDNIGHT_RE = /[ T]00:00(?::00(?:\.0+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/;
+const MONTHLY_DATE_RE = /^\d{4}-(0[1-9]|1[0-2])(?:-01(?:[T ]00:00(?::00(?:\.0+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)?$/;
+
+// Monthly tick budget for a chart width; ~75px per "Jan 2015" label.
+function monthTickBudget(width: number) {
+  return Math.min(MAX_X_AXIS_LABELS, Math.max(2, Math.floor((width || 900) / 75)));
+}
+
+const MONTH_TICK_STEPS = [1, 2, 3, 6];
+
+// Ticks sit on actual observations at calendar boundaries: the finest of every
+// 1, 2, 3, or 6 months, else Januaries every N years, that fits the budget.
+function calendarMonthTicks(values: unknown[], budget: number) {
+  if (!values.length || !values.every((value): value is string => typeof value === "string" && MONTHLY_DATE_RE.test(value))) return;
+  const months = [...new Set(values)];
+  // Single-year labels are short month names; Recharts keeps every one that fits.
+  if (new Set(months.map((value) => value.slice(0, 4))).size < 2) return;
+  for (const step of MONTH_TICK_STEPS) {
+    const ticks = months.filter((value) => (Number(value.slice(5, 7)) - 1) % step === 0);
+    if (ticks.length >= 2 && ticks.length <= budget) return ticks;
   }
-  const monthMatch = s.match(/^(\d{4})-(\d{2})$/);
-  if (monthMatch) {
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return months[parseInt(monthMatch[2], 10) - 1] ?? s;
+  const january = months.filter((value) => value.slice(5, 7) === "01");
+  const yearStep = Math.ceil(january.length / budget);
+  // Try each year offset (2021, 2023 rather than only 2022); complete data then always
+  // keeps two or more. Sparse Januaries can still fall short; fall back to month/year labels.
+  let ticks: string[] = [];
+  for (let offset = 0; offset < yearStep; offset++) {
+    const candidate = january.filter((value) => Number(value.slice(0, 4)) % yearStep === offset);
+    if (candidate.length > ticks.length && candidate.length <= budget) ticks = candidate;
   }
-  const dateMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (dateMatch) {
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return `${months[parseInt(dateMatch[2], 10) - 1]} ${parseInt(dateMatch[3], 10)}`;
-  }
-  return s;
+  return ticks.length >= 2 ? ticks : undefined;
+}
+
+// toLocale*String builds a new Intl.DateTimeFormat per call; ticks format often.
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+function formatDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+  const key = JSON.stringify(options);
+  let formatter = dateFormats.get(key);
+  if (!formatter) dateFormats.set(key, formatter = new Intl.DateTimeFormat(undefined, options));
+  return formatter.format(date);
+}
+
+function formatAxisTick(value: unknown, showMidnightTime = false, axis = true): string {
+  const s = String(value ?? "");
+  const yearMonth = YEAR_MONTH_RE.test(s);
+  if (!yearMonth && !ISO_DATE_RE.test(s)) return s;
+  const hasTime = !yearMonth && s.length > 10 && (showMidnightTime || !MIDNIGHT_RE.test(s));
+  // Date-only categories are local calendar dates; timestamps retain their zone.
+  const date = new Date(yearMonth ? `${s}-01T00:00:00` : hasTime ? s.replace(" ", "T") : `${s.slice(0, 10)}T00:00:00`);
+  if (isNaN(date.getTime())) return s;
+  if (yearMonth) return formatDate(date, { year: "numeric", month: "short" });
+  return formatDate(date, {
+    ...(!axis && { year: "numeric" }),
+    month: "short",
+    day: "numeric",
+    ...(hasTime && { hour: "2-digit", minute: "2-digit", ...(axis && { hourCycle: "h23" as const }) }),
+  });
+}
+
+// compactMonths drops the year from monthly ticks (tooltips keep it) for unthinned axes.
+function dateAxisLabels(values: unknown[], compactMonths = false) {
+  const dates = values.filter((value) => value != null).map(String);
+  const monthly = dates.length > 0 && dates.every((value) => MONTHLY_DATE_RE.test(value));
+  const multiYear = !compactMonths && new Set(dates.map((value) => value.slice(0, 4))).size > 1;
+  const monthLabel = (value: unknown, year: boolean) => MONTHLY_DATE_RE.test(String(value))
+    ? formatDate(new Date(`${String(value).slice(0, 7)}-01T00:00:00`), { month: "short", ...(year && { year: "numeric" }) })
+    : formatAxisTick(value);
+  const showMidnightTime = values.some((value) => {
+    const s = String(value ?? "");
+    return s.length > 10 && ISO_DATE_RE.test(s) && !MIDNIGHT_RE.test(s);
+  });
+  return {
+    tick: (value: unknown) => monthly ? monthLabel(value, multiYear) : formatAxisTick(value, showMidnightTime),
+    tooltip: (value: unknown) => monthly ? monthLabel(value, true) : formatAxisTick(value, showMidnightTime, false),
+  };
 }
 
 function formatTooltipValue(value: unknown): string {
@@ -593,6 +666,7 @@ function HeatmapChart({
     if (!Number.isFinite(maxV)) maxV = 1;
     return { cells: cellMap, records: recordMap, xLabels: xs, yLabels: ys, minVal: minV, maxVal: maxV };
   }, [data, xKey, yKey, valueKey]);
+  const xDates = useMemo(() => dateAxisLabels(xLabels, true), [xLabels]);
 
   // Discrete 4-bucket scale (equal-width min→max); a continuous opacity ramp made near-equal values indistinguishable.
   const span = maxVal > minVal ? maxVal - minVal : 1;
@@ -745,7 +819,7 @@ function HeatmapChart({
         )}
         {xLabels.map((x, i) => (
           <text key={`xt-${i}`} x={leftPad + i * cellW + cellW / 2} y={tickY} fill={axisColor} fontSize={12} fontFamily='"Geist", system-ui' textAnchor="middle">
-            {formatAxisTick(x)}
+            {xDates.tick(x)}
           </text>
         ))}
         {xTitle && (
@@ -755,7 +829,7 @@ function HeatmapChart({
         )}
         {hover && (
           <SvgTooltip x={hover.x} y={hover.y}
-            lines={[`${formatAxisTick(hover.xLabel)}, ${hover.yLabel}`, valueFmt(hover.value)]} />
+            lines={[`${xDates.tooltip(hover.xLabel)}, ${hover.yLabel}`, valueFmt(hover.value)]} />
         )}
       </svg>
     </div>
@@ -1003,6 +1077,7 @@ function CandlestickChart({
     low: Number(d[lowKey]) || 0,
     close: Number(d[closeKey]) || 0,
   })), [data, xKey, openKey, highKey, lowKey, closeKey]);
+  const xDates = useMemo(() => dateAxisLabels(items.map((item) => item.label)), [items]);
 
   if (items.length === 0) return null;
 
@@ -1070,7 +1145,7 @@ function CandlestickChart({
             {i % labelStride === 0 && (
               <text x={cx} y={height - padB + 14} textAnchor="middle"
                 fill={axisColor} fontSize={10} fontFamily='"Geist", system-ui'>
-                {formatAxisTick(item.label)}
+                {xDates.tick(item.label)}
               </text>
             )}
           </g>
@@ -1079,7 +1154,7 @@ function CandlestickChart({
       {hover && (
         <SvgTooltip x={hover.x + bodyW / 2} y={hover.y}
           lines={[
-            formatAxisTick(hover.label),
+            xDates.tooltip(hover.label),
             `O ${valueFmt(hover.open)}  H ${valueFmt(hover.high)}`,
             `L ${valueFmt(hover.low)}  C ${valueFmt(hover.close)}`,
           ]} />
@@ -1292,6 +1367,7 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
   const dateBinding = interactions.find((binding) => binding.filter.type === "date-range");
   const rangeDrag = useRef<{ from: string; to: string; x: number; data: typeof data } | null>(null);
   const [rangePreview, setRangePreview] = useState<{ from: string; to: string } | null>(null);
+  const [labelBudget, setLabelBudget] = useState(() => monthTickBudget(0));
   const tokens = useTokens();
   const rowHeight = useContext(RowHeightContext);
   const chartHeight = (rowHeight !== undefined
@@ -1362,8 +1438,10 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
   // A heatmap's y is a category dimension, never the cell value.
   const valueKey = valueField(widget.value) || (widget.chart === "heatmap" ? undefined : yKeys[0]) || widget.metrics?.[0] || widget.metric || "value";
   const valueFmt = buildAxisFormatter(widget.value ?? { field: valueKey }, formatTooltipValue);
-  const xTick = buildAxisFormatter(widget.x, formatAxisTick);
-  // Numeric x ticks (scatter, bubble) stay compact; xTick also labels tooltips.
+  const dateLabels = dateAxisLabels(chartData.map((row) => row[xKey ?? ""]));
+  const xTick = buildAxisFormatter(widget.x, dateLabels.tick);
+  const xTooltip = buildAxisFormatter(widget.x, dateLabels.tooltip);
+  // Numeric x ticks (scatter, bubble) stay compact.
   const xNumberTick = buildTickFormatter(widget.x, formatAxisTick);
   const yTick = buildTickFormatter(widget.y, formatYTick);
   const yTooltipValue = buildAxisFormatter(widget.y, formatTooltipValue);
@@ -1545,7 +1623,7 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
 
   const cartesianMargin = { top: 4, right: hasDual ? 12 : 8, bottom: 4, left: 4 };
   const gridProps = { vertical: false, stroke: gridColor, strokeOpacity: 0.5, strokeDasharray: "3 3" };
-  const cartesianTooltip = <CustomTooltip labelFormatter={xTick} valueFormatter={yTooltipValue} valueFormatterFor={valueFormatterFor} />;
+  const cartesianTooltip = <CustomTooltip labelFormatter={xTooltip} valueFormatter={yTooltipValue} valueFormatterFor={valueFormatterFor} />;
 
   switch (widget.chart) {
     case "line": {
@@ -1570,10 +1648,10 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
         : rows;
       const LineOrComposed = hasBand ? ComposedChart : LineChart;
       return (
-        <ResponsiveContainer width="100%" height={chartHeight}>
+        <ResponsiveContainer width="100%" height={chartHeight} onResize={(width) => setLabelBudget(monthTickBudget(width))}>
           <LineOrComposed data={lineRows} margin={cartesianMargin} {...rangeEvents}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...sparseXAxisProps(rows, xKey, labelBudget, !widget.x?.format)} {...xLabelProps} />
             <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
@@ -1634,7 +1712,7 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
           })
         : rows;
       return (
-        <ResponsiveContainer width="100%" height={chartHeight}>
+        <ResponsiveContainer width="100%" height={chartHeight} onResize={(width) => setLabelBudget(monthTickBudget(width))}>
           <BarChart data={barRows} layout={horizontal ? "vertical" : "horizontal"} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} vertical={horizontal} horizontal={!horizontal} />
             {horizontal ? (
@@ -1644,12 +1722,12 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
               </>
             ) : (
               <>
-                <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+                <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...sparseXAxisProps(rows, xKey, labelBudget, !widget.x?.format)} {...xLabelProps} />
                 <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={valueTick} />
                 {rightYAxis}
               </>
             )}
-            <Tooltip content={<CustomTooltip labelFormatter={xTick} valueFormatter={valueTooltip} valueFormatterFor={widget.normalized ? undefined : valueFormatterFor} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
+            <Tooltip content={<CustomTooltip labelFormatter={xTooltip} valueFormatter={valueTooltip} valueFormatterFor={widget.normalized ? undefined : valueFormatterFor} />} cursor={{ fill: gridColor, fillOpacity: 0.2 }} />
             {series.length > 1 && <Legend content={(props) => <div data-dac-control><DefaultLegendContent {...props} /></div>} wrapperStyle={AXIS_STYLE} iconSize={7} />}
             {series.map((field, i) => (
               <Bar data-dac-mark=""
@@ -1697,10 +1775,10 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
           })
         : rows;
       return (
-        <ResponsiveContainer width="100%" height={chartHeight}>
+        <ResponsiveContainer width="100%" height={chartHeight} onResize={(width) => setLabelBudget(monthTickBudget(width))}>
           <AreaChart data={areaRows} margin={cartesianMargin} {...rangeEvents}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...sparseXAxisProps(rows, xKey, labelBudget, !widget.x?.format)} {...xLabelProps} />
             <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
@@ -1827,10 +1905,10 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
       const yFields = allYKeys;
       const lineSet = new Set(widget.lines ?? []);
       return (
-        <ResponsiveContainer width="100%" height={chartHeight}>
+        <ResponsiveContainer width="100%" height={chartHeight} onResize={(width) => setLabelBudget(monthTickBudget(width))}>
           <ComposedChart data={chartData} margin={cartesianMargin}>
             <CartesianGrid {...gridProps} />
-            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...xLabelProps} />
+            <XAxis dataKey={xKey} {...commonAxisProps} dy={6} tickFormatter={xTick} {...sparseXAxisProps(chartData, xKey, labelBudget, !widget.x?.format)} {...xLabelProps} />
             <YAxis yAxisId={leftAxisId} {...autoWidthYAxisProps} tickFormatter={yTick} domain={yDomain} />
             {rightYAxis}
             <Tooltip content={cartesianTooltip} />
