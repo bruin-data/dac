@@ -244,10 +244,6 @@
   font-family: "Geist", system-ui, sans-serif;
 }
 
-.dac-popover--padded {
-  padding: 12px;
-}
-
 .dac-popover .rdp-root {
   --rdp-accent-color: var(--dac-accent);
   --rdp-accent-background-color: color-mix(in srgb, var(--dac-accent) 12%, transparent);
@@ -305,6 +301,41 @@
 .dac-popover .rdp-button_next:hover {
   background: var(--dac-surface-hover);
   border-radius: 4px;
+}
+
+/* Date range picker: one compact calendar that fills its column */
+.dac-date-range {
+  padding: 0;
+}
+
+.dac-date-range .rdp-root {
+  --rdp-day-height: 28px;
+  --rdp-day_button-height: 28px;
+  --rdp-day_button-width: 100%;
+  --rdp-nav-height: 30px;
+  --rdp-nav_button-height: 24px;
+  --rdp-nav_button-width: 24px;
+  font-size: 12px;
+}
+
+.dac-date-range .rdp-months,
+.dac-date-range .rdp-month,
+.dac-date-range .rdp-month_grid {
+  width: 100%;
+  max-width: none;
+}
+
+.dac-date-range .rdp-day {
+  width: auto;
+}
+
+.dac-date-range .rdp-month_caption {
+  font-size: 12px;
+  height: 30px;
+}
+
+.dac-date-range .rdp-weekdays {
+  background: var(--dac-surface-hover);
 }
 
 /* Text widget prose */

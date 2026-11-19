@@ -113,6 +113,14 @@ With specific presets:
         - this_year
 ```
 
+The picker matches the date range filter in Bruin Cloud dashboards. It opens a **Date range** panel with:
+
+- **Quick ranges** on the left, with a search box. Without `options.presets`, it lists `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `this_quarter`, `this_year`, and `all_time`.
+- **Include today**, which is available for the `last_N_days` presets. Unchecking it ends the range yesterday instead of today; the button keeps the preset's name.
+- **From** and **To** inputs that accept `YYYY-MM-DD` or `DD.MM.YYYY`, and a calendar. Click a start date, then an end date; picking a start after the current end clears the end.
+
+Every complete range applies immediately and the panel stays open until you close it, click outside, or press Escape. Presets resolve in the viewer's local time zone.
+
 ### Date
 
 A single plain date input. The current value is a `YYYY-MM-DD` string.
@@ -272,6 +280,15 @@ SELECT * FROM orders
 WHERE created_at >= '{{ filters.date_range.start }}'
   AND created_at <= '{{ filters.date_range.end }}'
 ```
+
+Date range values are whole dates (`YYYY-MM-DD`). For a `TIMESTAMP` column, make the end exclusive and one day later so the whole end day is included:
+
+```sql
+WHERE created_at >= TIMESTAMP '{{ filters.date_range.start }}'
+  AND created_at <  TIMESTAMP '{{ filters.date_range.end }}' + INTERVAL 1 DAY
+```
+
+`examples/basic-yaml/dashboards/support-tickets.yml` shows this on a timestamp column.
 
 ### Date Filters
 

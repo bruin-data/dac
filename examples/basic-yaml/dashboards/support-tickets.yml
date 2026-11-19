@@ -1,0 +1,72 @@
+name: Support Tickets
+description: Date range filter on a TIMESTAMP column (support_tickets.created_at)
+connection: local_duckdb
+
+filters:
+  - name: created_at
+    type: date-range
+    default:
+      start: "2024-01-01"
+      end: "2024-05-10"
+
+# created_at is a TIMESTAMP, so the end bound is exclusive and moved one day
+# forward: tickets created at any time on the end date are included.
+queries:
+  tickets:
+    sql: |
+      SELECT * FROM support_tickets
+      WHERE created_at >= TIMESTAMP '{{ filters.created_at.start }}'
+        AND created_at < TIMESTAMP '{{ filters.created_at.end }}' + INTERVAL 1 DAY
+
+rows:
+  - widgets:
+      - name: Tickets
+        type: metric
+        col: 4
+        sql: |
+          SELECT COUNT(*) AS value FROM support_tickets
+          WHERE created_at >= TIMESTAMP '{{ filters.created_at.start }}'
+            AND created_at < TIMESTAMP '{{ filters.created_at.end }}' + INTERVAL 1 DAY
+        value: { field: value, type: number, format: ",.0f" }
+      - name: Avg Resolution Hours
+        type: metric
+        col: 4
+        sql: |
+          SELECT ROUND(AVG(resolution_hours), 1) AS value FROM support_tickets
+          WHERE created_at >= TIMESTAMP '{{ filters.created_at.start }}'
+            AND created_at < TIMESTAMP '{{ filters.created_at.end }}' + INTERVAL 1 DAY
+        value: { field: value, type: number, format: ",.1f" }
+      - name: Avg Satisfaction
+        type: metric
+        col: 4
+        sql: |
+          SELECT ROUND(AVG(satisfaction_score), 2) AS value FROM support_tickets
+          WHERE created_at >= TIMESTAMP '{{ filters.created_at.start }}'
+            AND created_at < TIMESTAMP '{{ filters.created_at.end }}' + INTERVAL 1 DAY
+        value: { field: value, type: number, format: ",.2f" }
+
+  - widgets:
+      - name: Tickets per Day
+        type: chart
+        chart: bar
+        col: 12
+        sql: |
+          SELECT CAST(created_at AS DATE) AS day, COUNT(*) AS tickets
+          FROM support_tickets
+          WHERE created_at >= TIMESTAMP '{{ filters.created_at.start }}'
+            AND created_at < TIMESTAMP '{{ filters.created_at.end }}' + INTERVAL 1 DAY
+          GROUP BY 1
+          ORDER BY 1
+        x: { field: day, type: date, format: "%b %d" }
+        y: { field: [tickets] }
+  - widgets:
+      - name: Latest Tickets
+        type: table
+        col: 12
+        sql: |
+          SELECT id, category, priority, status, strftime(created_at, '%Y-%m-%d %H:%M') AS created_at
+          FROM support_tickets
+          WHERE created_at >= TIMESTAMP '{{ filters.created_at.start }}'
+            AND created_at < TIMESTAMP '{{ filters.created_at.end }}' + INTERVAL 1 DAY
+          ORDER BY created_at DESC
+          LIMIT 20
