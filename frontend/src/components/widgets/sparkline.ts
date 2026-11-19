@@ -4,7 +4,6 @@ export interface SparklinePoint {
 }
 
 const MAX_POINTS = 100;
-const MAX_TOTAL_POINTS = 100_000;
 const MAX_X_CHARS = 256;
 const MAX_JSON_CHARS = 256 * 1024;
 
@@ -53,7 +52,7 @@ export function parseSparklineSeries(input: unknown, xField?: string, yField?: s
 // points can share an x. Sum them per x and order by x before sampling.
 export function sumSparklineSeries(input: unknown, xField?: string, yField?: string): SparklinePoint[] {
   const sums = new Map<string | number, number>();
-  for (const { x, y } of parseSparklineSeries(input, xField, yField, MAX_TOTAL_POINTS)) {
+  for (const { x, y } of parseSparklineSeries(input, xField, yField, Infinity)) {
     sums.set(x, (sums.get(x) ?? 0) + y);
   }
   const numeric = [...sums.keys()].every((x) => typeof x === "number");
