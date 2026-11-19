@@ -6,7 +6,7 @@ import { cellStyle, isGradient, resolveScale, toNumber, type ResolvedScale } fro
 import { pivotCellDimensions, pivotData, pivotFormats } from "./pivot";
 import { SparklineCell } from "./SparklineCell";
 import { dashboardImageSrc } from "../../lib/dashboardImage";
-import { parseSparklineSeries, type SparklinePoint } from "./sparkline";
+import { parseSparklineSeries, sumSparklineSeries, type SparklinePoint } from "./sparkline";
 import { buildColumnGroups, buildColumnGroupOutline, collapsedColumnNames, type ColumnGroupState } from "./columnGroups";
 import { ColumnGroupToggle } from "./ColumnGroupToggle";
 import { useCrossFilters } from "../../hooks/useCrossFilter";
@@ -1100,7 +1100,14 @@ export function TableWidget({ widget, data }: Props) {
                   }}
                 >
                   <div className="box-border w-full overflow-hidden whitespace-nowrap text-ellipsis px-4 py-1.5" style={columnWidthStyle(col)}>
-                    {col === grandTotalLabelColumn ? grandTotalLabel : grandTotalValues.get(col.name.toLowerCase()) != null
+                    {col === grandTotalLabelColumn ? grandTotalLabel : col.type === "sparkline" && !pivot ? (
+                      <SparklineCell
+                        points={sumSparklineSeries(grandTotalValues.get(col.name.toLowerCase()), axisField(col.x), axisField(col.y))}
+                        beginAtZero={col.y?.beginAtZero}
+                        formatX={buildAxisFormatter(col.x, String)}
+                        formatY={buildAxisFormatter(col.y, (value) => formatCell(value, col.number, numberFormatters.get(col.name)))}
+                      />
+                    ) : grandTotalValues.get(col.name.toLowerCase()) != null
                       ? formatCell(grandTotalValues.get(col.name.toLowerCase()), col.number, numberFormatters.get(col.name)) : ""}
                   </div>
                 </td>

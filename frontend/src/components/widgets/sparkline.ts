@@ -4,6 +4,7 @@ export interface SparklinePoint {
 }
 
 const MAX_POINTS = 100;
+const MAX_TOTAL_POINTS = 100_000;
 const MAX_X_CHARS = 256;
 const MAX_JSON_CHARS = 256 * 1024;
 
@@ -20,11 +21,11 @@ function decodeJsonArray(value: string): unknown {
   }
 }
 
-export function parseSparklineSeries(input: unknown, xField?: string, yField?: string): SparklinePoint[] {
+export function parseSparklineSeries(input: unknown, xField?: string, yField?: string, maxPoints = MAX_POINTS): SparklinePoint[] {
   const value = typeof input === "string" ? decodeJsonArray(input) : input;
   if (!xField || !yField || !Array.isArray(value) || !value.length) return [];
 
-  const count = Math.min(value.length, MAX_POINTS);
+  const count = Math.min(value.length, maxPoints);
   const points: SparklinePoint[] = [];
   for (let i = 0; i < count; i++) {
     const index = value.length === count ? i : Math.round((i * (value.length - 1)) / (count - 1));
@@ -46,4 +47,16 @@ export function parseSparklineSeries(input: unknown, xField?: string, yField?: s
     points.push({ x, y });
   }
   return points;
+}
+
+// A grand total's series holds the points of every shown row, so several
+// points can share an x. Sum them per x and order by x before sampling.
+export function sumSparklineSeries(input: unknown, xField?: string, yField?: string): SparklinePoint[] {
+  const sums = new Map<string | number, number>();
+  for (const { x, y } of parseSparklineSeries(input, xField, yField, MAX_TOTAL_POINTS)) {
+    sums.set(x, (sums.get(x) ?? 0) + y);
+  }
+  const numeric = [...sums.keys()].every((x) => typeof x === "number");
+  const pairs = [...sums].sort(([a], [b]) => (numeric ? Number(a) - Number(b) : String(a).localeCompare(String(b))));
+  return parseSparklineSeries(pairs, xField, yField);
 }

@@ -425,6 +425,10 @@ Use `grandTotal: {label: Overall}` to customize its label.
 
 The total covers the rows the table shows.
 
+A `sparkline` column's total draws one sparkline: points that share an x are
+summed and ordered by x, on its own Y scale. Summing suits additive series such
+as revenue or counts, not averages or ratios.
+
 The label uses the first visible dimension cell; metric-only tables show values only.
 
 Supported for direct and named semantic queries, including tables inside tabs.
