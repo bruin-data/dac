@@ -380,21 +380,21 @@ function DateRangeFilter({
   const setPart = (part: "start" | "end", date: string) => {
     const next = { ...draft, [part]: date };
     if (next.start && next.end && next.start > next.end) {
-      if (part === "end") return;
+      if (part === "end") return false;
       next.end = "";
     }
     setActiveField(part);
     commit(next);
+    return true;
   };
 
   const commitTyped = (part: "start" | "end", input: HTMLInputElement) => {
     const text = input.value.trim();
     const date = text ? parseTypedDate(text) : "";
-    if (date !== null && date !== draft[part]) {
-      setPart(part, date);
-      if (date) setMonth(monthOf(date));
-    }
-    input.value = date ?? draft[part];
+    // A rejected date (unparseable, or an end before the start) reverts the input.
+    const accepted = date !== null && (date === draft[part] || setPart(part, date));
+    if (accepted && date) setMonth(monthOf(date));
+    input.value = accepted ? date : draft[part];
   };
 
   const handleDayClick = (day: Date) => {
@@ -447,7 +447,8 @@ function DateRangeFilter({
           role="dialog"
           aria-label="Date range"
           className="dac-popover dac-date-range"
-          style={{ position: "fixed", top: position.top, left, width, zIndex: 9999 }}
+          // Fit below the button and scroll inside, so short screens still reach the calendar.
+          style={{ position: "fixed", top: position.top, left, width, maxHeight: window.innerHeight - position.top - 16, overflowY: "auto", zIndex: 9999 }}
         >
           <div className="flex items-center justify-between border-b border-[var(--dac-border)] px-3 py-2">
             <h2 className="text-[13px] font-semibold text-[var(--dac-text-primary)]">Date range</h2>
