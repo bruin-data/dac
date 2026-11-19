@@ -44,8 +44,9 @@ interface DatePreset {
   resolve: () => { start: string; end: string };
 }
 
+// Presets resolve in the viewer's local time zone, like Bruin Cloud dashboards.
 function fmt(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function fmtDisplay(d: string): string {
@@ -157,9 +158,22 @@ const ALL_PRESETS: DatePreset[] = [
 ];
 
 const DEFAULT_PRESET_KEYS = [
-  "last_7_days", "last_30_days", "last_90_days",
+  "today", "yesterday", "last_7_days", "last_30_days", "last_90_days",
   "this_month", "this_quarter", "this_year", "all_time",
 ];
+
+/** "Last N days" presets can end yesterday instead of today. */
+function supportsIncludeToday(preset: DatePreset): boolean {
+  return /^last_\d+_days$/.test(preset.key);
+}
+
+function resolveWithToday(preset: DatePreset, includeToday: boolean): { start: string; end: string } {
+  const resolved = preset.resolve();
+  if (includeToday || !supportsIncludeToday(preset)) return resolved;
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return { ...resolved, end: fmt(yesterday) };
+}
 
 function getPresets(filter: Filter): DatePreset[] {
   const keys = filter.options?.presets;
@@ -178,9 +192,9 @@ export function resolvePreset(key: string): { start: string; end: string } | nul
 }
 
 /** Detect which preset matches the current value, if any. */
-function detectPreset(value: { start: string; end: string }, presets: DatePreset[]): DatePreset | null {
+function detectPreset(value: { start: string; end: string }, presets: DatePreset[], includeToday = true): DatePreset | null {
   for (const p of presets) {
-    const resolved = p.resolve();
+    const resolved = resolveWithToday(p, includeToday);
     if (resolved.start === value.start && resolved.end === value.end) {
       return p;
     }
@@ -272,6 +286,30 @@ function parseLocalDate(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
+type DateParts = { start: string; end: string };
+
+const DATE_FIELDS = [
+  { key: "start", label: "From" },
+  { key: "end", label: "To" },
+] as const;
+
+/** Accepts YYYY-MM-DD or DD.MM.YYYY and returns a real calendar date, or null. */
+function parseTypedDate(text: string): string | null {
+  const value = /^\d{2}\.\d{2}\.\d{4}$/.test(text) ? text.split(".").reverse().join("-") : text;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? value : null;
+}
+
+function monthOf(value: string): Date {
+  const date = value ? parseLocalDate(value) : new Date();
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+// Mirrors Bruin Cloud's DateRangeFilter as dashboards use it (date-only,
+// auto-apply): searchable presets with "Include today", From/To inputs, and one
+// calendar. Every complete range applies immediately and the picker stays open.
 function DateRangeFilter({
   filter,
   value,
@@ -284,52 +322,103 @@ function DateRangeFilter({
   label: string;
 }) {
   const presets = getPresets(filter);
-  const dateValue = value as { start: string; end: string } | undefined;
-  const activePreset = dateValue ? detectPreset(dateValue, presets) : null;
+  const range: DateParts = {
+    start: (value as Partial<DateParts> | undefined)?.start ?? "",
+    end: (value as Partial<DateParts> | undefined)?.end ?? "",
+  };
 
   const { open, setOpen, popoverRef, triggerRef, position } = usePopover();
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [draft, setDraft] = useState<DateParts>(range);
+  const [activeField, setActiveField] = useState<"start" | "end">("start");
+  const [month, setMonth] = useState<Date>(() => monthOf(range.start));
+  const [search, setSearch] = useState("");
+  const [includeToday, setIncludeToday] = useState(true);
 
+  // A "Last N days" value may end today or yesterday; find its preset either way.
+  const excludesToday = !detectPreset(range, presets) && !!detectPreset(range, presets, false);
+  const activePreset = detectPreset(range, presets, !excludesToday);
+  const draftPreset = detectPreset(draft, presets, includeToday);
+  const hasTodayOption = presets.some(supportsIncludeToday);
+  const canToggleToday = draftPreset != null && supportsIncludeToday(draftPreset);
+  const filteredPresets = presets.filter((p) => p.label.toLowerCase().includes(search.toLowerCase()));
+
+  // Follow outside changes (Reset, URL, cross-filtering) unless a range is half edited.
   useEffect(() => {
-    if (!open) setShowCalendar(false);
-  }, [open]);
+    if (draft.start && draft.end) setDraft(range);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.start, range.end]);
 
-  const handlePresetClick = (preset: DatePreset) => {
-    onChange(preset.resolve());
-    setOpen(false);
-    setShowCalendar(false);
+  // dac queries need both ends of a range, so only complete ranges apply.
+  const commit = (next: DateParts) => {
+    setDraft(next);
+    if (next.start && next.end) onChange(next);
   };
 
-  const handleRangeSelect = (range: DateRange | undefined) => {
-    if (range?.from) {
-      onChange({
-        start: fmt(range.from),
-        end: range.to ? fmt(range.to) : fmt(range.from),
-      });
-      if (range.to) {
-        setOpen(false);
-        setShowCalendar(false);
-      }
+  const togglePicker = () => {
+    if (!open) {
+      setDraft(range);
+      setIncludeToday(!excludesToday);
+      setActiveField(range.start && !range.end ? "end" : "start");
+      setMonth(monthOf(range.start));
+      setSearch("");
     }
+    setOpen(!open);
   };
 
-  // Display label for the trigger button
+  const applyPreset = (preset: DatePreset) => {
+    const resolved = resolveWithToday(preset, includeToday);
+    setActiveField("start");
+    setMonth(monthOf(resolved.start));
+    commit(resolved);
+  };
+
+  const toggleIncludeToday = (checked: boolean) => {
+    setIncludeToday(checked);
+    if (draftPreset && canToggleToday) commit({ ...draft, end: resolveWithToday(draftPreset, checked).end });
+  };
+
+  const setPart = (part: "start" | "end", date: string) => {
+    const next = { ...draft, [part]: date };
+    if (next.start && next.end && next.start > next.end) {
+      if (part === "end") return;
+      next.end = "";
+    }
+    setActiveField(part);
+    commit(next);
+  };
+
+  const commitTyped = (part: "start" | "end", input: HTMLInputElement) => {
+    const text = input.value.trim();
+    const date = text ? parseTypedDate(text) : "";
+    if (date !== null && date !== draft[part]) {
+      setPart(part, date);
+      if (date) setMonth(monthOf(date));
+    }
+    input.value = date ?? draft[part];
+  };
+
+  const handleDayClick = (day: Date) => {
+    setPart(activeField, fmt(day));
+    setActiveField(activeField === "start" ? "end" : "start");
+  };
+
   let triggerLabel: string;
   if (activePreset) {
     triggerLabel = activePreset.label;
-  } else if (dateValue) {
-    triggerLabel = `${fmtDisplay(dateValue.start)} – ${fmtDisplay(dateValue.end)}`;
+  } else if (range.start && range.end) {
+    triggerLabel = range.start === range.end
+      ? fmtDisplay(range.start)
+      : `${fmtDisplay(range.start)} – ${fmtDisplay(range.end)}`;
   } else {
     triggerLabel = "Select dates";
   }
 
-  const selected: DateRange | undefined = dateValue
-    ? { from: parseLocalDate(dateValue.start), to: parseLocalDate(dateValue.end) }
+  const calendarStart = draft.start || draft.end;
+  const selected: DateRange | undefined = calendarStart
+    ? { from: parseLocalDate(calendarStart), to: draft.end ? parseLocalDate(draft.end) : undefined }
     : undefined;
-
-  const defaultMonth = selected?.to
-    ? new Date(selected.to.getFullYear(), selected.to.getMonth() - 1, 1)
-    : new Date();
+  const width = Math.min(480, window.innerWidth - 32);
+  const left = Math.max(16, Math.min(position.left, window.innerWidth - width - 16));
 
   return (
     <div className="flex flex-col gap-1">
@@ -339,91 +428,194 @@ function DateRangeFilter({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => { setOpen((v) => !v); if (open) setShowCalendar(false); }}
+        onClick={togglePicker}
+        aria-expanded={open}
         className={`${inputClass} cursor-pointer flex items-center gap-1.5 min-w-0 overflow-hidden`}
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0 opacity-50">
-          <path d="M5 1v2M11 1v2M1.5 6h13M2.5 3h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <span className="text-[13px] truncate min-w-0">{triggerLabel}</span>
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="shrink-0 opacity-40 ml-auto">
-          <path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+        <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-[var(--dac-text-muted)]" />
+        <span className={`truncate min-w-0 flex-1 text-left ${range.start || range.end ? "" : "text-[var(--dac-text-muted)]"}`}>
+          {triggerLabel}
+        </span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0 text-[var(--dac-text-muted)]">
+          <path d="M5 6l3-3 3 3M5 10l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
 
       {open && createPortal(
         <div
           ref={popoverRef}
-          className="dac-popover dac-popover--padded"
-          style={{
-            position: "fixed",
-            top: position.top,
-            left: position.left,
-            zIndex: 9999,
-          }}
+          role="dialog"
+          aria-label="Date range"
+          className="dac-popover dac-date-range"
+          style={{ position: "fixed", top: position.top, left, width, zIndex: 9999 }}
         >
-          {!showCalendar ? (
-            <div className="flex flex-col min-w-[180px]">
-              {presets.map((p) => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => handlePresetClick(p)}
-                  className={`text-left px-3 py-1.5 text-[13px] rounded-sm transition-colors duration-75 ${
-                    activePreset?.key === p.key
-                      ? "bg-[var(--dac-accent-subtle)] text-[var(--dac-accent)] font-medium"
-                      : "text-[var(--dac-text-primary)] hover:bg-[var(--dac-surface-hover)]"
+          <div className="flex items-center justify-between border-b border-[var(--dac-border)] px-3 py-2">
+            <h2 className="text-[13px] font-semibold text-[var(--dac-text-primary)]">Date range</h2>
+            <button
+              type="button"
+              aria-label="Close date picker"
+              onClick={() => setOpen(false)}
+              className="rounded-sm p-1 text-[var(--dac-text-muted)] hover:bg-[var(--dac-surface-hover)] hover:text-[var(--dac-text-primary)]"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <div className="flex flex-col min-[560px]:flex-row">
+            <aside
+              aria-label="Quick date ranges"
+              className="border-b border-[var(--dac-border)] p-2 min-[560px]:w-36 min-[560px]:shrink-0 min-[560px]:border-b-0 min-[560px]:border-r"
+            >
+              <div className="relative mb-2">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search ranges"
+                  aria-label="Search date presets"
+                  className={`${inputClass} w-full pl-7 text-[11px]`}
+                />
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--dac-text-muted)]">
+                  <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
+                  <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <div className="grid max-h-32 grid-cols-2 gap-0.5 overflow-y-auto overscroll-contain min-[560px]:max-h-[300px] min-[560px]:grid-cols-1">
+                {filteredPresets.map((p) => {
+                  const active = draftPreset?.key === p.key;
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => applyPreset(p)}
+                      aria-pressed={active}
+                      className={`relative flex h-7 items-center rounded-sm pl-6 pr-2 text-left text-xs transition-colors duration-75 ${
+                        active
+                          ? "bg-[var(--dac-accent-subtle)] font-medium text-[var(--dac-accent)]"
+                          : "text-[var(--dac-text-primary)] hover:bg-[var(--dac-surface-hover)]"
+                      }`}
+                    >
+                      {active && (
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="absolute left-1.5">
+                          <path d="M3.5 8.5l3 3 6-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                      <span className="truncate">{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {!filteredPresets.length && (
+                <p className="py-4 text-center text-xs text-[var(--dac-text-muted)]">No matching ranges</p>
+              )}
+              {hasTodayOption && (
+                <label
+                  className={`mt-2 flex items-center gap-2 border-t border-[var(--dac-border)] pt-2 text-xs ${
+                    canToggleToday ? "cursor-pointer text-[var(--dac-text-primary)]" : "text-[var(--dac-text-muted)]"
                   }`}
                 >
-                  {p.label}
-                </button>
-              ))}
-              <div className="border-t border-[var(--dac-border)] mt-1 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowCalendar(true)}
-                  className={`w-full text-left px-3 py-1.5 text-[13px] rounded-sm transition-colors duration-75 ${
-                    !activePreset && dateValue
-                      ? "bg-[var(--dac-accent-subtle)] text-[var(--dac-accent)] font-medium"
-                      : "text-[var(--dac-text-secondary)] hover:bg-[var(--dac-surface-hover)]"
-                  }`}
-                >
-                  Custom range...
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={includeToday}
+                    disabled={!canToggleToday}
+                    onChange={(e) => toggleIncludeToday(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[var(--dac-accent)] disabled:opacity-50"
+                  />
+                  Include today
+                </label>
+              )}
+            </aside>
+
+            <div className="min-w-0 flex-1 p-3">
+              <div className="mb-2 grid grid-cols-2 gap-2">
+                {DATE_FIELDS.map((field) => (
+                  <div key={field.key} className="min-w-0">
+                    <span className="mb-1 block text-[11px] font-medium text-[var(--dac-text-secondary)]">
+                      {field.label}
+                    </span>
+                    <div className="relative">
+                      <input
+                        key={draft[field.key]}
+                        defaultValue={draft[field.key]}
+                        aria-label={`${field.label} date`}
+                        placeholder="YYYY-MM-DD"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        onFocus={() => setActiveField(field.key)}
+                        onBlur={(e) => commitTyped(field.key, e.currentTarget)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            commitTyped(field.key, e.currentTarget);
+                          }
+                        }}
+                        className={`${inputClass} w-full pr-11 text-[11px] font-normal ${
+                          activeField === field.key ? "!border-[var(--dac-accent)]" : ""
+                        }`}
+                      />
+                      <div className="absolute inset-y-0 right-1 flex items-center">
+                        {draft[field.key] && (
+                          <button
+                            type="button"
+                            aria-label={`Clear ${field.label.toLowerCase()} date`}
+                            onClick={() => setPart(field.key, "")}
+                            className="rounded-sm p-0.5 text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)]"
+                          >
+                            <XIcon className="h-3 w-3" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Select ${field.label.toLowerCase()} date`}
+                          onClick={() => setActiveField(field.key)}
+                          className="rounded-sm p-0.5 text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)]"
+                        >
+                          <CalendarIcon className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          ) : (
-            <div>
-              <div className="flex items-center gap-2 px-1 pb-2 mb-2 border-b border-[var(--dac-border)]">
-                <button
-                  type="button"
-                  onClick={() => setShowCalendar(false)}
-                  className="text-[var(--dac-text-secondary)] hover:text-[var(--dac-text-primary)] transition-colors p-0.5"
-                >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M8.5 3L4.5 7L8.5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-                <span className="text-[12px] font-medium text-[var(--dac-text-secondary)]">
-                  {dateValue
-                    ? `${fmtDisplay(dateValue.start)} – ${fmtDisplay(dateValue.end)}`
-                    : "Select a range"}
-                </span>
-              </div>
+              <p className="mb-1 text-[11px] text-[var(--dac-text-muted)]" aria-live="polite">
+                Select {activeField} date
+              </p>
               <DayPicker
                 mode="range"
                 selected={selected}
-                onSelect={handleRangeSelect}
-                defaultMonth={defaultMonth}
-                numberOfMonths={2}
+                onSelect={(_, day) => handleDayClick(day)}
+                month={month}
+                onMonthChange={setMonth}
+                disabled={activeField === "end" && draft.start ? { before: parseLocalDate(draft.start) } : undefined}
                 showOutsideDays
               />
             </div>
-          )}
+          </div>
+
+          <div className="border-t border-[var(--dac-border)] px-3 py-1.5 text-[11px] leading-4 text-[var(--dac-text-muted)]">
+            All times are in your local time zone
+          </div>
         </div>,
         popoverPortalTarget(),
       )}
     </div>
+  );
+}
+
+function CalendarIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className={className}>
+      <path d="M5 1v2M11 1v2M1.5 6h13M2.5 3h11a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" className={className}>
+      <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
   );
 }
 
