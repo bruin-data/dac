@@ -119,7 +119,7 @@ Metrics are aggregate expressions. They come in three flavors:
 |-------|------|-------------|
 | `name` | string | Metric name |
 | `expression` | string | SQL aggregate or derived expression |
-| `filter` | string | Optional SQL predicate applied to only this metric |
+| `filter` | string | Optional SQL predicate applied to only this metric (see [Filtered metrics](#filtered-metrics)) |
 | `format.type` | string | `number`, `currency`, `percentage` (expects a ratio, `0.12` → `12%`), or `decimal` |
 | `format.currency` | string | Currency code for currency values |
 | `format.decimals` | integer | Decimal precision (`0` is treated as unset) |
@@ -131,6 +131,21 @@ Metrics are aggregate expressions. They come in three flavors:
 | `description` | string | Optional description |
 | `hidden` | bool | Hide from UI consumers |
 | `group` | string | Optional grouping label |
+
+#### Filtered metrics
+
+A metric with `filter` must be a single aggregate call with one argument, such as `sum(amount)` or `count(distinct order_id)`. The filter goes inside it: `sum(CASE WHEN channel = 'online' THEN amount ELSE NULL END)`. To round or combine filtered values, reference the filtered metric from a derived metric:
+
+```yaml
+metrics:
+  - name: online_revenue
+    expression: sum(amount)
+    filter: "channel = 'online'"
+  - name: online_revenue_rounded
+    expression: "round({online_revenue}, 2)"
+```
+
+Derived and window metrics cannot have a `filter`; put it on the base metrics they reference. Other shapes, such as `round(sum(amount), 2)` with a `filter`, fail `dac validate`.
 
 #### Display formats
 
