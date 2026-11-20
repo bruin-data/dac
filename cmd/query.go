@@ -184,7 +184,9 @@ func printResult(result *query.QueryResult, format string) error {
 			// csv.Writer writes a lone empty field as a blank line, which readers skip.
 			if len(record) == 1 && record[0] == "" {
 				w.Flush()
-				fmt.Fprintln(os.Stdout, `""`)
+				if _, err := fmt.Fprintln(os.Stdout, `""`); err != nil {
+					return err
+				}
 				continue
 			}
 			if err := w.Write(record); err != nil {
