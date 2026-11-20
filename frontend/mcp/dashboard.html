@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Whatever Claude allows, a dashboard's content never loads or sends anything outside this page. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'; base-uri 'none'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bruin Dashboard</title>
+</head>
+<body>
+    <div id="root"><p role="status">Connecting to Bruin…</p></div>
+    <script type="module" src="./dashboard.tsx"></script>
+</body>
+</html>

@@ -60,6 +60,9 @@ jobs:
       - name: Build component library
         run: make frontend-lib
 
+      - name: Build MCP dashboard viewer
+        run: make frontend-mcp
+
       - name: Run init smoke test
         shell: bash
         run: |

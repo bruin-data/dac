@@ -72,3 +72,13 @@ jobs:
           cp ../LICENSE .
           mv "$(npm pack --silent | tail -n 1)" dac-ui.tgz
           gh release upload "${{ github.ref_name }}" dac-ui.tgz --clobber
+
+      # Bruin Cloud's dashboard viewer for Claude (MCP Apps): one self-contained HTML page.
+      - name: Build & upload MCP dashboard viewer
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          npm --prefix frontend run build:mcp
+          cp frontend/dist-mcp/dashboard.html dac-mcp-dashboard.html
+          gh release upload "${{ github.ref_name }}" dac-mcp-dashboard.html --clobber
