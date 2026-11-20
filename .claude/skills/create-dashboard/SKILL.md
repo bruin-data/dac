@@ -1110,7 +1110,7 @@ WHERE created_at >= '{{ filters.date_range.start }}'
 ```sql
 SELECT * FROM orders WHERE owner_email = '{{ bruin.user_email }}'
 ```
-Locally there is no signed-in user, so the value comes from the `BRUIN_USER_EMAIL` environment variable (empty if unset) — pass it inline to preview as a specific person: `BRUIN_USER_EMAIL=someone@example.com dac dev`. In Bruin Cloud it becomes dynamic per signed-in viewer.
+Locally there is no signed-in user, so the value comes from the `BRUIN_USER_EMAIL` environment variable (empty if unset) — pass it inline to preview as a specific person: `BRUIN_USER_EMAIL=someone@example.com dac serve`. In Bruin Cloud it becomes dynamic per signed-in viewer.
 
 ---
 
