@@ -346,6 +346,9 @@ export function VegaLiteChart({ widget, data }: Props) {
         // independent window-resize signals generated for "container" sizes.
         const size = getComputedStyle(container);
         const spec = { ...resolvedSpec };
+        // vega-embed merges usermeta.embedOptions over the options below, so a spec could turn
+        // the interpreter or actions back on. Like Bruin Desktop and Cloud, ignore them.
+        if (isObject(spec.usermeta)) spec.usermeta = { ...spec.usermeta, embedOptions: undefined };
         if (spec.width === "container") spec.width = Math.floor(parseFloat(size.width));
         if (spec.height === "container") spec.height = Math.floor(parseFloat(size.height));
         return vegaEmbed(

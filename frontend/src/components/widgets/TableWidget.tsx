@@ -21,6 +21,38 @@ type SortDirection = "asc" | "desc";
 const MIN_COLUMN_WIDTH = 80;
 const DEFAULT_MAX_COLUMN_WIDTH = 450;
 
+// Hover and keyboard focus reveal a header's sort and pin controls, which widen
+// it. Read widths with every header at rest so the pointer can't widen a column.
+// Sort arrows keep their space while reading so a later sort still fits the label.
+function readHeadersAtRest<T>(row: Element | null | undefined, read: () => T): T {
+  row?.setAttribute("data-measuring", "");
+  try {
+    return read();
+  } finally {
+    row?.removeAttribute("data-measuring");
+  }
+}
+
+// Width of an element's text, even when its box clips it.
+function textWidth(element: HTMLElement) {
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  return range.getBoundingClientRect().width;
+}
+
+// Narrowest width that shows a header's whole label and sort arrow. A rounded
+// down cell width can fall a fraction of a pixel short and clip the label.
+function headerContentWidth(th: Element) {
+  const button = th.querySelector<HTMLElement>("button.group");
+  const label = button?.querySelector<HTMLElement>("[data-column-label]");
+  if (!button || !label) return 0;
+  const style = getComputedStyle(button);
+  const arrow = button.querySelector("[data-sort-indicator]")?.getBoundingClientRect().width ?? 0;
+  return Math.ceil(
+    textWidth(label) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + (arrow ? arrow + parseFloat(style.columnGap) : 0),
+  );
+}
+
 interface SortState {
   column: string;
   direction: SortDirection;
@@ -364,46 +396,39 @@ export function TableWidget({ widget, data }: Props) {
   }, [autoColumnWidths]);
 
   const measureRenderedColumnWidths = useCallback(() => {
-    const ths = headerRowRef.current?.children;
+    const headerRow = headerRowRef.current;
+    const ths = headerRow?.children;
     if (!ths) return;
     const current = autoColumnWidthsRef.current;
     // After a group toggle, measure only newly revealed columns and keep the rest.
     const revealing = columnGroups.length > 0 && columns.some((col) => current[col.name] != null);
     const widths: Record<string, number> = {};
-    columns.forEach((col, index) => {
-      if (revealing && current[col.name] != null) return;
-      const th = ths[index] as HTMLElement | undefined;
-      // Floor so the frozen sum never exceeds the width it was measured in.
-      let width = Math.floor(th?.getBoundingClientRect().width || MIN_COLUMN_WIDTH);
-      if (revealing && th) {
-        // Intrinsic table sizing can ignore clipped flex labels and round a
-        // currency cell below its text width. Measure the actual text before
-        // fixing a newly revealed column's width.
-        const textWidth = (element: HTMLElement) => {
-          const range = document.createRange();
-          range.selectNodeContents(element);
-          return range.getBoundingClientRect().width;
-        };
-        const button = th.querySelector<HTMLElement>("button.group");
-        const label = button?.querySelector<HTMLElement>(".truncate");
-        if (button && label) {
-          const style = getComputedStyle(button);
-          width = Math.max(width, Math.ceil(textWidth(label) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 14));
-        }
-        const body = th.closest("table")?.tBodies[0];
-        if (body) {
-          for (const row of body.rows) {
-            const value = row.cells[index]?.querySelector<HTMLElement>("[data-column-value]");
-            if (!value) continue;
-            const style = getComputedStyle(value);
-            width = Math.max(width, Math.min(DEFAULT_MAX_COLUMN_WIDTH, Math.ceil(textWidth(value) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight))));
+    readHeadersAtRest(headerRow, () => {
+      columns.forEach((col, index) => {
+        if (revealing && current[col.name] != null) return;
+        const th = ths[index] as HTMLElement | undefined;
+        // Floor so the frozen sum never exceeds the width it was measured in.
+        let width = Math.floor(th?.getBoundingClientRect().width || MIN_COLUMN_WIDTH);
+        if (th) width = Math.max(width, headerContentWidth(th));
+        if (revealing && th) {
+          // Intrinsic table sizing can round a currency cell below its text
+          // width. Measure the actual text before fixing a newly revealed
+          // column's width.
+          const body = th.closest("table")?.tBodies[0];
+          if (body) {
+            for (const row of body.rows) {
+              const value = row.cells[index]?.querySelector<HTMLElement>("[data-column-value]");
+              if (!value) continue;
+              const style = getComputedStyle(value);
+              width = Math.max(width, Math.min(DEFAULT_MAX_COLUMN_WIDTH, Math.ceil(textWidth(value) + parseFloat(style.paddingLeft) + parseFloat(style.paddingRight))));
+            }
           }
         }
-      }
-      widths[col.name] = Math.max(
-        MIN_COLUMN_WIDTH,
-        width,
-      );
+        widths[col.name] = Math.max(
+          MIN_COLUMN_WIDTH,
+          width,
+        );
+      });
     });
     if (!revealing) {
       setFillColumns(JSON.stringify(columns.map((col) => col.name)));
@@ -549,11 +574,12 @@ export function TableWidget({ widget, data }: Props) {
       return next;
     });
     window.requestAnimationFrame(() => {
-      const th = headerRowRef.current?.children[index];
+      const headerRow = headerRowRef.current;
+      const th = headerRow?.children[index];
       if (!th) return;
       const width = Math.max(
         MIN_COLUMN_WIDTH,
-        Math.floor(th.getBoundingClientRect().width || MIN_COLUMN_WIDTH),
+        readHeadersAtRest(headerRow, () => Math.max(Math.floor(th.getBoundingClientRect().width || MIN_COLUMN_WIDTH), headerContentWidth(th))),
       );
       setAutoColumnWidths((current) => ({ ...current, [name]: width }));
     });
@@ -916,16 +942,17 @@ export function TableWidget({ widget, data }: Props) {
                     aria-label={selection ? `${col.label}, filter ${selection.label}` : undefined}
                     aria-pressed={selection ? selection.selected : undefined}
                     aria-disabled={selection && !selection.ready ? true : undefined}
-                    className={`group w-full min-w-0 flex items-center gap-1 py-2 pl-4 ${pivot || !pinnable ? "pr-4" : "pr-10"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active || (selection?.isSource && selection.selected) ? "text-[var(--dac-text-primary)]" : ""} ${sortable || selection?.ready ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
+                    className={`group w-full min-w-0 min-h-8 flex items-center gap-1 py-2 pl-4 ${pivot || !pinnable ? "pr-4" : col.frozen ? "pr-10" : "pr-10 [@media(hover:hover)]:pr-4 group-hover/header:pr-10 group-has-[:focus-visible]/header:pr-10 [@media(hover:hover)]:in-data-measuring:!pr-4"} text-[10px] font-semibold uppercase tracking-wider text-[var(--dac-text-muted)] hover:text-[var(--dac-text-primary)] transition-colors duration-75 border-0 bg-transparent ${alignCls.justify} ${active || (selection?.isSource && selection.selected) ? "text-[var(--dac-text-primary)]" : ""} ${sortable || selection?.ready ? "cursor-pointer" : "cursor-default"} ${colIsTotal(col.idx) ? "!font-bold" : ""}`}
                     style={columnWidthStyle(col)}
                   >
                     <span
-                      className="truncate"
+                      data-column-label
+                      className="min-w-0 truncate"
                       onMouseEnter={(event) => updateCellTooltip(event.currentTarget, col.label)}
                     >
                       {col.label}
                     </span>
-                    <SortIndicator direction={active ? sort!.direction : null} />
+                    {sortable && <SortIndicator direction={active ? sort!.direction : null} />}
                   </button>
                   {renderCollapsedStack(ci)}
                   {!pivot && (
@@ -936,10 +963,10 @@ export function TableWidget({ widget, data }: Props) {
                         title={`${pinAction} ${pinTarget}`}
                         aria-label={`${pinAction} ${pinTarget}`}
                         aria-pressed={col.frozen}
-                        className={`absolute right-3 top-1/2 z-20 -translate-y-1/2 transition-opacity focus:outline-none focus:opacity-100 ${
+                        className={`absolute right-3 top-1/2 z-20 -translate-y-1/2 transition-opacity ${
                           col.frozen
-                            ? "text-[var(--dac-accent)] opacity-100"
-                            : "text-[var(--dac-text-muted)] opacity-100 [@media(hover:hover)]:opacity-0 group-hover/header:opacity-100 focus-visible:opacity-100 hover:text-[var(--dac-text-primary)]"
+                            ? "text-[var(--dac-accent)]"
+                            : "text-[var(--dac-text-muted)] opacity-100 [@media(hover:hover)]:opacity-0 group-hover/header:opacity-100 group-has-[:focus-visible]/header:opacity-100 hover:text-[var(--dac-text-primary)]"
                         }`}
                       >
                         <PinIcon />
@@ -1159,8 +1186,11 @@ function PinIcon() {
 function SortIndicator({ direction }: { direction: SortDirection | null }) {
   return (
     <span
+      data-sort-indicator
       className={`inline-flex flex-col leading-none shrink-0 ${
-        direction ? "opacity-100" : "opacity-0 group-hover:opacity-40"
+        direction
+          ? "opacity-100"
+          : "opacity-40 [@media(hover:hover)]:hidden group-hover/header:inline-flex group-has-[:focus-visible]/header:inline-flex [@media(hover:hover)]:in-data-measuring:!inline-flex"
       }`}
       aria-hidden
     >
