@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,5 +88,16 @@ func TestPrintResultCSVWritesNullAsEmpty(t *testing.T) {
 	})
 	if want := "category,revenue,note\nElectronics,153464.8,\n"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
+	}
+
+	single := &query.QueryResult{Columns: []query.ColumnInfo{{Name: "n"}}, Rows: [][]any{{nil}, {"x"}}}
+	got = captureStdout(t, func() {
+		if err := printResult(single, "csv"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	records, err := csv.NewReader(strings.NewReader(got)).ReadAll()
+	if err != nil || len(records) != 3 || records[1][0] != "" {
+		t.Fatalf("single-column NULL row lost: %q, err %v", records, err)
 	}
 }

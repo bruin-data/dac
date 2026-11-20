@@ -181,6 +181,12 @@ func printResult(result *query.QueryResult, format string) error {
 					record[i] = fmt.Sprintf("%v", v)
 				}
 			}
+			// csv.Writer writes a lone empty field as a blank line, which readers skip.
+			if len(record) == 1 && record[0] == "" {
+				w.Flush()
+				fmt.Fprintln(os.Stdout, `""`)
+				continue
+			}
 			if err := w.Write(record); err != nil {
 				return err
 			}
