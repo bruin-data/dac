@@ -177,7 +177,9 @@ func printResult(result *query.QueryResult, format string) error {
 		for _, row := range result.Rows {
 			record := make([]string, len(row))
 			for i, v := range row {
-				record[i] = fmt.Sprintf("%v", v)
+				if v != nil {
+					record[i] = fmt.Sprintf("%v", v)
+				}
 			}
 			if err := w.Write(record); err != nil {
 				return err
