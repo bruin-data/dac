@@ -49,7 +49,7 @@ printf '{"connectionName":"warehouse","connectionType":"duckdb","query":"SELECT 
 		"warehouse",
 		"--config-file",
 		"bruin.yml",
-		"-e",
+		"--environment",
 		"dev",
 		"-q",
 		"SELECT 1",
