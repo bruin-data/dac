@@ -145,11 +145,13 @@ function mergeConfig(defaults: JSONObject, override: unknown): JSONObject {
 }
 
 // Image marks load URLs from query data, so they follow the same rule as image
-// widgets and table image columns. Links and other contexts keep Vega's default.
+// widgets and table image columns. Links open in a new tab, never in the
+// dashboard's own frame. Other contexts keep Vega's default.
 function dashboardLoader(createLoader: () => Loader): Loader {
   const base = createLoader();
   const sanitize = base.sanitize.bind(base);
   base.sanitize = async (uri, options) => {
+    if (options?.context === "href") return { ...(await sanitize(uri, options)), target: "_blank", rel: "noopener noreferrer" };
     if (options?.context !== "image") return sanitize(uri, options);
     const href = dashboardImageSrc(uri);
     if (!href) throw new Error(`Vega-Lite image URL is not allowed: ${String(uri)}`);
