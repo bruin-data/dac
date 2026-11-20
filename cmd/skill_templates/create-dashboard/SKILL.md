@@ -439,6 +439,17 @@ segments:
 
 Metrics are aggregate SQL expressions or expressions over other metrics using `{metric_name}` references. Dimensions are the only fields valid for semantic filters.
 
+A metric `filter` applies a SQL predicate to that metric only. A filtered metric must be one aggregate call with one argument, such as `sum(amount)`. To round or combine filtered values, reference the filtered metric from a derived metric; derived and window metrics cannot have a `filter`, and `dac validate` rejects other shapes:
+
+```yaml
+metrics:
+  - name: online_revenue
+    expression: sum(amount)
+    filter: "channel = 'online'"
+  - name: online_revenue_rounded
+    expression: "round({online_revenue}, 2)"   # not round(sum(amount), 2) with a filter
+```
+
 ### Joins
 
 A model can join to other models so a query can group, filter, or sort by dimensions on a related model. Declare a `joins` block on the model and a `primary_key` on the join target, then reference joined dimensions as `relation.dimension`.
