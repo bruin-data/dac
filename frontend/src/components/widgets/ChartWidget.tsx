@@ -1431,7 +1431,8 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
   const showMarkers = widget.y?.markers !== false;
   const passiveDot = { r: 4, "data-dac-mark": "" };
   const lineActiveDot = { r: 3, strokeWidth: 0, "data-dac-mark": "" };
-  const dotFor = (n: number) => (showMarkers && n <= 30 ? { r: 2, strokeWidth: 0, "data-dac-mark": "" } : false);
+  // Recharts fills a Line's dots white; with no stroke they'd vanish on a light background, so they take the series color.
+  const dotFor = (n: number, fill?: string) => (showMarkers && n <= 30 ? { r: 2, strokeWidth: 0, ...(fill && { fill }), "data-dac-mark": "" } : false);
 
   const xKey = axisField(widget.x);
   const yKeys = axisFields(widget.y);
@@ -1669,7 +1670,7 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
                 strokeOpacity={seriesOpacity(field)}
                 strokeDasharray={seriesDash(field, !colorKey)}
                 strokeWidth={1.5}
-                dot={interaction && showMarkers && rows.length <= 30 ? selectableDot(field, 2, seriesColor(field, i, !colorKey)) : dotFor(rows.length)}
+                dot={interaction && showMarkers && rows.length <= 30 ? selectableDot(field, 2, seriesColor(field, i, !colorKey), true) : dotFor(rows.length, seriesColor(field, i, !colorKey))}
                 activeDot={interaction ? selectableDot(field, 4, seriesColor(field, i, !colorKey)) : lineActiveDot}
                 isAnimationActive={false}
               />
@@ -1923,7 +1924,7 @@ function ChartBody({ widget, data, press, titleOffset = 0 }: Props & { press: Re
                   stroke={seriesColor(field, i, true)}
                   strokeDasharray={seriesDash(field, true)}
                   strokeWidth={1.5}
-                  dot={interaction && showMarkers && chartData.length <= 30 ? selectableDot(field, 2, seriesColor(field, i, true)) : dotFor(chartData.length)}
+                  dot={interaction && showMarkers && chartData.length <= 30 ? selectableDot(field, 2, seriesColor(field, i, true), true) : dotFor(chartData.length, seriesColor(field, i, true))}
                   activeDot={interaction ? selectableDot(field, 4, seriesColor(field, i, true)) : passiveDot}
                   isAnimationActive={false}
                 />
