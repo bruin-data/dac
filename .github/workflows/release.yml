@@ -81,4 +81,5 @@ jobs:
         run: |
           npm --prefix frontend run build:mcp
           cp frontend/dist-mcp/dashboard.html dac-mcp-dashboard.html
-          gh release upload "${{ github.ref_name }}" dac-mcp-dashboard.html --clobber
+          sha256sum dac-mcp-dashboard.html > dac-mcp-dashboard.html.sha256
+          gh release upload "${{ github.ref_name }}" dac-mcp-dashboard.html dac-mcp-dashboard.html.sha256 --clobber
