@@ -16,6 +16,8 @@ import './dashboard.css';
 // Lucide's RotateCw and ExternalLink, the icons Desktop's header uses.
 const RefreshIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /></svg>;
 const OpenIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /></svg>;
+const ExpandIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6" /><path d="M9 21H3v-6" /><path d="m21 3-7 7" /><path d="m3 21 7-7" /></svg>;
+const ShrinkIcon = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 10 7-7" /><path d="M20 10h-6V4" /><path d="m3 21 7-7" /><path d="M4 14h6v6" /></svg>;
 
 const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 function relativeTime(iso: string): string {
@@ -28,12 +30,14 @@ function relativeTime(iso: string): string {
 }
 
 type ToolResult = { isError?: boolean; content?: { type: string; text?: string }[]; structuredContent?: Record<string, unknown> };
+type HostContext = { theme?: string; displayMode?: string; availableDisplayModes?: string[] };
 type McpApp = {
     callServerTool(name: string, args: Record<string, unknown>): Promise<ToolResult>;
     onToolInput(callback: (input: { arguments?: Record<string, unknown> }) => void): void;
     onToolResult(callback: (result: ToolResult) => void): void;
-    onHostContextChanged(callback: (context: { theme?: string }) => void): void;
-    getHostContext(): { theme?: string } | null;
+    onHostContextChanged(callback: (context: HostContext) => void): void;
+    getHostContext(): HostContext | null;
+    requestDisplayMode(mode: string): Promise<unknown>;
     openLink(url: string): Promise<unknown>;
     autoResize(): void;
 };
@@ -88,7 +92,8 @@ function DashboardView({ app }: { app: McpApp }) {
     const [error, setError] = useState('');
     // The tool call itself failed (e.g. a confirmation it needs): shown as is, with nothing to retry.
     const [failed, setFailed] = useState('');
-    const [dark, setDark] = useState(app.getHostContext()?.theme === 'dark');
+    const [context, setContext] = useState<HostContext>(() => app.getHostContext() ?? {});
+    const dark = context.theme === 'dark';
     const selection = useRef<{ id: number; state?: unknown } | undefined>(undefined);
     const input = useRef<Record<string, unknown>>({});
     const sequence = useRef(0);
@@ -135,7 +140,8 @@ function DashboardView({ app }: { app: McpApp }) {
                 setFailed((e as Error).message);
             }
         });
-        app.onHostContextChanged((context) => setDark(context.theme === 'dark'));
+        // Hosts send only what changed, e.g. just the display mode.
+        app.onHostContextChanged((next) => setContext((current) => ({ ...current, ...next })));
         app.autoResize();
     }, [app]);
 
@@ -153,13 +159,16 @@ function DashboardView({ app }: { app: McpApp }) {
         body = <Loading />;
     } else {
         body = <WidgetBoundary key={dacName(detail.id, detail.revision)} name={detail.title}>
-            <Loaded detail={detail} app={app} refetch={() => load(true)} />
+            <Loaded detail={detail} app={app} context={context} refetch={() => load(true)} />
         </WidgetBoundary>;
     }
     return <TemplateProvider template={dark ? darkTemplate : lightTemplate} className="dash-root">{body}</TemplateProvider>;
 }
 
-function Loaded({ detail, app, refetch }: { detail: Detail; app: McpApp; refetch: () => Promise<Detail | undefined> }) {
+function Loaded({ detail, app, context, refetch }: { detail: Detail; app: McpApp; context: HostContext; refetch: () => Promise<Detail | undefined> }) {
+    const fullscreen = context.displayMode === 'fullscreen';
+    // Shown unless the host lists its modes without fullscreen.
+    const canFullscreen = !context.availableDisplayModes || context.availableDisplayModes.includes('fullscreen');
     const queryClient = useQueryClient();
     const dac = useMemo(() => ({ ...detail.definition, name: dacName(detail.id, detail.revision) }), [detail]);
     const [refreshing, setRefreshing] = useState(false);
@@ -210,6 +219,7 @@ function Loaded({ detail, app, refetch }: { detail: Detail; app: McpApp; refetch
                         {detail.updated_at && <span className="meta" title={new Date(detail.updated_at).toLocaleString()}>Edited {relativeTime(detail.updated_at)}</span>}
                         <button className={refreshing ? 'icon spinning' : 'icon'} onClick={() => void refresh()} disabled={refreshing} aria-label="Refresh data" title="Refresh data"><RefreshIcon /></button>
                         <button className="icon" onClick={() => void app.openLink(detail.url)} aria-label="Open in Bruin Cloud" title="Open in Bruin Cloud"><OpenIcon /></button>
+                        {canFullscreen && <button className="icon" onClick={() => void app.requestDisplayMode(fullscreen ? 'inline' : 'fullscreen')} aria-label={fullscreen ? 'Exit full screen' : 'Full screen'} title={fullscreen ? 'Exit full screen' : 'Full screen'}>{fullscreen ? <ShrinkIcon /> : <ExpandIcon />}</button>}
                     </div>
                 </header>
                 <Rows dac={dac} />
