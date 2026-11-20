@@ -46,7 +46,8 @@ body { margin: 0; font-family: 'Geist', system-ui, sans-serif; }
 /* Desktop: when narrow, metrics go two a row and everything else full width. */
 @container dash (max-width: 760px) {
   .dash-row > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; height: auto !important; }
-  .dash-row > .grid > div { grid-column: 1 / -1 !important; height: var(--row-h); }
+  /* Like dac.css: a widget's own height wins over its row's. */
+  .dash-row > .grid > div { grid-column: 1 / -1 !important; height: var(--dac-widget-height, var(--row-h)); }
   .dash-row > .grid > div:has(> .dash-widget[data-type="metric"]) { grid-column: span 1 !important; }
 }
 .dash-root .action { border: 1px solid currentColor; border-radius: 6px; padding: 5px 10px; font-size: 12px; background: none; color: inherit; cursor: pointer; }
