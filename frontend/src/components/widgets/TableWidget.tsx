@@ -89,6 +89,9 @@ function alignClasses(align: TableColumn["align"], numeric: boolean) {
   };
 }
 
+// Shared stand-in for rows that build no cross-filter dimensions.
+const NO_DIMENSIONS: Record<string, unknown> = {};
+
 export function TableWidget({ widget, data }: Props) {
   const interactions = useCrossFilters(widget, data);
   const [sort, setSort] = useState<SortState | null>(null);
@@ -805,14 +808,45 @@ export function TableWidget({ widget, data }: Props) {
     ));
   };
   const trailingGroups = !pivot ? groupOutline.cells[groupOutline.cells.length - 1]?.after ?? [] : [];
-  const crossSelection = (dimensions: Record<string, unknown>, current = interactions) => {
-    const candidates = current.filter((binding) => Object.prototype.hasOwnProperty.call(dimensions, binding.field) && binding.accepts(dimensions[binding.field]));
-    const bindings = candidates.filter((binding, index) => candidates.findIndex((other) => other.filter.name === binding.filter.name) === index);
+  // Row-level cross-filter state, computed once per table row and shared by its cells.
+  const crossRow = (dimensions: Record<string, unknown>, wholeRow: boolean, current = interactions) => {
+    const present = current.filter((binding) => Object.prototype.hasOwnProperty.call(dimensions, binding.field));
+    const candidates = present.filter((binding) => binding.accepts(dimensions[binding.field]));
+    // Row matching applies to plain table rows only; pivot cells keep their per-cell check.
+    // Active filters this row cannot satisfy (e.g. a null value).
+    const unusable = wholeRow ? present.filter((binding) => binding.active && !candidates.includes(binding)) : [];
+    // Aliases are alternatives for the same filter; distinct active filters must all match.
+    // Keep this independent of the clicked column's priority when applying a selection.
+    // Mapped columns missing from the row (e.g. in a hidden group) cannot block it.
+    const rowMatches = wholeRow && present.every((binding) => !binding.active || candidates.some((other) =>
+      other.filter.name === binding.filter.name && other.isSelected(dimensions[other.field])));
+    return { candidates, unusable, rowMatches };
+  };
+  const crossSelection = (dimensions: Record<string, unknown>, clickedField?: string, current = interactions, row?: ReturnType<typeof crossRow>) => {
+    // Skip row work for unmapped cells; tables render this per cell.
+    if (clickedField !== undefined && !current.some((binding) => binding.field === clickedField)) return undefined;
+    const { candidates, unusable, rowMatches } = row ?? crossRow(dimensions, clickedField !== undefined, current);
+    // Plain cells initiate a row selection only through their own usable mapping.
+    const own = clickedField === undefined ? candidates : candidates.filter((binding) => binding.field === clickedField);
+    if (!own.length) return undefined;
+    // If aliases share a filter, prefer the clicked column over the row's first alias.
+    const prioritized = candidates.filter((binding) => clickedField === undefined || binding.field === clickedField ||
+      !own.some((other) => other.filter.name === binding.filter.name));
+    // Among remaining aliases, keep one that is already selected so a pressed cell undoes instead of swapping values.
+    const bindings = prioritized.filter((binding) => {
+      const same = prioritized.filter((other) => other.filter.name === binding.filter.name);
+      return (same.find((other) => other.isSelected(dimensions[other.field])) ?? same[0]) === binding;
+    });
     if (!bindings.length) return undefined;
-    const selected = bindings.every((binding) => binding.isSelected(dimensions[binding.field]));
+    // An active filter this row cannot satisfy means the row is not a match.
+    const blocked = unusable.some((binding) => !bindings.some((other) => other.filter.name === binding.filter.name));
+    const selected = !blocked && bindings.every((binding) => binding.isSelected(dimensions[binding.field]));
+    // Pivot cells are pressed only when all of their values are selected.
+    const highlighted = clickedField === undefined ? selected
+      : rowMatches && own.some((binding) => binding.active && binding.isSelected(dimensions[binding.field]));
     return {
       ready: bindings.every((binding) => binding.ready),
-      selected,
+      selected: highlighted,
       isSource: bindings.some((binding) => binding.isSource),
       label: bindings.map((binding) => `${binding.filter.name}: ${String(dimensions[binding.field])}`).join(", "),
       select: (confirmed = false) => {
@@ -824,19 +858,19 @@ export function TableWidget({ widget, data }: Props) {
     };
   };
   // Deferred runs re-resolve against the latest filter values; readiness was checked at click time.
-  const scheduleSelect = (dimensions: Record<string, unknown>, delay: number) => {
-    const run = () => crossSelection(dimensions, interactionsRef.current)?.select(true);
+  const scheduleSelect = (dimensions: Record<string, unknown>, delay: number, clickedField?: string) => {
+    const run = () => crossSelection(dimensions, clickedField, interactionsRef.current)?.select(true);
     pendingSelectRef.current = { run, timer: window.setTimeout(() => {
       pendingSelectRef.current = null;
       run();
     }, delay) };
   };
   // Headers and keys select at once, but after a pending click has rendered, so the last action wins.
-  const selectNow = (dimensions: Record<string, unknown>) => {
+  const selectNow = (dimensions: Record<string, unknown>, clickedField?: string) => {
     const flushed = flushPendingSelect();
-    const selection = crossSelection(dimensions);
+    const selection = crossSelection(dimensions, clickedField);
     if (!flushed) selection?.select();
-    else if (selection?.ready) scheduleSelect(dimensions, 0);
+    else if (selection?.ready) scheduleSelect(dimensions, 0, clickedField);
   };
 
   const grandTotalLabelColumn = grandTotalValues && columns.find((column) => !grandTotalValues.has(column.name.toLowerCase()));
@@ -1004,6 +1038,11 @@ export function TableWidget({ widget, data }: Props) {
             const kind = rowKind(i);
             const totalRow = kind === "grandtotal";
             const subtotalRow = kind === "subtotal";
+            // Without mappings no cell is selectable, so skip the per-row work.
+            const rowDimensions = pivot || !interactions.length ? undefined : Object.fromEntries(
+              allColumns.map((column) => [column.name, column.idx >= 0 ? row[column.idx] : null]),
+            );
+            const rowCross = rowDimensions && crossRow(rowDimensions, true);
             return (
             <tr
               key={i}
@@ -1032,8 +1071,9 @@ export function TableWidget({ widget, data }: Props) {
                 const tdStyle = { ...columnWidthStyle(col), ...frozen, ...style };
                 const displayValue = formatCell(raw, col.number, numberFormatters.get(col.name));
                 // Stay focusable while a refetch is pending so keyboard focus is kept.
-                const dimensions = pivot ? pivotCellDimensions(pivot, i, col.idx) : { [col.name]: raw };
-                const selectable = crossSelection(dimensions);
+                const dimensions = pivot ? pivotCellDimensions(pivot, i, col.idx) : rowDimensions ?? NO_DIMENSIONS;
+                const clickedField = pivot ? undefined : col.name;
+                const selectable = crossSelection(dimensions, clickedField, interactions, rowCross);
                 return (
                   <td
                     key={col.name}
@@ -1053,7 +1093,7 @@ export function TableWidget({ widget, data }: Props) {
                         }
                         flushPendingSelect();
                         // Readiness is checked now: a flushed click may start a refetch before this one runs.
-                        if (selectable.ready) scheduleSelect(dimensions, 250);
+                        if (selectable.ready) scheduleSelect(dimensions, 250, clickedField);
                       } : undefined}
                       role={selectable ? "button" : undefined}
                       tabIndex={selectable ? 0 : undefined}
@@ -1063,7 +1103,7 @@ export function TableWidget({ widget, data }: Props) {
                       onKeyDown={selectable ? (event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          selectNow(dimensions);
+                          selectNow(dimensions, clickedField);
                         }
                       } : undefined}
                       style={columnWidthStyle(col)}
