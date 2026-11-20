@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 14
+version: 15
 ---
 
 # Create Dashboard
@@ -272,7 +272,7 @@ crossFilter:
 SELECT * FROM orders WHERE owner_email = '{{ bruin.user_email }}'
 ```
 
-Locally there is no signed-in user, so the value comes from the `BRUIN_USER_EMAIL` environment variable (empty if unset). To preview a user-scoped dashboard as a specific person, pass it inline: `BRUIN_USER_EMAIL=someone@example.com dac dev`. In Bruin Cloud this becomes dynamic per signed-in viewer.
+Locally there is no signed-in user, so the value comes from the `BRUIN_USER_EMAIL` environment variable (empty if unset). To preview a user-scoped dashboard as a specific person, pass it inline: `BRUIN_USER_EMAIL=someone@example.com dac serve`. In Bruin Cloud this becomes dynamic per signed-in viewer.
 
 ## Named Queries
 
