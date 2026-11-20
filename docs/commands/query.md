@@ -62,6 +62,8 @@ dac query "SELECT * FROM sales LIMIT 5" -c my_db -o json
 dac query "SELECT * FROM sales" -c my_db -o csv > export.csv
 ```
 
+In CSV output, NULL values are empty cells.
+
 ## Examples
 
 ```shell

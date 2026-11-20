@@ -177,7 +177,17 @@ func printResult(result *query.QueryResult, format string) error {
 		for _, row := range result.Rows {
 			record := make([]string, len(row))
 			for i, v := range row {
-				record[i] = fmt.Sprintf("%v", v)
+				if v != nil {
+					record[i] = fmt.Sprintf("%v", v)
+				}
+			}
+			// csv.Writer writes a lone empty field as a blank line, which readers skip.
+			if len(record) == 1 && record[0] == "" {
+				w.Flush()
+				if _, err := fmt.Fprintln(os.Stdout, `""`); err != nil {
+					return err
+				}
+				continue
 			}
 			if err := w.Write(record); err != nil {
 				return err

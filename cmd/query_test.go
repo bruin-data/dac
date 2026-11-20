@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"encoding/csv"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/bruin-data/dac/pkg/dashboard"
+	"github.com/bruin-data/dac/pkg/query"
 )
 
 func TestResolveWidgetQuery_Tabs(t *testing.T) {
@@ -71,5 +73,31 @@ func TestMatchWidget_AmbiguousAndIDs(t *testing.T) {
 	// The title-less widget's tab is reachable by its id.
 	if id, err := matchWidget(d, "r0-w1::Revenue"); err != nil || id != "r0-w1::Revenue" {
 		t.Fatalf("job id: got %q, %v", id, err)
+	}
+}
+
+func TestPrintResultCSVWritesNullAsEmpty(t *testing.T) {
+	result := &query.QueryResult{
+		Columns: []query.ColumnInfo{{Name: "category"}, {Name: "revenue"}, {Name: "note"}},
+		Rows:    [][]any{{"Electronics", 153464.8, nil}},
+	}
+	got := captureStdout(t, func() {
+		if err := printResult(result, "csv"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if want := "category,revenue,note\nElectronics,153464.8,\n"; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+
+	single := &query.QueryResult{Columns: []query.ColumnInfo{{Name: "n"}}, Rows: [][]any{{nil}, {"x"}}}
+	got = captureStdout(t, func() {
+		if err := printResult(single, "csv"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	records, err := csv.NewReader(strings.NewReader(got)).ReadAll()
+	if err != nil || len(records) != 3 || records[1][0] != "" {
+		t.Fatalf("single-column NULL row lost: %q, err %v", records, err)
 	}
 }
