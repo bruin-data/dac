@@ -1,0 +1,56 @@
+@import "tailwindcss" source(none);
+@import "../src/styles/dac.css";
+@source "./dashboard.tsx";
+@source "../src";
+
+/* Mirrors Bruin Desktop's dashboard view (features/dashboards/dashboard-view.tsx), using DAC's tokens.
+   When Desktop's styles change, update this copy too. */
+body { margin: 0; font-family: 'Geist', system-ui, sans-serif; }
+/* Desktop: mx-auto max-w-[1400px] px-8 pb-10, inside a @container/dash. */
+.dash-root { container: dash / inline-size; min-height: 180px; }
+.dash-page { max-width: 1400px; margin: 0 auto; padding: 0 32px 40px; }
+.dash-root .meta { color: var(--dac-text-muted); font-size: 11px; line-height: 1.45; }
+.dash-root header { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 24px; padding: 12px 0 20px; }
+.dash-root header .title { flex: 1; min-width: min(100%, 260px); }
+.dash-root h1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0; font-size: 22px; font-weight: 500; line-height: 1.25; letter-spacing: -0.01em; color: var(--dac-text-primary); }
+.dash-root header .title p { margin: 4px 0 0; max-width: 72ch; color: var(--dac-text-secondary); font-size: 13px; }
+.dash-root .pill { border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 400; color: var(--dac-text-muted); background: color-mix(in srgb, var(--dac-text-primary) 7%, transparent); }
+.dash-root .actions { display: flex; flex-shrink: 0; align-items: center; gap: 4px; padding-top: 2px; }
+.dash-root .actions .meta { margin-right: 8px; }
+.dash-root .icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--dac-text-muted); cursor: pointer; }
+.dash-root .icon:hover { background: var(--dac-surface-hover); color: var(--dac-text-primary); }
+.dash-root .icon:disabled { cursor: default; }
+@media (prefers-reduced-motion: no-preference) { .dash-root .icon.spinning svg { animation: spin 1s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.dash-root .icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dash-filters { margin-bottom: 20px; }
+.dash-root .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--dac-border); }
+.dash-root .tabs button { margin-bottom: -1px; padding: 0 12px 8px; border: 0; border-bottom: 2px solid transparent; background: none; font-size: 13px; color: var(--dac-text-muted); cursor: pointer; }
+.dash-root .tabs button[aria-selected="true"] { border-bottom-color: var(--dac-accent); color: var(--dac-text-primary); }
+.dash-root .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 64px 24px; border: 1px dashed var(--dac-border); border-radius: 12px; text-align: center; color: var(--dac-text-secondary); font-size: 13px; }
+.dash-root .empty p { margin: 0; }
+.centered { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 48px 32px; text-align: center; color: var(--dac-text-secondary); font-size: 13px; }
+.widget-boundary { display: flex; flex-direction: column; justify-content: center; gap: 4px; height: 100%; min-height: 80px; padding: 12px 16px; border: 1px dashed var(--dac-border); border-radius: 6px; font-size: 13px; color: var(--dac-text-secondary); }
+.widget-boundary p { display: flex; align-items: center; gap: 6px; margin: 0; }
+.dash-root .alert-icon { width: 14px; height: 14px; fill: none; stroke: var(--dac-error); stroke-width: 2; }
+.loading { padding: 12px 32px 0; }
+.loading > div, .loading .cards > div { border-radius: 6px; background: #e6e6e8; }
+.loading .title { height: 24px; width: 224px; margin-bottom: 12px; }
+.loading .line { height: 14px; width: 320px; }
+.loading .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 24px 0 12px; background: none !important; }
+.loading .cards > div { height: 96px; opacity: .7; }
+.loading .block { height: 288px; opacity: .5; }
+@media (prefers-color-scheme: dark) { .loading > div, .loading .cards > div { background: #1f1f22; } }
+@media (prefers-reduced-motion: no-preference) { .loading > div, .loading .cards > div { animation: pulse 2s ease-in-out infinite; } }
+@keyframes pulse { 50% { opacity: .5; } }
+/* Desktop: when narrow, metrics go two a row and everything else full width. */
+@container dash (max-width: 760px) {
+  .dash-row > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; height: auto !important; }
+  .dash-row > .grid > div { grid-column: 1 / -1 !important; height: var(--row-h); }
+  .dash-row > .grid > div:has(> .dash-widget[data-type="metric"]) { grid-column: span 1 !important; }
+}
+.dash-root .action { border: 1px solid currentColor; border-radius: 6px; padding: 5px 10px; font-size: 12px; background: none; color: inherit; cursor: pointer; }
+/* Desktop: downloads are blocked in the frame; keep dac's description tooltips. */
+.dash-root [data-dac-export-control]:not([aria-describedby], .dac-popover) { display: none !important; }
+/* Desktop: dac fits metric values in whole pixels; a fraction over shouldn't turn into an ellipsis. */
+.dash-widget[data-type="metric"] .tabular-nums .truncate { text-overflow: clip; }
