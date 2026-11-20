@@ -812,12 +812,13 @@ export function TableWidget({ widget, data }: Props) {
   const crossRow = (dimensions: Record<string, unknown>, wholeRow: boolean, current = interactions) => {
     const present = current.filter((binding) => Object.prototype.hasOwnProperty.call(dimensions, binding.field));
     const candidates = present.filter((binding) => binding.accepts(dimensions[binding.field]));
+    // Row matching applies to plain table rows only; pivot cells keep their per-cell check.
     // Active filters this row cannot satisfy (e.g. a null value).
-    const unusable = present.filter((binding) => binding.active && !candidates.includes(binding));
+    const unusable = wholeRow ? present.filter((binding) => binding.active && !candidates.includes(binding)) : [];
     // Aliases are alternatives for the same filter; distinct active filters must all match.
     // Keep this independent of the clicked column's priority when applying a selection.
     // Mapped columns missing from the row (e.g. in a hidden group) cannot block it.
-    const rowMatches = (wholeRow ? present : candidates).every((binding) => !binding.active || candidates.some((other) =>
+    const rowMatches = wholeRow && present.every((binding) => !binding.active || candidates.some((other) =>
       other.filter.name === binding.filter.name && other.isSelected(dimensions[other.field])));
     return { candidates, unusable, rowMatches };
   };
@@ -838,9 +839,11 @@ export function TableWidget({ widget, data }: Props) {
     });
     if (!bindings.length) return undefined;
     // An active filter this row cannot satisfy means the row is not a match.
-    const blocked = clickedField !== undefined && unusable.some((binding) => !bindings.some((other) => other.filter.name === binding.filter.name));
+    const blocked = unusable.some((binding) => !bindings.some((other) => other.filter.name === binding.filter.name));
     const selected = !blocked && bindings.every((binding) => binding.isSelected(dimensions[binding.field]));
-    const highlighted = rowMatches && own.some((binding) => binding.active && binding.isSelected(dimensions[binding.field]));
+    // Pivot cells are pressed only when all of their values are selected.
+    const highlighted = clickedField === undefined ? selected
+      : rowMatches && own.some((binding) => binding.active && binding.isSelected(dimensions[binding.field]));
     return {
       ready: bindings.every((binding) => binding.ready),
       selected: highlighted,
