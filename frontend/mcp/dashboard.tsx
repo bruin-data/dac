@@ -220,7 +220,9 @@ function Loaded({ detail, app, refetch }: { detail: Detail; app: McpApp; refetch
 
 /** Desktop's filters, tabs and rows; split from Loaded only because useFilterOptions needs the DataClientProvider above it. */
 function Rows({ dac }: { dac: Dashboard }) {
-    const [filters, setFilters] = useState<Record<string, unknown>>(() => buildDefaultFilters(dac));
+    // The filter bar shows `values` at once; widgets query `filters`, which text and number edits reach after a pause.
+    const [values, setValues] = useState<Record<string, unknown>>(() => buildDefaultFilters(dac));
+    const [filters, setFilters] = useState(values);
     // Typing in a text or number filter would otherwise re-run every widget per keystroke.
     const typing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     // Edits wait here together, so changing one filter never drops another one still waiting.
@@ -228,6 +230,7 @@ function Rows({ dac }: { dac: Dashboard }) {
     useEffect(() => () => clearTimeout(typing.current), []);
     const onFilterChange = (name: string, value: unknown) => {
         const type = dac.filters?.find((filter) => filter.name === name)?.type;
+        setValues((current) => ({ ...current, [name]: value }));
         pending.current[name] = value;
         const apply = () => {
             const edits = pending.current;
@@ -249,17 +252,17 @@ function Rows({ dac }: { dac: Dashboard }) {
     const tabFilters = currentTab ? allFilters.filter((filter) => filter.tab === currentTab) : [];
     const visibleRows = dac.rows.map((row, index) => ({ row, index })).filter(({ row }) => !row.tab || row.tab === currentTab);
     return <>
-        {globalFilters.length > 0 && <div className="dash-filters"><BruinFilterBar filters={globalFilters} values={filters} onChange={onFilterChange} /></div>}
+        {globalFilters.length > 0 && <div className="dash-filters"><BruinFilterBar filters={globalFilters} values={values} onChange={onFilterChange} /></div>}
         {tabNames.length > 0 && <div className="tabs" role="tablist" aria-label="Dashboard sections">
             {tabNames.map((tab) => <button key={tab} role="tab" aria-selected={tab === currentTab} onClick={() => setActiveTab(tab)}>{tab}</button>)}
         </div>}
-        {tabFilters.length > 0 && <div className="dash-filters"><BruinFilterBar filters={tabFilters} values={filters} onChange={onFilterChange} /></div>}
+        {tabFilters.length > 0 && <div className="dash-filters"><BruinFilterBar filters={tabFilters} values={values} onChange={onFilterChange} /></div>}
         <div className="space-y-4">
             {visibleRows.map(({ row, index }) => <div key={index} className="dash-row" style={{ '--row-h': rowHeight(row.height) } as Record<string, string>}>
                 <BruinRow height={row.height}>
                     {row.widgets.map((widget, widgetIndex) => {
                         const widgetId = `r${index}-w${widgetIndex}`;
-                        return <BruinWidgetContainer key={widgetId} col={widget.col ? Number(widget.col) : Math.floor(12 / row.widgets.length)}>
+                        return <BruinWidgetContainer key={widgetId} col={widget.col ? Number(widget.col) : Math.floor(12 / row.widgets.length)} height={widget.height}>
                             <WidgetShell id={widgetId} dashboardName={dac.name} widget={widget} filters={filters} />
                         </BruinWidgetContainer>;
                     })}
