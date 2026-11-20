@@ -216,7 +216,7 @@ func TestDACBruinPath_GlobalFlagsForwarded(t *testing.T) {
 	})
 
 	host := readLog(t, f.hostLog)
-	if !strings.Contains(host, "--config-file\n"+f.configFile+"\n") || !strings.Contains(host, "-e\ndefault\n") {
+	if !strings.Contains(host, "--config-file\n"+f.configFile+"\n") || !strings.Contains(host, "--environment\ndefault\n") {
 		t.Fatalf("expected -c/-e to reach bruin, got log:\n%s", host)
 	}
 }

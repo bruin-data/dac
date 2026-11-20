@@ -115,7 +115,7 @@ func (b *BruinCLIBackend) queryArgs(connection string, sql string, dryRun bool) 
 		args = append(args, "--config-file", b.ConfigFile)
 	}
 	if b.Environment != "" {
-		args = append(args, "-e", b.Environment)
+		args = append(args, "--environment", b.Environment)
 	}
 	return append(args, "-q", sql)
 }
