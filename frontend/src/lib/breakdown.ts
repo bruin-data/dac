@@ -26,14 +26,15 @@ export function resolveBreakdown(widget: Widget, dashboard: Pick<Dashboard, "fil
   const optionDims = new Set(widget.columns?.flatMap((column) => breakdown(column.name)?.options?.breakdown
     ?.flatMap((o) => o.dimensions.map((d) => d.split(":")[0])) ?? []));
   const fixed = [...widget.dimensions ?? [], ...(widget.query && dashboard.queries?.[widget.query]?.dimensions) || []];
+  const added = new Set<string>(); // dimensions already placed by a `{{ }}` column
   const columns = refs.length
     ? widget.columns!.flatMap((column) => {
       const names = dims(column.name);
       if (!names) return refs.some((selected) => selected!.includes(column.name)) || !optionDims.has(column.name)
         || fixed.some((d) => d.name === column.name) ? [column] : [];
-      return names.filter((name) => !widget.columns!.some((c) => c.name === name))
+      return names.filter((name) => !widget.columns!.some((c) => c.name === name) && !added.has(name) && added.add(name))
         .map((name) => names.length === 1 ? { ...column, name } : { ...column, name, label: undefined });
-    }).filter((column, i, all) => all.findIndex((c) => c.name === column.name) === i)
+    })
     : undefined;
   // Only bar/line/area split a single y series by color.
   const autoColor = !widget.color && ["bar", "line", "area"].includes(widget.chart ?? "")
