@@ -347,7 +347,7 @@ export function DashboardView() {
   const gridColumns = `1fr ${yamlOpen ? yamlWidth : 0}px`;
 
   const renderWidget = (sourceWidget: Widget, rowIdx: number, widgetIdx: number, totalInRow: number) => {
-    const widget = resolveBreakdown(sourceWidget, dashboard.filters, values);
+    const widget = resolveBreakdown(sourceWidget, dashboard, values);
     const id = `r${rowIdx}-w${widgetIdx}`;
     const col = widget.col || Math.floor(12 / totalInRow);
     return (
