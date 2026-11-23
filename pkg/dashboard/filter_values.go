@@ -164,7 +164,7 @@ func validateFilterValue(f Filter, value any) error {
 		if _, ok := value.(string); !ok {
 			return fmt.Errorf("expected text")
 		}
-	case "select":
+	case "select", "breakdown":
 		check := func(value any) error {
 			// A null member selects null rows in semantic in/not_in filters.
 			if value == nil && f.Multiple {

@@ -22,7 +22,7 @@ export interface Dashboard {
 export interface Filter {
   col?: number;
   name: string;
-  type: "date" | "date-range" | "number" | "select" | "text";
+  type: "date" | "date-range" | "number" | "select" | "text" | "breakdown";
   multiple?: boolean;
   tab?: string; // scope to a row tab; shown only on that tab. Omit for the global bar
   default?: unknown;
@@ -35,6 +35,7 @@ export interface Filter {
     metric?: string | { field: string; format?: DisplayFormat };
     metric_values?: Record<string, string | number | boolean | null>;
     metric_format?: FilterMetricFormat;
+    breakdown?: { label: string; dimensions: string[] }[]; // "name" or "name:granularity"
     // Client-only state for query-driven select controls.
     isLoading?: boolean;
     error?: string;

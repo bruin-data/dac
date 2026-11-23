@@ -5,6 +5,7 @@ import { useFilterOptions } from "../hooks/useFilterOptions";
 import { useTemplate } from "../themes/TemplateProvider";
 import { buildDefaultFilters, fromParam, toParam, keepAllowedValues } from "../lib/filterParams";
 import { DataWidget, TabbedWidget } from "./DashboardWidget";
+import { resolveBreakdown } from "../lib/breakdown";
 import { CrossFilterContext } from "../hooks/useCrossFilter";
 import { crossFilterDefaultValue, crossFilterQueryFilters, sameCrossFilterValue, type CrossFilterSource } from "../lib/crossFilter";
 import { YamlPanel } from "./YamlPanel";
@@ -345,7 +346,8 @@ export function DashboardView() {
 
   const gridColumns = `1fr ${yamlOpen ? yamlWidth : 0}px`;
 
-  const renderWidget = (widget: Widget, rowIdx: number, widgetIdx: number, totalInRow: number) => {
+  const renderWidget = (sourceWidget: Widget, rowIdx: number, widgetIdx: number, totalInRow: number) => {
+    const widget = resolveBreakdown(sourceWidget, dashboard.filters, values);
     const id = `r${rowIdx}-w${widgetIdx}`;
     const col = widget.col || Math.floor(12 / totalInRow);
     return (

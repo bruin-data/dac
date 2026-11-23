@@ -217,6 +217,7 @@ function FilterControl({
 
   switch (filter.type) {
     case "select":
+    case "breakdown":
       if (filter.multiple) {
         return <MultiSelectFilter filter={filter} value={value} onChange={onChange} label={label} />;
       }

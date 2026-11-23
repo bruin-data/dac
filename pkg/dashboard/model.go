@@ -74,6 +74,30 @@ type FilterOptions struct {
 	// Resolved display metadata never participates in filter values or SQL.
 	MetricValues map[string]any  `yaml:"-" json:"metric_values,omitempty"`
 	MetricFormat *SemanticFormat `yaml:"-" json:"metric_format,omitempty"`
+	// Breakdown holds a breakdown filter's options; Values mirrors their labels.
+	Breakdown []BreakdownOption `yaml:"-" json:"breakdown,omitempty"`
+}
+
+// BreakdownOption is one choice of a breakdown filter: the semantic dimensions
+// a widget groups by when this label is selected.
+type BreakdownOption struct {
+	Label      string   `yaml:"label" json:"label"`
+	Dimensions []string `yaml:"dimensions" json:"dimensions"` // "name" or "name:granularity"
+}
+
+// UnmarshalYAML reads a breakdown filter's option list as well as the usual mapping.
+func (o *FilterOptions) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.SequenceNode {
+		if err := node.Decode(&o.Breakdown); err != nil {
+			return err
+		}
+		for _, option := range o.Breakdown {
+			o.Values = append(o.Values, option.Label)
+		}
+		return nil
+	}
+	type plain FilterOptions
+	return node.Decode((*plain)(o))
 }
 
 // FilterOptionMetric selects a SQL result column or model metric with an optional display format.

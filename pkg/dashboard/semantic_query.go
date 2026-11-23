@@ -3,6 +3,9 @@ package dashboard
 import (
 	"cmp"
 	"fmt"
+	"regexp"
+	"slices"
+	"strings"
 
 	sem "github.com/bruin-data/bruin/semantic-engine"
 )
@@ -16,6 +19,8 @@ type SemanticJob struct {
 	// It is passed to the engine so queries can reference dimensions on joined
 	// models (e.g. "customers.country").
 	Models map[string]*sem.Model
+	// Breakdowns maps breakdown filter names to their options.
+	Breakdowns map[string][]BreakdownOption
 }
 
 func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, error) {
@@ -41,6 +46,7 @@ func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, err
 			Connection: conn,
 			Query:      semanticQueryFromNamedQuery(q),
 			Models:     d.semanticModels,
+			Breakdowns: d.breakdowns(),
 		}, true, nil
 	}
 
@@ -71,7 +77,86 @@ func (d *Dashboard) ResolveWidgetSemanticJob(w *Widget) (*SemanticJob, bool, err
 		Connection: conn,
 		Query:      semanticQueryFromWidget(w),
 		Models:     d.semanticModels,
+		Breakdowns: d.breakdowns(),
 	}, true, nil
+}
+
+func (d *Dashboard) breakdowns() map[string][]BreakdownOption {
+	out := map[string][]BreakdownOption{}
+	for _, f := range d.Filters {
+		if f.Type == "breakdown" && f.Options != nil {
+			out[f.Name] = f.Options.Breakdown
+		}
+	}
+	return out
+}
+
+var breakdownRef = regexp.MustCompile(`^\{\{\s*filters\.(\w+)\s*\}\}$`)
+
+// breakdownRefName returns the breakdown filter a dimension name like
+// "{{ filters.geo }}" refers to.
+func (j *SemanticJob) breakdownRefName(name string) (string, bool) {
+	m := breakdownRef.FindStringSubmatch(strings.TrimSpace(name))
+	if m == nil {
+		return "", false
+	}
+	_, ok := j.Breakdowns[m[1]]
+	return m[1], ok
+}
+
+// expandBreakdowns replaces each breakdown reference in dims with the selected
+// option's dimensions, keeping list order and skipping duplicates. An empty
+// selection drops the reference.
+func (j *SemanticJob) expandBreakdowns(dims []sem.DimensionRef, values map[string]any) ([]sem.DimensionRef, error) {
+	var out []sem.DimensionRef
+	add := func(ref sem.DimensionRef) {
+		if !slices.Contains(out, ref) {
+			out = append(out, ref)
+		}
+	}
+	for _, dim := range dims {
+		name, ok := j.breakdownRefName(dim.Name)
+		if !ok {
+			add(dim)
+			continue
+		}
+		label, _ := values[name].(string)
+		if label == "" {
+			continue
+		}
+		i := slices.IndexFunc(j.Breakdowns[name], func(o BreakdownOption) bool { return o.Label == label })
+		if i < 0 {
+			return nil, fmt.Errorf("filter %q: %q is not a breakdown option", name, label)
+		}
+		for _, d := range j.Breakdowns[name][i].Dimensions {
+			ref, err := sem.ParseDimensionRef(d)
+			if err != nil {
+				return nil, err
+			}
+			add(ref)
+		}
+	}
+	return out, nil
+}
+
+// ExpandQuery expands breakdown references in the query's dimensions and sort.
+func (j *SemanticJob) ExpandQuery(q sem.Query, values map[string]any) (sem.Query, error) {
+	var err error
+	if q.Dimensions, err = j.expandBreakdowns(q.Dimensions, values); err != nil {
+		return q, err
+	}
+	sorts := q.Sort
+	q.Sort = nil
+	for _, s := range sorts {
+		refs, err := j.expandBreakdowns([]sem.DimensionRef{{Name: s.Name}}, values)
+		if err != nil {
+			return q, err
+		}
+		for _, ref := range refs {
+			q.Sort = append(q.Sort, sem.SortSpec{Name: ref.Name, Direction: s.Direction})
+		}
+	}
+	return q, nil
 }
 
 func semanticQueryFromNamedQuery(q Query) sem.Query {

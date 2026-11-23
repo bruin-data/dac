@@ -36,7 +36,8 @@ export function fromParam(filter: Filter, raw: string): unknown {
       const [start = "", end = ""] = raw.split(/\.\.|,/).map((s) => s.trim()); // or "2025-01-01..2025-03-31"
       return isRealDate(start) && isRealDate(end) ? { start, end } : undefined;
     }
-    case "select": {
+    case "select":
+    case "breakdown": {
       // Single-select only; multi-select is read from repeated params in
       // DashboardView. Non-empty static values take precedence; query-driven
       // filters preserve shared-link values while options load independently.

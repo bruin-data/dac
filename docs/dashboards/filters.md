@@ -151,6 +151,41 @@ A free-form text input.
     default: ""
 ```
 
+### Breakdown
+
+A dropdown that picks what [semantic](/dashboards/semantic-layer) widgets group by. Each option has a `label` and the model `dimensions` it groups by; write `created_at:month` to pick a time granularity. `default` is required.
+
+```yaml
+filters:
+  - name: breakdown
+    type: breakdown
+    default: Region
+    options:
+      - label: Region
+        dimensions: [region]
+      - label: Region & Channel
+        dimensions: [region, channel]
+      - label: Monthly
+        dimensions: [created_at:month]
+
+rows:
+  - widgets:
+      - name: Revenue
+        type: chart
+        chart: bar
+        dimensions:
+          - name: "{{ filters.breakdown }}"
+        metrics: [revenue]
+        sort:
+          - name: "{{ filters.breakdown }}"
+        x:
+          field: "{{ filters.breakdown }}"
+        y:
+          field: revenue
+```
+
+The `{{ filters.breakdown }}` entry in `dimensions` (and `sort`) becomes the selected option's dimensions, in order; fixed dimensions can sit next to it, and a repeated dimension is grouped once. Result columns keep the real dimension names, so notes and cross-filters see `region` and `channel`, not `breakdown`. In charts, `x` takes the option's first dimension; on bar, line and area charts with a single `y` field and no `color`, `color` takes its second. `dac validate` checks every option against each widget's model; a value that is not an option label returns HTTP 400. Breakdowns work only for semantic widgets, not SQL queries. In table `columns`, a `name: "{{ filters.breakdown }}"` entry becomes one column per selected dimension. Columns written for an option's dimensions (`name: region`, `label: Bölge`) keep their own label and format and show only while that dimension is selected. For cross-filtering, add one mapping per dimension (`field: region`, `field: channel`); a mapping fires only while its column is in the result.
+
 ## Filter Widths
 
 Set optional `col` (an integer from 1 to 12) to control a filter's width on the same 12-column grid used by widgets:
@@ -316,7 +351,7 @@ WHERE customer_name LIKE '%{{ filters.search }}%'
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Filter identifier, used in `filters.<name>` |
-| `type` | string | Yes | `select`, `date-range`, `date`, `number`, or `text` |
+| `type` | string | Yes | `select`, `date-range`, `date`, `number`, `text`, or `breakdown` |
 | `col` | integer | No | Filter width on a 12-column grid, from 1 to 12 |
 | `multiple` | bool | No | Allow multiple selections (select only) |
 | `tab` | string | No | Scope the filter to a row tab; shown only on that tab. Omit for the global bar |
@@ -328,6 +363,7 @@ WHERE customer_name LIKE '%{{ filters.search }}%'
 | `options.dimension` | string | No | Model dimension supplying query-generated choices; excludes `query` and `values` |
 | `options.metric` | string or object | No | Model metric name, or `{field, format?}` for a SQL column or model metric with optional format override |
 | `options.presets` | string[] | No | Which date presets to show (date-range) |
+| `options` (list) | object[] | Yes (breakdown) | Breakdown options: `label` and `dimensions` (`name` or `name:granularity`) |
 
 ## Server Validation and SQL Safety
 

@@ -67,7 +67,7 @@
           "minLength": 1
         },
         "type": {
-          "enum": ["select", "date-range", "date", "number", "text"]
+          "enum": ["select", "date-range", "date", "number", "text", "breakdown"]
         },
         "col": {
           "type": "integer",
@@ -83,7 +83,7 @@
         },
         "default": true,
         "options": {
-          "$ref": "#/$defs/filterOptions"
+          "anyOf": [{ "$ref": "#/$defs/filterOptions" }, { "$ref": "#/$defs/breakdownOptions" }]
         }
       },
       "patternProperties": {
@@ -91,6 +91,19 @@
       },
       "additionalProperties": false,
       "allOf": [
+        {
+          "if": {
+            "properties": { "type": { "const": "breakdown" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["options", "default"],
+            "properties": { "options": { "$ref": "#/$defs/breakdownOptions" }, "multiple": { "const": false } }
+          },
+          "else": {
+            "properties": { "options": { "$ref": "#/$defs/filterOptions" } }
+          }
+        },
         {
           "if": {
             "properties": { "type": { "const": "date" } },
@@ -107,7 +120,7 @@
         },
         {
           "if": {
-            "properties": { "type": { "not": { "const": "select" } } },
+            "properties": { "type": { "not": { "enum": ["select", "breakdown"] } } },
             "required": ["type"]
           },
           "then": {
@@ -129,6 +142,19 @@
         "properties": {
           "field": { "type": "string", "minLength": 1, "pattern": "\\S" },
           "filter": { "type": "string", "minLength": 1, "pattern": "\\S" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "breakdownOptions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["label", "dimensions"],
+        "properties": {
+          "label": { "type": "string", "minLength": 1 },
+          "dimensions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
         },
         "additionalProperties": false
       }
