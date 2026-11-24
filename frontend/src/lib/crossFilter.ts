@@ -94,8 +94,9 @@ export function resolveCrossFilterBindings(widget: Widget, filters: Filter[], da
     ["bar", "line", "area", "pie", "scatter", "bubble", "combo", "boxplot", "funnel", "sankey", "heatmap", "calendar", "sparkline", "waterfall", "xmr", "dumbbell", "treemap", "radar", "candlestick", "forest", "vega-lite"].includes(widget.chart ?? ""));
   if (!supported) return [];
   const x = Array.isArray(widget.x?.field) ? widget.x.field[0] : widget.x?.field;
-  const targets = filters.filter((filter) => filter.type !== "date-range" || (widget.type === "chart" &&
-    ["line", "area", "calendar", "candlestick", "sparkline", "xmr"].includes(widget.chart ?? "")));
+  // A breakdown picks what to group by, not a value, so clicks never set it.
+  const targets = filters.filter((filter) => filter.type !== "breakdown" && (filter.type !== "date-range" || (widget.type === "chart" &&
+    ["line", "area", "calendar", "candlestick", "sparkline", "xmr"].includes(widget.chart ?? ""))));
   let fields: Array<string | undefined>;
   if (widget.type === "table" || widget.type === "pivot_table") {
     fields = widget.pivot
