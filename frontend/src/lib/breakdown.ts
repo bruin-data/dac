@@ -36,8 +36,8 @@ export function resolveBreakdown(widget: Widget, dashboard: Pick<Dashboard, "fil
         .map((name) => names.length === 1 ? { ...column, name } : { ...column, name, label: undefined });
     })
     : undefined;
-  // Only bar/line/area split a single y series by color.
-  const autoColor = !widget.color && ["bar", "line", "area"].includes(widget.chart ?? "")
+  // Only bar/line/area split a single y series by color; a right axis (y2) can't be split.
+  const autoColor = !widget.color && !widget.y2 && ["bar", "line", "area"].includes(widget.chart ?? "")
     && [widget.y?.field ?? []].flat().length === 1 ? x?.[1] : undefined;
   if (!tabs && !x && !color && !columns) return widget;
   return {
