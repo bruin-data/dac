@@ -51,6 +51,9 @@ func compileSemanticQuery(job *dashboard.SemanticJob, filters map[string]any, gr
 	if err != nil {
 		return "", "", nil, err
 	}
+	if query, err = job.ExpandQuery(query, filters); err != nil {
+		return "", "", nil, err
+	}
 
 	engine, err := sem.NewEngineWithModels(model, models)
 	if err != nil {

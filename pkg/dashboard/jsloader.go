@@ -502,6 +502,15 @@ func vnodeToFilter(n *vnode) Filter {
 				fo.Metric = &FilterOptionMetric{} // Validation reports unsupported metric shapes.
 			}
 			f.Options = fo
+		} else if list, ok := opts.([]interface{}); ok {
+			fo := &FilterOptions{}
+			for _, item := range list {
+				m, _ := item.(map[string]interface{})
+				option := BreakdownOption{Label: asString(m["label"]), Dimensions: asStringSlice(m["dimensions"])}
+				fo.Breakdown = append(fo.Breakdown, option)
+				fo.Values = append(fo.Values, option.Label)
+			}
+			f.Options = fo
 		}
 	}
 

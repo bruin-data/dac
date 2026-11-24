@@ -156,9 +156,25 @@ func Validate(d *Dashboard) error {
 		if f.Type == "" {
 			errs = append(errs, fmt.Sprintf("%s: type is required", prefix))
 		}
-		validTypes := map[string]bool{"date": true, "date-range": true, "number": true, "select": true, "text": true}
+		validTypes := map[string]bool{"date": true, "date-range": true, "number": true, "select": true, "text": true, "breakdown": true}
 		if f.Type != "" && !validTypes[f.Type] {
 			errs = append(errs, fmt.Sprintf("%s: unknown filter type %q", prefix, f.Type))
+		}
+		if (f.Type == "breakdown") != (f.Options != nil && len(f.Options.Breakdown) > 0) || (f.Type == "breakdown" && f.Multiple) {
+			errs = append(errs, fmt.Sprintf("%s: breakdown filters need a single-value options list of {label, dimensions}, and only they take one", prefix))
+		} else if f.Type == "breakdown" {
+			labels, bad := map[string]bool{}, false
+			for _, option := range f.Options.Breakdown {
+				if bad = option.Label == "" || labels[option.Label] || len(option.Dimensions) == 0; bad {
+					break
+				}
+				labels[option.Label] = true
+			}
+			if bad {
+				errs = append(errs, fmt.Sprintf("%s: each breakdown option needs a unique label and at least one dimension", prefix))
+			} else if label, _ := f.Default.(string); !labels[label] {
+				errs = append(errs, fmt.Sprintf("%s: default is required and must be one of the option labels", prefix))
+			}
 		}
 		if f.Type == "date" && f.Default != nil {
 			switch v := f.Default.(type) {
@@ -361,6 +377,16 @@ func validateWidgetCrossFilter(prefix string, w *Widget, d *Dashboard) []string 
 			dateRangeSource = true
 		}
 	}
+	// A breakdown x axis takes the first dimension of each option.
+	xFields := map[string]bool{w.XField(): true}
+	if m := breakdownRef.FindStringSubmatch(strings.TrimSpace(w.XField())); m != nil {
+		for _, option := range d.breakdowns()[m[1]] {
+			if len(option.Dimensions) > 0 {
+				name, _, _ := strings.Cut(option.Dimensions[0], ":")
+				xFields[name] = true
+			}
+		}
+	}
 	seen := map[string]bool{}
 	for i, mapping := range w.CrossFilter {
 		filterType, known := filterTypes[mapping.Filter]
@@ -370,7 +396,9 @@ func validateWidgetCrossFilter(prefix string, w *Widget, d *Dashboard) []string 
 			errs = append(errs, fmt.Sprintf("%s: crossFilter references unknown filter %q", prefix, mapping.Filter))
 		} else if filterType == "date-range" && supported && !dateRangeSource {
 			errs = append(errs, fmt.Sprintf("%s: crossFilter cannot target date-range filter %q; only line, area, calendar, candlestick, sparkline and xmr charts select date ranges", prefix, mapping.Filter))
-		} else if filterType == "date-range" && dateRangeSource && mapping.Field != w.XField() {
+		} else if breakdownRef.MatchString(strings.TrimSpace(mapping.Field)) {
+			errs = append(errs, fmt.Sprintf("%s: crossFilter field %q must be a result column; with a breakdown, add one mapping per dimension", prefix, mapping.Field))
+		} else if filterType == "date-range" && dateRangeSource && !xFields[mapping.Field] {
 			errs = append(errs, fmt.Sprintf("%s: crossFilter field %q cannot target date-range filter %q; only the x field selects date ranges", prefix, mapping.Field, mapping.Filter))
 		}
 		if seen[mapping.Field] {
@@ -1013,6 +1041,7 @@ func validateSemanticNamedQuery(d *Dashboard, q Query) error {
 		Connection: q.Connection,
 		Query:      semanticQueryFromNamedQuery(q),
 		Models:     d.semanticModels,
+		Breakdowns: d.breakdowns(),
 	})
 }
 
@@ -1021,8 +1050,29 @@ func validateSemanticJob(job *SemanticJob) error {
 	if err != nil {
 		return err
 	}
-	_, err = engine.GenerateSQL(&job.Query)
-	return err
+	// Check every option of each referenced breakdown; other references drop out.
+	type selection struct{ filter, label string }
+	selections := []selection{{}}
+	for _, dim := range job.Query.Dimensions {
+		if name, ok := job.breakdownRefName(dim.Name); ok {
+			for _, option := range job.Breakdowns[name] {
+				selections = append(selections, selection{name, option.Label})
+			}
+		}
+	}
+	for _, s := range selections {
+		query, err := job.ExpandQuery(job.Query, map[string]any{s.filter: s.label})
+		if err != nil {
+			return err
+		}
+		if _, err = engine.GenerateSQL(&query); err != nil {
+			if s.filter != "" {
+				return fmt.Errorf("breakdown %q option %q: %w", s.filter, s.label, err)
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 var validFormatOps = map[string]bool{
