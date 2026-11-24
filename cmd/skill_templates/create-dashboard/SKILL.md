@@ -2,7 +2,7 @@
 name: create-dashboard
 description: Create DAC dashboards by writing YAML or TSX dashboard definition files. Use when the user wants to create, modify, review, or understand DAC dashboards, widgets, filters, SQL queries, semantic models, or CLI validation workflows.
 argument-hint: "[dashboard request]"
-version: 16
+version: 17
 ---
 
 # Create Dashboard
@@ -231,6 +231,9 @@ Supported filter types:
 - `date`
 - `number`
 - `text`
+- `breakdown` (semantic widgets only)
+
+A `breakdown` filter lets viewers pick what semantic widgets group by. Its `options` is a list of `{ label, dimensions }` (`created_at:month` sets a granularity) and `default` (an option label) is required. Write `"{{ filters.<name> }}"` in a widget's `dimensions`, `sort`, `x.field`, `color.field` or a table column `name`; it becomes the selected option's real dimension names. See `docs/dashboards/filters.md#breakdown`.
 
 Date range presets include `today`, `yesterday`, `last_7_days`, `last_30_days`, `last_90_days`, `this_month`, `last_month`, `this_quarter`, `this_year`, `year_to_date`, and `all_time`.
 
