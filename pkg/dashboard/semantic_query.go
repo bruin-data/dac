@@ -144,8 +144,8 @@ func (c TableColumn) SeriesQuery(model *sem.Model) (by sem.DimensionRef, metric 
 	xs, ys := c.X.FieldList(), c.Y.FieldList()
 	if c.Type != "sparkline" || model == nil || len(xs) != 1 || len(ys) != 1 ||
 		!slices.ContainsFunc(model.Metrics, func(m sem.Metric) bool { return m.Name == ys[0] }) ||
-		slices.ContainsFunc(model.Metrics, func(m sem.Metric) bool { return m.Name == c.Name }) ||
-		slices.ContainsFunc(model.Dimensions, func(d sem.Dimension) bool { return d.Name == c.Name }) {
+		slices.ContainsFunc(model.Metrics, func(m sem.Metric) bool { return strings.EqualFold(m.Name, c.Name) }) ||
+		slices.ContainsFunc(model.Dimensions, func(d sem.Dimension) bool { return strings.EqualFold(d.Name, c.Name) }) {
 		return sem.DimensionRef{}, "", false
 	}
 	name, granularity, _ := strings.Cut(xs[0], ":")

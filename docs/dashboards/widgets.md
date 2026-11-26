@@ -556,8 +556,9 @@ model metric. The server fills each row's cell; no SQL needed:
 - Each point is the metric computed for that x, with the table's filters and breakdown,
   so ratio metrics stay correct. Metric filters such as `{revenue} > 100` pick rows, not points.
 - The total row's line covers the rows the table shows, like the total itself.
-- On BigQuery and DuckDB the points come back in the table's own query; other
-  warehouses run one extra query per x.
+- On BigQuery and DuckDB the points usually come back in the table's own query.
+  Otherwise (other warehouses, or x is a table dimension or a number) one extra
+  query runs per x, plus one for the total row.
 - When x is also a table dimension (a daily table), each row shows the last
   `limit` points up to its own value.
 - Window metrics can't be drawn this way.

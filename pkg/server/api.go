@@ -636,7 +636,7 @@ func fillSeries(s SeriesJob, points, total map[string][][]any, wr *WidgetQueryRe
 			}
 			wr.Rows[i] = setCell(row, idx, last(list))
 		}
-		if gt := wr.GrandTotal; gt != nil && len(gt.Rows) == 1 && (s.SQL == "" || s.TotalSQL != "") {
+		if gt := wr.GrandTotal; gt != nil && len(gt.Rows) == 1 {
 			idx := seriesColumn(gt, c.Name)
 			gt.Rows[0] = setCell(gt.Rows[0], idx, last(read(gt.Rows[0], idx, total["[]"])))
 		}
