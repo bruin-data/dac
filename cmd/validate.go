@@ -162,6 +162,16 @@ func validateDashboardWithDatabase(ctx context.Context, backend query.Backend, d
 			result.err = dryRunQuery(ctx, backend, job.Connection, job.GrandTotalSQL)
 			results = append(results, result)
 		}
+		for _, series := range job.Series {
+			for _, sql := range []string{series.SQL, series.TotalSQL} {
+				if sql == "" {
+					continue
+				}
+				result := databaseValidationResult{label: labelForWidgetJob(job, labels) + " / Sparkline " + series.Columns[0].Name, connection: job.Connection}
+				result.err = dryRunQuery(ctx, backend, job.Connection, sql)
+				results = append(results, result)
+			}
+		}
 	}
 	return results, nil
 }

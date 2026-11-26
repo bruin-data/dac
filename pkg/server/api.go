@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
@@ -30,6 +32,21 @@ type WidgetJob struct {
 	// names (e.g. "customers.country" -> "customers_country"); this restores
 	// the dashboard-facing name so widgets resolve the column.
 	ColumnRenames map[string]string
+	Series        []SeriesJob
+}
+
+// SeriesJob is model sparkline columns sharing one x; empty SQL means merged.
+type SeriesJob struct {
+	SQL, TotalSQL string
+	Keys          int
+	Window        int // index of x among the table's dimensions, or -1
+	Metrics       []string
+	Columns       []SeriesColumn
+}
+
+type SeriesColumn struct {
+	Name, X, Y string
+	Limit      int
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -333,6 +350,9 @@ func resolveWidgetJob(d *dashboard.Dashboard, filters map[string]any, id string,
 			}
 			job.GrandTotalSQL = grandTotalSQL
 		}
+		if err := compileSeriesJobs(semanticJob, widget, filters, dialect, job); err != nil {
+			return nil, fmt.Errorf("widget %q: %w", widget.Name, err)
+		}
 		return job, nil
 	}
 
@@ -396,10 +416,10 @@ func ExecuteWidgetQuery(ctx context.Context, backend query.Backend, j WidgetJob)
 		}{Name: name, Type: col.Type})
 	}
 	for i, row := range qr.Rows {
-		wr.Rows[i] = row
+		wr.Rows[i] = slices.Clone(row) // cells are filled below; the backend may cache qr
 	}
 	if j.GrandTotalSQL != "" {
-		grandTotal := ExecuteWidgetQuery(ctx, backend, WidgetJob{SQL: j.GrandTotalSQL, Connection: j.Connection})
+		grandTotal := ExecuteWidgetQuery(ctx, backend, WidgetJob{SQL: j.GrandTotalSQL, Connection: j.Connection, ColumnRenames: j.ColumnRenames})
 		if grandTotal.Error != "" {
 			return grandTotal
 		}
@@ -407,6 +427,17 @@ func ExecuteWidgetQuery(ctx context.Context, backend query.Backend, j WidgetJob)
 			return &WidgetQueryResult{Query: j.GrandTotalSQL, Error: "expected at most one grand-total row"}
 		}
 		wr.GrandTotal = grandTotal
+	}
+	for _, s := range j.Series {
+		rows, err := seriesPoints(ctx, backend, j.Connection, s)
+		if err != nil {
+			return &WidgetQueryResult{Query: s.SQL, Error: err.Error()}
+		}
+		total, err := seriesPoints(ctx, backend, j.Connection, SeriesJob{SQL: s.TotalSQL, Window: -1})
+		if err != nil {
+			return &WidgetQueryResult{Query: s.TotalSQL, Error: err.Error()}
+		}
+		fillSeries(s, rows, total, wr)
 	}
 	return wr
 }
@@ -552,4 +583,110 @@ func (s *Server) handleWidgetQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeError(w, http.StatusNotFound, "widget not found: "+widgetID)
+}
+
+// seriesPoints runs a series query and groups its rows by row key.
+func seriesPoints(ctx context.Context, backend query.Backend, connection string, s SeriesJob) (map[string][][]any, error) {
+	if s.SQL == "" {
+		return nil, nil
+	}
+	qr, err := backend.Execute(ctx, connection, s.SQL)
+	if err != nil {
+		return nil, err
+	}
+	byIdx, first := s.Keys, s.Keys+1
+	if s.Window >= 0 {
+		byIdx, first = s.Window, s.Keys
+	}
+	out := map[string][][]any{}
+	for _, row := range qr.Rows {
+		if len(row) > first && row[byIdx] != nil {
+			key := seriesKey(row, s.Keys, s.Window)
+			out[key] = append(out[key], append([]any{row[byIdx]}, row[first:]...))
+		}
+	}
+	return out, nil
+}
+
+// fillSeries writes each row's last Limit points; a window row stops at its own x.
+func fillSeries(s SeriesJob, points, total map[string][][]any, wr *WidgetQueryResult) {
+	for _, c := range s.Columns {
+		m := slices.Index(s.Metrics, c.Y) + 1
+		read := func(row []any, idx int, rows [][]any) []map[string]any {
+			if s.SQL == "" {
+				var list []map[string]any
+				if idx < len(row) {
+					list = cellPoints(row[idx], c)
+				}
+				return append([]map[string]any{}, list[max(0, len(list)-c.Limit):]...)
+			}
+			out := []map[string]any{}
+			for _, p := range rows[max(0, len(rows)-c.Limit):] {
+				out = append(out, map[string]any{c.X: p[0], c.Y: p[m]})
+			}
+			return out
+		}
+		idx := seriesColumn(wr, c.Name)
+		for i, row := range wr.Rows {
+			rows := points[seriesKey(row, s.Keys, s.Window)]
+			if s.Window >= 0 {
+				rows = rows[:slices.IndexFunc(rows, func(p []any) bool { return reflect.DeepEqual(p[0], row[s.Window]) })+1]
+			}
+			wr.Rows[i] = setCell(row, idx, read(row, idx, rows))
+		}
+		if gt := wr.GrandTotal; gt != nil && len(gt.Rows) == 1 {
+			idx := seriesColumn(gt, c.Name)
+			gt.Rows[0] = setCell(gt.Rows[0], idx, read(gt.Rows[0], idx, total["[]"]))
+		}
+	}
+}
+
+// cellPoints reads a merged cell's newest-first {x, y} or [x, y] points, oldest first.
+func cellPoints(cell any, c SeriesColumn) []map[string]any {
+	items, _ := cell.([]any)
+	var out []map[string]any
+	for _, item := range slices.Backward(items) {
+		switch p := item.(type) {
+		case map[string]any:
+			out = append(out, map[string]any{c.X: p["x"], c.Y: p["y"]})
+		case []any:
+			if len(p) == 2 {
+				out = append(out, map[string]any{c.X: p[0], c.Y: p[1]})
+			}
+		}
+	}
+	return out
+}
+
+// seriesKey is the row's key values as JSON, without the window column.
+func seriesKey(row []any, keys, window int) string {
+	values := []any{}
+	for i, v := range row[:min(keys, len(row))] {
+		if i != window {
+			values = append(values, v)
+		}
+	}
+	data, _ := json.Marshal(values)
+	return string(data)
+}
+
+func seriesColumn(wr *WidgetQueryResult, name string) int {
+	for i, col := range wr.Columns {
+		if strings.EqualFold(col.Name, name) {
+			return i
+		}
+	}
+	wr.Columns = append(wr.Columns, struct {
+		Name string `json:"name"`
+		Type string `json:"type,omitempty"`
+	}{Name: name})
+	return len(wr.Columns) - 1
+}
+
+func setCell(row []any, idx int, value any) []any {
+	for len(row) <= idx {
+		row = append(row, nil)
+	}
+	row[idx] = value
+	return row
 }

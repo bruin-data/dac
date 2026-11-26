@@ -1076,6 +1076,7 @@ func asTableColumns(v interface{}) []TableColumn {
 				Number: formatOrNil(m["number"]),
 				X:      asAxisEncoding(m["x"]),
 				Y:      asAxisEncoding(m["y"]),
+				Limit:  asInt(m["limit"]),
 				Align:  asString(m["align"]),
 				Border: asString(m["border"]),
 				Like:   asString(m["like"]),
