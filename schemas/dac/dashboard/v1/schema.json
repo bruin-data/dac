@@ -857,6 +857,12 @@
         "y": {
           "$ref": "#/$defs/sparklineYEncoding"
         },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Model sparkline: keep the last N points (default 100)."
+        },
         "like": {
           "type": "string"
         },

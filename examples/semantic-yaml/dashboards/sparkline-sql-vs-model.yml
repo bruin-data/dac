@@ -1,0 +1,50 @@
+schema: https://getbruin.com/schemas/dac/dashboard/v1
+name: Sparkline SQL vs Model
+description: The same monthly revenue trend per region, built with SQL and with the semantic model
+connection: local_duckdb
+
+rows:
+  - widgets:
+      - name: From SQL
+        description: SQL builds each row's list of points with ARRAY_AGG
+        type: table
+        col: 6
+        sql: |
+          WITH monthly AS (
+            SELECT region, date_trunc('month', created_at) AS month, SUM(amount)::DOUBLE AS revenue
+            FROM sales
+            GROUP BY region, month
+          )
+          SELECT region, SUM(revenue) AS revenue,
+                 ARRAY_AGG({'month': month, 'revenue': revenue} ORDER BY month) AS trend
+          FROM monthly
+          GROUP BY region
+          ORDER BY region
+        columns:
+          - name: region
+          - name: revenue
+            format: "$,.0f"
+          - name: trend
+            label: Monthly revenue
+            type: sparkline
+            x: { field: month, type: date, format: "%b %Y" }
+            y: { field: revenue, format: "$,.0f" }
+
+      - name: From Model
+        description: y is a model metric and x a model dimension, so the server builds the points
+        type: table
+        col: 6
+        grandTotal: true
+        model: sales
+        dimensions: [{ name: region }]
+        metrics: [revenue]
+        sort: [{ name: region }]
+        columns:
+          - name: region
+          - name: revenue
+            format: "$,.0f"
+          - name: trend
+            label: Monthly revenue
+            type: sparkline
+            x: { field: "created_at:month", format: "%b %Y" }
+            y: { field: revenue }

@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -470,6 +471,9 @@ func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
 
 	validatePivot(prefix, w, &errs)
 	if err := w.ValidateGrandTotal(d); err != nil {
+		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
+	}
+	if err := w.ValidateSparklineSeries(d); err != nil {
 		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 	}
 	validateTableColumnGroups(prefix, w, &errs)
@@ -1356,6 +1360,37 @@ func validateFormatLayer(prefix string, l FormatLayer, pivot bool, errs *[]strin
 func isPairValue(v any) bool {
 	arr, ok := v.([]interface{})
 	return ok && len(arr) == 2
+}
+
+// ValidateSparklineSeries checks limit and each model sparkline's x and y.
+func (w *Widget) ValidateSparklineSeries(d *Dashboard) error {
+	if !slices.ContainsFunc(w.Columns, func(c TableColumn) bool { return c.Type == "sparkline" || c.Limit != 0 }) {
+		return nil
+	}
+	var model *sem.Model
+	var engine *sem.Engine
+	var dims []sem.DimensionRef // without breakdowns, which vary by selection
+	job, handled, err := d.ResolveWidgetSemanticJob(w)
+	if err == nil && handled && !w.HasInlineData() && w.Type == WidgetTypeTable {
+		if engine, err = sem.NewEngineWithModels(job.Model, job.Models); err != nil {
+			return err
+		}
+		model = job.Model
+		dims = slices.DeleteFunc(slices.Clone(job.Query.Dimensions), func(d sem.DimensionRef) bool { return strings.Contains(d.Name, "{{") })
+	}
+	for _, c := range w.Columns {
+		by, metric, ok := c.SeriesQuery(model)
+		if c.Limit != 0 && (!ok || c.Limit < 0 || c.Limit > MaxSparklinePoints) {
+			return fmt.Errorf("column %q: limit must be 1-%d, on a semantic table sparkline whose y.field is a model metric", c.Name, MaxSparklinePoints)
+		}
+		if !ok {
+			continue
+		}
+		if _, err := engine.GenerateSeriesSQL(&sem.Query{Dimensions: dims, Metrics: []string{metric}}, by, []string{metric}, false); err != nil {
+			return fmt.Errorf("column %q: %w", c.Name, err)
+		}
+	}
+	return nil
 }
 
 // ValidateGrandTotal checks the option and the metrics used by a semantic table.

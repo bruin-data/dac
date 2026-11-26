@@ -17,16 +17,35 @@ func compileSemanticJob(job *dashboard.SemanticJob, filters map[string]any, dial
 }
 
 func compileSemanticQuery(job *dashboard.SemanticJob, filters map[string]any, grandTotal bool, dialects ...string) (string, string, map[string]string, error) {
-	if err := tmpl.ValidateSemanticValue(filters); err != nil {
-		return "", "", nil, err
-	}
 	dialect := ""
 	if len(dialects) > 0 {
 		dialect = dialects[0]
 	}
-	model, err := renderSemanticModel(job.Model, filters, dialect)
+	engine, model, query, err := semanticEngine(job, filters, dialect)
 	if err != nil {
 		return "", "", nil, err
+	}
+	var sql string
+	if grandTotal {
+		sql, err = engine.GenerateGrandTotalSQL(&query)
+	} else {
+		sql, err = engine.GenerateSQL(&query)
+	}
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	return sql, job.Connection, semanticColumnRenames(model, query), nil
+}
+
+// semanticEngine renders the job's models and query into an engine.
+func semanticEngine(job *dashboard.SemanticJob, filters map[string]any, dialect string) (*sem.Engine, *sem.Model, sem.Query, error) {
+	if err := tmpl.ValidateSemanticValue(filters); err != nil {
+		return nil, nil, sem.Query{}, err
+	}
+	model, err := renderSemanticModel(job.Model, filters, dialect)
+	if err != nil {
+		return nil, nil, sem.Query{}, err
 	}
 
 	// Render every model in the project so queries that reference dimensions on
@@ -35,7 +54,7 @@ func compileSemanticQuery(job *dashboard.SemanticJob, filters map[string]any, gr
 	for name, m := range job.Models {
 		rendered, err := renderSemanticModel(m, filters, dialect)
 		if err != nil {
-			return "", "", nil, fmt.Errorf("rendering semantic model %q: %w", name, err)
+			return nil, nil, sem.Query{}, fmt.Errorf("rendering semantic model %q: %w", name, err)
 		}
 		models[name] = rendered
 	}
@@ -49,28 +68,18 @@ func compileSemanticQuery(job *dashboard.SemanticJob, filters map[string]any, gr
 
 	query, err := renderSemanticQuery(job.Query, filters, dialect)
 	if err != nil {
-		return "", "", nil, err
+		return nil, nil, sem.Query{}, err
 	}
 	if query, err = job.ExpandQuery(query, filters); err != nil {
-		return "", "", nil, err
+		return nil, nil, sem.Query{}, err
 	}
 
 	engine, err := sem.NewEngineWithModels(model, models)
 	if err != nil {
-		return "", "", nil, err
+		return nil, nil, sem.Query{}, err
 	}
 	engine.Dialect = dialect
-	var sql string
-	if grandTotal {
-		sql, err = engine.GenerateGrandTotalSQL(&query)
-	} else {
-		sql, err = engine.GenerateSQL(&query)
-	}
-	if err != nil {
-		return "", "", nil, err
-	}
-
-	return sql, job.Connection, semanticColumnRenames(model, query), nil
+	return engine, model, query, nil
 }
 
 // semanticColumnRenames maps the column names the engine emits back to the
@@ -381,4 +390,71 @@ func isEmptyList(v any) bool {
 func compileSemanticGrandTotalJob(job *dashboard.SemanticJob, filters map[string]any, dialects ...string) (string, error) {
 	sql, _, _, err := compileSemanticQuery(job, filters, true, dialects...)
 	return sql, err
+}
+
+// compileSeriesJobs merges model sparklines into the table's SQL, or else adds one query per x.
+func compileSeriesJobs(job *dashboard.SemanticJob, w *dashboard.Widget, filters map[string]any, dialect string, wj *WidgetJob) error {
+	if w.Type != dashboard.WidgetTypeTable {
+		return nil
+	}
+	var series []sem.Series
+	var columns []SeriesColumn
+	for _, col := range w.Columns {
+		if by, metric, ok := col.SeriesQuery(job.Model); ok {
+			series = append(series, sem.Series{By: by, Metric: metric, Limit: col.SeriesLimit()})
+			columns = append(columns, SeriesColumn{Name: col.Name, X: col.X.FieldList()[0], Y: metric, Limit: col.SeriesLimit()})
+		}
+	}
+	if len(series) == 0 {
+		return nil
+	}
+	engine, _, q, err := semanticEngine(job, filters, dialect)
+	if err != nil {
+		return err
+	}
+	sql, merged, err := engine.AddSeriesSQL(&q, wj.SQL, series, false)
+	if err != nil {
+		return err
+	}
+	if merged {
+		if wj.GrandTotalSQL != "" {
+			total, ok, err := engine.AddSeriesSQL(&q, wj.GrandTotalSQL, series, true)
+			if err != nil {
+				return err
+			} else if ok {
+				wj.GrandTotalSQL = total
+			}
+		}
+		wj.SQL = sql
+		for i, c := range columns {
+			wj.ColumnRenames[fmt.Sprintf("__series_%d", i)] = c.Name
+		}
+		wj.Series = []SeriesJob{{Window: -1, Columns: columns}}
+		return nil
+	}
+	var bys []sem.DimensionRef
+	for i, s := range series {
+		g := slices.Index(bys, s.By)
+		if g < 0 {
+			g, bys = len(bys), append(bys, s.By)
+			wj.Series = append(wj.Series, SeriesJob{Keys: len(q.Dimensions), Window: slices.Index(q.Dimensions, s.By)})
+		}
+		j := &wj.Series[g]
+		if !slices.Contains(j.Metrics, s.Metric) {
+			j.Metrics = append(j.Metrics, s.Metric)
+		}
+		j.Columns = append(j.Columns, columns[i])
+	}
+	for g, by := range bys {
+		j := &wj.Series[g]
+		if j.SQL, err = engine.GenerateSeriesSQL(&q, by, j.Metrics, false); err != nil {
+			return err
+		}
+		if wj.GrandTotalSQL != "" {
+			if j.TotalSQL, err = engine.GenerateSeriesSQL(&q, by, j.Metrics, true); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

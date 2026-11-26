@@ -532,6 +532,36 @@ Points use array order with equal X spacing. X is the tooltip label; Y is
 numeric. `x.format` and `y.format` format the tooltip, and
 `y.beginAtZero: true` includes zero. All cells in the column share one Y domain.
 
+#### From a semantic model
+
+On a semantic-model table, set `x.field` to a model dimension and `y.field` to a
+model metric. The server fills each row's cell; no SQL needed:
+
+```yaml
+- name: Regions
+  type: table
+  dimensions: [{name: region}]
+  metrics: [revenue]
+  grandTotal: true
+  columns:
+    - name: region
+    - name: revenue
+    - name: revenue_trend
+      type: sparkline
+      x: { field: day }      # one point per day (day:week for one per week)
+      y: { field: revenue }  # model metric
+      limit: 30              # optional: last 30 points (default and max 100)
+```
+
+- Each point is the metric computed for that x, with the table's filters and breakdown,
+  so ratio metrics stay correct. Metric filters such as `{revenue} > 100` pick rows, not points.
+- The total row's line covers the rows the table shows, like the total itself.
+- On BigQuery and DuckDB the points come back in the table's own query; other
+  warehouses run one extra query per x.
+- When x is also a table dimension (a daily table), each row shows the last
+  `limit` points up to its own value.
+- Window metrics can't be drawn this way.
+
 Sparkline columns are not sortable and do not accept `format` layers or `like`. Other
 columns cannot point `like` or a `{ column: ... }` rule value at one either,
 since a series has no single value.

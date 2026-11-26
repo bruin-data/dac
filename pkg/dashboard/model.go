@@ -357,6 +357,7 @@ type TableColumn struct {
 	Number    any           `yaml:"number,omitempty" json:"number,omitempty"`       // value display: currency | number | d3-format spec
 	X         *AxisEncoding `yaml:"x,omitempty" json:"x,omitempty"`                 // sparkline point x key/type/format
 	Y         *AxisEncoding `yaml:"y,omitempty" json:"y,omitempty"`                 // sparkline point y key/type/format/domain
+	Limit     int           `yaml:"limit,omitempty" json:"limit,omitempty"`         // model sparkline: last N points (max 100)
 	Like      string        `yaml:"like,omitempty" json:"like,omitempty"`           // mirror another column's coloring + per-row value
 	Hidden    bool          `yaml:"hidden,omitempty" json:"hidden,omitempty"`       // hide the column or its entire group block; set true only on a block's first member
 	Align     string        `yaml:"align,omitempty" json:"align,omitempty"`         // text alignment override: left | center | right (applies to the header and body cells)
@@ -406,6 +407,7 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 		Number    yaml.Node     `yaml:"number,omitempty"`
 		X         *AxisEncoding `yaml:"x,omitempty"`
 		Y         *AxisEncoding `yaml:"y,omitempty"`
+		Limit     int           `yaml:"limit,omitempty"`
 		Like      string        `yaml:"like,omitempty"`
 		Hidden    bool          `yaml:"hidden,omitempty"`
 		Align     string        `yaml:"align,omitempty"`
@@ -422,7 +424,7 @@ func (c *TableColumn) UnmarshalYAML(node *yaml.Node) error {
 	if err != nil {
 		return err
 	}
-	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Type: tmp.Type, Number: number, X: tmp.X, Y: tmp.Y, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align, Border: tmp.Border, Frozen: tmp.Frozen, Group: tmp.Group, Collapsed: tmp.Collapsed}
+	*c = TableColumn{Name: tmp.Name, Label: tmp.Label, Type: tmp.Type, Number: number, X: tmp.X, Y: tmp.Y, Limit: tmp.Limit, Like: tmp.Like, Hidden: tmp.Hidden, Align: tmp.Align, Border: tmp.Border, Frozen: tmp.Frozen, Group: tmp.Group, Collapsed: tmp.Collapsed}
 
 	// Follow a YAML alias to its target, then: a scalar is the legacy value-display
 	// shorthand (folds into `number`); a list is the style layers.

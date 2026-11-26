@@ -139,6 +139,28 @@ func (j *SemanticJob) expandBreakdowns(dims []sem.DimensionRef, values map[strin
 	return out, nil
 }
 
+// SeriesQuery returns a model sparkline's x dimension and y metric; ok is false otherwise.
+func (c TableColumn) SeriesQuery(model *sem.Model) (by sem.DimensionRef, metric string, ok bool) {
+	xs, ys := c.X.FieldList(), c.Y.FieldList()
+	if c.Type != "sparkline" || model == nil || len(xs) != 1 || len(ys) != 1 ||
+		!slices.ContainsFunc(model.Metrics, func(m sem.Metric) bool { return m.Name == ys[0] }) ||
+		slices.ContainsFunc(model.Metrics, func(m sem.Metric) bool { return m.Name == c.Name }) ||
+		slices.ContainsFunc(model.Dimensions, func(d sem.Dimension) bool { return d.Name == c.Name }) {
+		return sem.DimensionRef{}, "", false
+	}
+	name, granularity, _ := strings.Cut(xs[0], ":")
+	return sem.DimensionRef{Name: strings.TrimSpace(name), Granularity: strings.TrimSpace(granularity)}, ys[0], true
+}
+
+func (c TableColumn) SeriesLimit() int {
+	if c.Limit > 0 {
+		return c.Limit
+	}
+	return MaxSparklinePoints
+}
+
+const MaxSparklinePoints = 100
+
 // ExpandQuery expands breakdown references in the query's dimensions and sort.
 func (j *SemanticJob) ExpandQuery(q sem.Query, values map[string]any) (sem.Query, error) {
 	var err error

@@ -914,6 +914,19 @@ columns:
     y: { field: revenue, type: number, format: "$,.0f" }
 ```
 
+On a semantic-model table, a sparkline whose `y.field` is a model metric gets its points from the model. `x.field` is the dimension (`name` or `name:granularity`), one point per value; `limit` keeps the last N (default and max 100). When `x.field` is also a table dimension, each row shows the last `limit` points up to its own value.
+
+```yaml
+dimensions: [{name: country}]
+metrics: [revenue]
+columns:
+  - name: revenue_trend
+    type: sparkline
+    x: { field: day }       # or day:week
+    y: { field: revenue }
+    limit: 30
+```
+
 - With `if` (+ `value`), the layer styles only the cells that match. `value` is a scalar, `[low, high]` for `is_between`/`is_not_between`, `{ column: <name> }` to compare against another column in the same row, or omitted for empty checks. Operators: `is_empty`, `is_not_empty`, `text_contains`/`text_does_not_contain`/`text_starts_with`/`text_ends_with`/`text_is_exactly`, `date_is`/`date_before`/`date_after` (by day, or exact instant with a time), `greater_than`/`greater_than_or_equal`/`less_than`/`less_than_or_equal`, `is_equal_to`/`is_not_equal_to`, `is_between`/`is_not_between`.
 - With no `if`, the layer styles every cell — a **gradient** (`backgroundColor` is a list of 2+ colors; optional `range` list + `unit` = `absolute`/`percent`/`percentile`, omit `range` for auto min/max) or a **flat fill** (`backgroundColor` is a string). Put it last as the fallback.
 - Styles on any layer: `backgroundColor`, `textColor`, `bold`, `italic`, `underline`, `strikethrough`.

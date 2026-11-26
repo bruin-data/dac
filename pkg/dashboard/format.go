@@ -226,6 +226,20 @@ func (d *Dashboard) inheritWidgetFormats(w *Widget) {
 	if w.Value != nil && emptyFormat(w.Value.Format) && w.Value.Type != "date" && w.Value.Type != "category" {
 		w.Value.Format = resolve([]string{w.Value.Field})
 	}
+	// A model sparkline's points use the metric's format, and a time x is a date.
+	for i := range w.Columns {
+		col := &w.Columns[i]
+		by, metric, ok := col.SeriesQuery(job.Model)
+		if !ok {
+			continue
+		}
+		if emptyFormat(col.Y.Format) {
+			col.Y.Format = resolve([]string{metric})
+		}
+		if col.X.Type == "" && slices.ContainsFunc(job.Model.Dimensions, func(d sem.Dimension) bool { return d.Name == by.Name && d.Type == "time" }) {
+			col.X.Type = "date"
+		}
+	}
 	// Without model formats there is nothing to inherit; leave the columns as written.
 	if len(formats) == 0 || (w.Type != WidgetTypeTable && w.Type != WidgetTypePivotTable) {
 		return
