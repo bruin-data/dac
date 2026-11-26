@@ -1378,12 +1378,23 @@ func (w *Widget) ValidateSparklineSeries(d *Dashboard) error {
 		model = job.Model
 		dims = slices.DeleteFunc(slices.Clone(job.Query.Dimensions), func(d sem.DimensionRef) bool { return strings.Contains(d.Name, "{{") })
 	}
+	// returned reports whether the table query may return a column, such as a metric that already builds an array.
+	returned := func(name string) bool {
+		return len(dims) < len(job.Query.Dimensions) ||
+			slices.ContainsFunc(job.Query.Metrics, func(m string) bool { return strings.EqualFold(m, name) }) ||
+			slices.ContainsFunc(dims, func(d sem.DimensionRef) bool {
+				return strings.EqualFold(d.Name, name) || strings.HasSuffix(strings.ToLower(d.Name), "."+strings.ToLower(name))
+			})
+	}
 	for _, c := range w.Columns {
 		by, metric, ok := c.SeriesQuery(model)
 		if c.Limit != 0 && (!ok || c.Limit < 0 || c.Limit > MaxSparklinePoints) {
 			return fmt.Errorf("column %q: limit must be 1-%d, on a semantic table sparkline whose y.field is a model metric", c.Name, MaxSparklinePoints)
 		}
 		if !ok {
+			if model != nil && c.Type == "sparkline" && !returned(c.Name) {
+				return fmt.Errorf("column %q: sparkline needs y.field to be a model metric and x.field one dimension", c.Name)
+			}
 			continue
 		}
 		if _, err := engine.GenerateSeriesSQL(&sem.Query{Dimensions: dims, Metrics: []string{metric}}, by, []string{metric}, false); err != nil {

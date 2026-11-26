@@ -614,31 +614,29 @@ func fillSeries(s SeriesJob, points, total map[string][][]any, wr *WidgetQueryRe
 		m := slices.Index(s.Metrics, c.Y) + 1
 		read := func(row []any, idx int, rows [][]any) []map[string]any {
 			if s.SQL == "" {
+				var list []map[string]any
 				if idx < len(row) {
-					return cellPoints(row[idx], c)
+					list = cellPoints(row[idx], c)
 				}
-				return nil
+				return append([]map[string]any{}, list[max(0, len(list)-c.Limit):]...)
 			}
-			var out []map[string]any
-			for _, p := range rows {
+			out := []map[string]any{}
+			for _, p := range rows[max(0, len(rows)-c.Limit):] {
 				out = append(out, map[string]any{c.X: p[0], c.Y: p[m]})
 			}
 			return out
 		}
-		last := func(list []map[string]any) []map[string]any {
-			return append([]map[string]any{}, list[max(0, len(list)-c.Limit):]...)
-		}
 		idx := seriesColumn(wr, c.Name)
 		for i, row := range wr.Rows {
-			list := read(row, idx, points[seriesKey(row, s.Keys, s.Window)])
+			rows := points[seriesKey(row, s.Keys, s.Window)]
 			if s.Window >= 0 {
-				list = list[:slices.IndexFunc(list, func(p map[string]any) bool { return reflect.DeepEqual(p[c.X], row[s.Window]) })+1]
+				rows = rows[:slices.IndexFunc(rows, func(p []any) bool { return reflect.DeepEqual(p[0], row[s.Window]) })+1]
 			}
-			wr.Rows[i] = setCell(row, idx, last(list))
+			wr.Rows[i] = setCell(row, idx, read(row, idx, rows))
 		}
 		if gt := wr.GrandTotal; gt != nil && len(gt.Rows) == 1 {
 			idx := seriesColumn(gt, c.Name)
-			gt.Rows[0] = setCell(gt.Rows[0], idx, last(read(gt.Rows[0], idx, total["[]"])))
+			gt.Rows[0] = setCell(gt.Rows[0], idx, read(gt.Rows[0], idx, total["[]"]))
 		}
 	}
 }

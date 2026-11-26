@@ -50,6 +50,14 @@ func TestSemanticSparklineSeriesFillsEachRowAndTotal(t *testing.T) {
 	if err := d.Rows[0].Widgets[0].ValidateSparklineSeries(d); err != nil {
 		t.Fatal(err)
 	}
+	// A misspelled metric would leave the cell blank, so validation reports it.
+	typo := *d
+	typo.Rows = []dashboard.Row{{Widgets: []dashboard.Widget{d.Rows[0].Widgets[0]}}}
+	typo.Rows[0].Widgets[0].Columns = []dashboard.TableColumn{{Name: "trend", Type: "sparkline",
+		X: &dashboard.AxisEncoding{Field: "day"}, Y: &dashboard.AxisEncoding{Field: "avg_ordr"}}}
+	if err := typo.Rows[0].Widgets[0].ValidateSparklineSeries(&typo); err == nil {
+		t.Fatal("validation must catch a y.field that is not a model metric")
+	}
 
 	jobs, err := ResolveWidgetJobs(d, nil)
 	if err != nil {

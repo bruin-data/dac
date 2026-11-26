@@ -431,6 +431,7 @@ export default (
             type: "sparkline",
             x: { field: "day", type: "date", format: "%b %d" },
             y: { field: "amount", type: "number", format: "$,.0f", beginAtZero: true },
+            limit: 30,
           },
         ]} />
     </Row>
@@ -465,6 +466,9 @@ export default (
 	}
 	if w.Columns[3].X.Type != "date" || w.Columns[3].X.Format != "%b %d" || w.Columns[3].Y.Type != "number" || w.Columns[3].Y.Format != "$,.0f" || w.Columns[3].Y.BeginAtZero == nil || !*w.Columns[3].Y.BeginAtZero {
 		t.Errorf("unexpected sparkline encoding options: x=%+v y=%+v", w.Columns[3].X, w.Columns[3].Y)
+	}
+	if w.Columns[3].Limit != 30 {
+		t.Errorf("expected sparkline limit 30, got %d", w.Columns[3].Limit)
 	}
 }
 
