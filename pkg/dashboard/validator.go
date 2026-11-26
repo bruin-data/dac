@@ -1397,7 +1397,7 @@ func (w *Widget) ValidateSparklineSeries(d *Dashboard) error {
 			}
 			continue
 		}
-		if _, err := engine.GenerateSeriesSQL(&sem.Query{Dimensions: dims, Metrics: []string{metric}}, by, []string{metric}, false); err != nil {
+		if _, err := engine.GenerateSeriesSQL(&sem.Query{Dimensions: dims, Metrics: []string{metric}}, by, []string{metric}, 0, false); err != nil {
 			return fmt.Errorf("column %q: %w", c.Name, err)
 		}
 	}

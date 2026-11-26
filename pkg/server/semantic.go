@@ -447,11 +447,15 @@ func compileSeriesJobs(job *dashboard.SemanticJob, w *dashboard.Widget, filters 
 	}
 	for g, by := range bys {
 		j := &wj.Series[g]
-		if j.SQL, err = engine.GenerateSeriesSQL(&q, by, j.Metrics, false); err != nil {
+		limit := 0
+		for _, c := range j.Columns {
+			limit = max(limit, c.Limit)
+		}
+		if j.SQL, err = engine.GenerateSeriesSQL(&q, by, j.Metrics, limit, false); err != nil {
 			return err
 		}
 		if wj.GrandTotalSQL != "" {
-			if j.TotalSQL, err = engine.GenerateSeriesSQL(&q, by, j.Metrics, true); err != nil {
+			if j.TotalSQL, err = engine.GenerateSeriesSQL(&q, by, j.Metrics, limit, true); err != nil {
 				return err
 			}
 		}

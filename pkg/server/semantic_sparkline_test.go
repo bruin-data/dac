@@ -177,10 +177,11 @@ func TestSemanticSparklineSeriesSkipsRowFilters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// HAVING and limit pick rows, not points; the total covers shown rows.
+	// HAVING and limit pick the shown rows, not points; both queries cover only those rows.
 	s := jobs[0].Series[0]
-	if strings.Contains(s.SQL, "HAVING") || strings.Contains(s.SQL, "LIMIT") || !strings.Contains(s.SQL, "<> 'X'") ||
-		!strings.Contains(s.TotalSQL, "HAVING sum(revenue) > 100 LIMIT 5) __grand_total_detail") {
+	shown := "HAVING sum(revenue) > 100 LIMIT 5) __grand_total_detail"
+	if strings.Count(s.SQL, "HAVING") != 1 || !strings.Contains(s.SQL, shown) || !strings.Contains(s.SQL, "WHERE region <> 'X' GROUP BY 1, 2)") ||
+		!strings.Contains(s.TotalSQL, shown) {
 		t.Fatalf("series = %+v", s)
 	}
 }
