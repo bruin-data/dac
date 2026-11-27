@@ -125,7 +125,10 @@ export function TableWidget({ widget, data }: Props) {
   const grandTotal = widget.type === "table" && !!widget.grandTotal;
   const grandTotalHeight = typeof widget.height === "string" && /^\d+(?:\.\d+)?$/.test(widget.height)
     ? Number(widget.height) : widget.height ?? 400;
-  const grandTotalLabel = typeof widget.grandTotal === "object" ? widget.grandTotal.label ?? "Grand total" : "Grand total";
+  const grandTotalOptions = typeof widget.grandTotal === "object" ? widget.grandTotal : {};
+  const grandTotalLabel = grandTotalOptions.label ?? "Grand total";
+  const grandTotalTop = grandTotalOptions.pin === "top";
+  const stripeColor = typeof widget.striped === "object" ? widget.striped.color : undefined;
   const grandTotalValues = useMemo(() => {
     const result = grandTotal ? data?.grandTotal : undefined;
     if (!result?.rows[0]) return null;
@@ -874,6 +877,36 @@ export function TableWidget({ widget, data }: Props) {
   };
 
   const grandTotalLabelColumn = grandTotalValues && columns.find((column) => !grandTotalValues.has(column.name.toLowerCase()));
+  const grandTotalRow = grandTotalValues && (
+    <tr>
+      {columns.map((col, ci) => (
+        <td
+          key={col.name}
+          className={`font-bold ${col.number != null ? "tabular-nums text-[12px]" : ""} ${alignClasses(col.align, col.number != null).text} ${borderClasses[ci]}`}
+          style={{
+            ...columnWidthStyle(col), ...frozenStyle(ci, false),
+            ...(grandTotalTop
+              ? { borderBottom: "1px solid var(--dac-border)" }
+              : { position: "sticky", bottom: 0, zIndex: ci < frozenCount ? 4 : 3, borderTop: "1px solid var(--dac-border)" }),
+            backgroundColor: grandTotalOptions.color ?? "var(--dac-surface)",
+            fontFamily: col.number != null ? '"Geist Mono", monospace' : undefined,
+          }}
+        >
+          <div className="box-border w-full overflow-hidden whitespace-nowrap text-ellipsis px-4 py-1.5" style={columnWidthStyle(col)}>
+            {col === grandTotalLabelColumn ? grandTotalLabel : col.type === "sparkline" && !pivot ? (
+              <SparklineCell
+                points={sumSparklineSeries(grandTotalValues.get(col.name.toLowerCase()), axisField(col.x), axisField(col.y))}
+                beginAtZero={col.y?.beginAtZero}
+                formatX={buildAxisFormatter(col.x, String)}
+                formatY={buildAxisFormatter(col.y, (value) => formatCell(value, col.number, numberFormatters.get(col.name)))}
+              />
+            ) : grandTotalValues.get(col.name.toLowerCase()) != null
+              ? formatCell(grandTotalValues.get(col.name.toLowerCase()), col.number, numberFormatters.get(col.name)) : ""}
+          </div>
+        </td>
+      ))}
+    </tr>
+  );
 
   return (
     <div ref={outlineRootRef} className={`w-full min-w-0 max-w-full ${grandTotal ? "flex min-h-0 flex-col flex-1" : ""}`} onContextMenuCapture={cancelPendingSelect}>
@@ -896,7 +929,8 @@ export function TableWidget({ widget, data }: Props) {
             {columns.map((column) => <col key={column.name} style={columnWidthStyle(column)} />)}
           </colgroup>
         )}
-        <thead>
+        {/* A top-pinned total sits under the header, and the header sticks with it. */}
+        <thead style={grandTotalRow && grandTotalTop ? { position: "sticky", top: 0, zIndex: 5 } : undefined}>
           {!pivot && columnGroups.length > 0 && (
             <tr aria-label="Column groups" data-dac-export-control>
               {groupOutline.cells.map((cell, outlineIndex) => {
@@ -1032,6 +1066,7 @@ export function TableWidget({ widget, data }: Props) {
               );
             })}
           </tr>
+          {grandTotalTop && grandTotalRow}
         </thead>
         <tbody>
           {sortedRows.map((row, i) => {
@@ -1069,9 +1104,10 @@ export function TableWidget({ widget, data }: Props) {
                 }
                 // Sticky position merges under conditional-format style so the cell colour wins.
                 const frozen = frozenStyle(ci, false);
-                const tdStyle = { ...columnWidthStyle(col), ...frozen, ...style };
-                // An inset shade sits over the cell's own color, so formatted cells stripe too.
-                if (stripedRow) tdStyle.boxShadow = "inset 0 0 0 9999px color-mix(in srgb, var(--dac-text-muted) 10%, transparent)";
+                // A stripe color fills the row under the cell's own color; the default
+                // shade sits over it, so formatted cells stripe too.
+                const tdStyle = { ...columnWidthStyle(col), ...frozen, ...(stripedRow && stripeColor ? { backgroundColor: stripeColor } : {}), ...style };
+                if (stripedRow && !stripeColor) tdStyle.boxShadow = "inset 0 0 0 9999px color-mix(in srgb, var(--dac-text-muted) 10%, transparent)";
                 const displayValue = formatCell(raw, col.number, numberFormatters.get(col.name));
                 // Stay focusable while a refetch is pending so keyboard focus is kept.
                 const dimensions = pivot ? pivotCellDimensions(pivot, i, col.idx) : rowDimensions ?? NO_DIMENSIONS;
@@ -1155,36 +1191,7 @@ export function TableWidget({ widget, data }: Props) {
             );
           })}
         </tbody>
-        {grandTotalValues && (
-          <tfoot aria-label={grandTotalLabel}>
-            <tr>
-              {columns.map((col, ci) => (
-                <td
-                  key={col.name}
-                  className={`font-bold ${col.number != null ? "tabular-nums text-[12px]" : ""} ${alignClasses(col.align, col.number != null).text} ${borderClasses[ci]}`}
-                  style={{
-                    ...columnWidthStyle(col), ...frozenStyle(ci, false),
-                    position: "sticky", bottom: 0, zIndex: ci < frozenCount ? 4 : 3,
-                    backgroundColor: "var(--dac-surface)", borderTop: "1px solid var(--dac-border)",
-                    fontFamily: col.number != null ? '"Geist Mono", monospace' : undefined,
-                  }}
-                >
-                  <div className="box-border w-full overflow-hidden whitespace-nowrap text-ellipsis px-4 py-1.5" style={columnWidthStyle(col)}>
-                    {col === grandTotalLabelColumn ? grandTotalLabel : col.type === "sparkline" && !pivot ? (
-                      <SparklineCell
-                        points={sumSparklineSeries(grandTotalValues.get(col.name.toLowerCase()), axisField(col.x), axisField(col.y))}
-                        beginAtZero={col.y?.beginAtZero}
-                        formatX={buildAxisFormatter(col.x, String)}
-                        formatY={buildAxisFormatter(col.y, (value) => formatCell(value, col.number, numberFormatters.get(col.name)))}
-                      />
-                    ) : grandTotalValues.get(col.name.toLowerCase()) != null
-                      ? formatCell(grandTotalValues.get(col.name.toLowerCase()), col.number, numberFormatters.get(col.name)) : ""}
-                  </div>
-                </td>
-              ))}
-            </tr>
-          </tfoot>
-        )}
+        {grandTotalRow && !grandTotalTop && <tfoot aria-label={grandTotalLabel}>{grandTotalRow}</tfoot>}
       </table>
       {/* Reserve scrollable space for controls beyond the final column. */}
       {trailingGroups.length > 0 && (

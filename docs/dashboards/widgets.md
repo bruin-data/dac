@@ -414,10 +414,24 @@ Set `striped: true` on a table to shade every other row in the order the table
 shows. The shade sits over conditional-format colors, so colored cells stripe
 too; total rows are not shaded.
 
+Use `striped: {color: "#F5FAFF"}` to pick the stripe color (a hex color). It
+fills the row under conditional formatting, so a cell's own `backgroundColor`
+still wins and a `textColor` shows on the stripe.
+
 ### Semantic grand totals
 
 Set `grandTotal: true` on a semantic-model table to show a frozen total row.
-Use `grandTotal: {label: Overall}` to customize its label.
+Use the object form to change it:
+
+| Key | What it does |
+|-----|--------------|
+| `label` | The row's label (default `Grand total`). |
+| `color` | Row background, a hex color like `#FEF3C7`. |
+| `pin` | `bottom` (default) or `top`. A top total sits under the header, and the header stays visible with it while the rows scroll. |
+
+```yaml
+grandTotal: {label: Total, color: "#FEF3C7", pin: top}
+```
 
 ```yaml
 - name: Regional performance

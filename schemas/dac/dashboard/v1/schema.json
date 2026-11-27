@@ -511,8 +511,8 @@
         },
         "grandTotal": { "$ref": "#/$defs/grandTotal" },
         "striped": {
-          "type": "boolean",
-          "description": "Tables: shade every other row in display order, over conditional-format colors. Total rows stay unshaded."
+          "$ref": "#/$defs/striped",
+          "description": "Tables: shade every other row in display order. true draws a light shade over conditional-format colors; {color} fills the row with a hex color under them. Total rows stay unshaded."
         },
         "pivot": {
           "$ref": "#/$defs/pivot",
@@ -669,7 +669,7 @@
         "close": { "type": "string" },
         "columns": { "type": "array", "items": { "$ref": "#/$defs/tableColumn" } },
         "grandTotal": { "$ref": "#/$defs/grandTotal" },
-        "striped": { "type": "boolean" },
+        "striped": { "$ref": "#/$defs/striped" },
         "pivot": { "$ref": "#/$defs/pivot" },
         "content": { "type": "string" },
         "src": { "type": "string" },
@@ -834,10 +834,24 @@
       },
       "then": { "properties": { "type": { "const": "table" } } }
     },
+    "striped": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "type": "object", "properties": { "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" } }, "additionalProperties": false }
+      ]
+    },
     "grandTotal": {
       "oneOf": [
         { "type": "boolean" },
-        { "type": "object", "properties": { "label": { "type": "string" } }, "additionalProperties": false }
+        {
+          "type": "object",
+          "properties": {
+            "label": { "type": "string" },
+            "color": { "type": "string", "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+            "pin": { "enum": ["top", "bottom"] }
+          },
+          "additionalProperties": false
+        }
       ]
     },
     "tableColumn": {
