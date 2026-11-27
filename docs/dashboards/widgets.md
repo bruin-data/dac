@@ -408,6 +408,12 @@ Semantic example:
 
 Tables can mix semantic dimensions and metrics with explicit `columns` metadata for display labels and formatting.
 
+### Striped rows
+
+Set `striped: true` on a table to shade every other row in the order the table
+shows. The shade sits over conditional-format colors, so colored cells stripe
+too; total rows are not shaded.
+
 ### Semantic grand totals
 
 Set `grandTotal: true` on a semantic-model table to show a frozen total row.

@@ -602,6 +602,7 @@ func vnodeToWidget(n *vnode) Widget {
 		// Table fields
 		Columns:    asTableColumns(n.Props["columns"]),
 		GrandTotal: n.Props["grandTotal"],
+		Striped:    asBool(n.Props["striped"]),
 
 		// Text fields
 		Content: asString(n.Props["content"]),
