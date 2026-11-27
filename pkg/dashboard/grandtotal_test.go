@@ -24,7 +24,8 @@ rows:
       type: table
       dimensions: [{name: region}]
       metrics: [revenue]
-      grandTotal: {label: Overall}
+      grandTotal: {label: Overall, color: "#FEF3C7", pin: top}
+      striped: {color: "#F5FAFF"}
 `), nil)
 	assertNoErr(t, err)
 	setGrandTotalModel(d)
@@ -35,8 +36,8 @@ rows:
 	assertNoErr(t, json.Unmarshal(encoded, &back))
 	setGrandTotalModel(&back)
 	assertNoErr(t, Validate(&back))
-	if back.Rows[0].Widgets[0].GrandTotal.(map[string]interface{})["label"] != "Overall" {
-		t.Fatal("total setting lost in JSON")
+	if w := back.Rows[0].Widgets[0]; w.GrandTotal.(map[string]interface{})["pin"] != "top" || w.Striped.(map[string]interface{})["color"] != "#F5FAFF" {
+		t.Fatal("total or stripe setting lost in JSON")
 	}
 }
 
@@ -63,6 +64,8 @@ func TestGrandTotalValidation(t *testing.T) {
 		{"bad option", Widget{Type: WidgetTypeTable, GrandTotal: map[string]interface{}{"frozen": true}}, "unknown grandTotal"},
 		{"bad type", Widget{Type: WidgetTypeTable, GrandTotal: "yes"}, "boolean"},
 		{"bad label", Widget{Type: WidgetTypeTable, GrandTotal: map[string]interface{}{"label": 1}}, "string"},
+		{"named color", Widget{Type: WidgetTypeTable, GrandTotal: map[string]interface{}{"color": "amber"}}, "hex colour"},
+		{"bad pin", Widget{Type: WidgetTypeTable, GrandTotal: map[string]interface{}{"pin": "left"}}, "top or bottom"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d := &Dashboard{}
@@ -74,6 +77,21 @@ func TestGrandTotalValidation(t *testing.T) {
 	}
 	w := Widget{Type: WidgetTypeTable, SQL: "select 1", GrandTotal: false}
 	assertNoErr(t, w.ValidateGrandTotal(&Dashboard{}))
+}
+
+func TestStripedValidation(t *testing.T) {
+	for _, striped := range []any{nil, true, map[string]interface{}{"color": "#F5FAFF"}, map[string]interface{}{"color": "#fff"}} {
+		assertNoErr(t, (&Widget{Striped: striped}).ValidateStriped())
+	}
+	for want, striped := range map[string]any{
+		"hex colour":      map[string]interface{}{"color": "blue"},
+		"unknown striped": map[string]interface{}{"shade": "#F5FAFF"},
+		"boolean":         "yes",
+	} {
+		if err := (&Widget{Striped: striped}).ValidateStriped(); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("want %q, got %v", want, err)
+		}
+	}
 }
 
 func TestGrandTotalAllowsWindowMetricDependencies(t *testing.T) {

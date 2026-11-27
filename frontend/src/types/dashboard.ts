@@ -143,8 +143,8 @@ export interface Widget {
   close?: string;      // candlestick: close column
 
   // Table
-  grandTotal?: boolean | { label?: string };
-  striped?: boolean;   // shade every other row
+  grandTotal?: boolean | { label?: string; color?: string; pin?: "top" | "bottom" };
+  striped?: boolean | { color?: string };   // shade every other row
   columns?: TableColumn[];
   pivot?: import("../components/widgets/pivot").PivotConfig;
 

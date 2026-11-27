@@ -473,6 +473,9 @@ func validateWidgetContent(prefix string, w *Widget, d *Dashboard) []string {
 	if err := w.ValidateGrandTotal(d); err != nil {
 		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 	}
+	if err := w.ValidateStriped(); err != nil {
+		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
+	}
 	if err := w.ValidateSparklineSeries(d); err != nil {
 		errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 	}
@@ -1404,21 +1407,51 @@ func (w *Widget) ValidateSparklineSeries(d *Dashboard) error {
 	return nil
 }
 
+// ValidateStriped checks a table's striped option: a boolean or {color}.
+func (w *Widget) ValidateStriped() error {
+	switch value := w.Striped.(type) {
+	case nil, bool:
+	case map[string]interface{}:
+		for key, v := range value {
+			if key != "color" {
+				return fmt.Errorf("unknown striped setting: %s", key)
+			}
+			if text, ok := v.(string); !ok || !isHexColor(text) {
+				return fmt.Errorf("striped.color must be a hex colour like #F5FAFF")
+			}
+		}
+	default:
+		return fmt.Errorf("striped must be a boolean or {color}")
+	}
+	return nil
+}
+
 // ValidateGrandTotal checks the option and the metrics used by a semantic table.
 func (w *Widget) ValidateGrandTotal(d *Dashboard) error {
 	switch value := w.GrandTotal.(type) {
 	case nil, bool:
 	case map[string]interface{}:
 		for key, v := range value {
-			if key != "label" {
+			text, ok := v.(string)
+			switch key {
+			case "label":
+				if !ok {
+					return fmt.Errorf("grandTotal.label must be a string")
+				}
+			case "color":
+				if !ok || !isHexColor(text) {
+					return fmt.Errorf("grandTotal.color must be a hex colour like #FEF3C7")
+				}
+			case "pin":
+				if text != "top" && text != "bottom" {
+					return fmt.Errorf("grandTotal.pin must be top or bottom")
+				}
+			default:
 				return fmt.Errorf("unknown grandTotal setting: %s", key)
-			}
-			if _, ok := v.(string); !ok {
-				return fmt.Errorf("grandTotal.label must be a string")
 			}
 		}
 	default:
-		return fmt.Errorf("grandTotal must be a boolean or {label}")
+		return fmt.Errorf("grandTotal must be a boolean or {label, color, pin}")
 	}
 	if !w.GrandTotalEnabled() {
 		return nil
