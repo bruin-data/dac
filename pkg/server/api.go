@@ -621,10 +621,12 @@ func fillSeries(s SeriesJob, points, total map[string][][]any, wr *WidgetQueryRe
 				return append([]map[string]any{}, list[max(0, len(list)-c.Limit):]...)
 			}
 			out := []map[string]any{}
-			for _, p := range rows[max(0, len(rows)-c.Limit):] {
-				out = append(out, map[string]any{c.X: p[0], c.Y: p[m]})
+			for _, p := range rows {
+				if p[m] != nil { // a NULL y isn't a point, as in the merged lists
+					out = append(out, map[string]any{c.X: p[0], c.Y: p[m]})
+				}
 			}
-			return out
+			return out[max(0, len(out)-c.Limit):]
 		}
 		idx := seriesColumn(wr, c.Name)
 		for i, row := range wr.Rows {

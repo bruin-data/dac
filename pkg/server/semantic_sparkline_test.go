@@ -23,10 +23,11 @@ func (seriesBackend) Execute(_ context.Context, _ string, sql string) (*query.Qu
 		// Ordered by day, as the series query asks.
 		return &query.QueryResult{Columns: []query.ColumnInfo{{Name: "region"}, {Name: "day"}, {Name: "avg_order"}}, Rows: [][]any{
 			{"EU", "2026-09-01", 1.21}, {"US", "2026-09-01", 1.1}, {"EU", "2026-09-02", 0.91}, {"EU", "2026-09-03", 1.54},
+			{"EU", "2026-09-04", nil}, // a NULL y isn't a point and doesn't count toward the limit
 		}}, nil
 	case strings.Contains(sql, "AS day"):
 		return &query.QueryResult{Columns: []query.ColumnInfo{{Name: "day"}, {Name: "avg_order"}}, Rows: [][]any{
-			{"2026-09-01", 1.15}, {"2026-09-02", 0.95}, {"2026-09-03", 1.5},
+			{"2026-09-01", 1.15}, {"2026-09-02", 0.95}, {"2026-09-03", 1.5}, {"2026-09-04", nil},
 		}}, nil
 	}
 	return &query.QueryResult{Columns: []query.ColumnInfo{{Name: "region"}, {Name: "avg_order"}}, Rows: [][]any{{"EU", 1.14}, {"US", 1.1}, {"APAC", 0.8}}}, nil
