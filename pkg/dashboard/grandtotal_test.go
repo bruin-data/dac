@@ -83,13 +83,13 @@ func TestStripedValidation(t *testing.T) {
 	for _, striped := range []any{nil, true, map[string]interface{}{"color": "#F5FAFF"}, map[string]interface{}{"color": "#fff"}} {
 		assertNoErr(t, (&Widget{Striped: striped}).ValidateStriped())
 	}
-	for striped, want := range map[string]any{
+	for want, striped := range map[string]any{
 		"hex colour":      map[string]interface{}{"color": "blue"},
 		"unknown striped": map[string]interface{}{"shade": "#F5FAFF"},
 		"boolean":         "yes",
 	} {
-		if err := (&Widget{Striped: want}).ValidateStriped(); err == nil || !strings.Contains(err.Error(), striped) {
-			t.Fatalf("want %q, got %v", striped, err)
+		if err := (&Widget{Striped: striped}).ValidateStriped(); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("want %q, got %v", want, err)
 		}
 	}
 }

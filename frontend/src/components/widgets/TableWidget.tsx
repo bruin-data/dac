@@ -357,8 +357,8 @@ export function TableWidget({ widget, data }: Props) {
   };
   // Opaque background for a frozen cell that still tracks row hover; a
   // conditional-format colour (inline) still wins.
-  const frozenBgClass = (ci: number) =>
-    ci < frozenCount ? "bg-[var(--dac-background)] group-hover:bg-[var(--dac-surface)]" : "";
+  const frozenBgClass = (ci: number, striped = false) =>
+    ci < frozenCount ? `${striped ? "bg-[var(--dac-stripe)]" : "bg-[var(--dac-background)]"} group-hover:bg-[var(--dac-surface)]` : "";
 
   const columnWidthStyle = (col: TableColumn): CSSProperties => {
     const width = columnWidths[col.name] ?? autoColumnWidths[col.name];
@@ -878,7 +878,7 @@ export function TableWidget({ widget, data }: Props) {
 
   const grandTotalLabelColumn = grandTotalValues && columns.find((column) => !grandTotalValues.has(column.name.toLowerCase()));
   const grandTotalRow = grandTotalValues && (
-    <tr>
+    <tr aria-label={grandTotalLabel}>
       {columns.map((col, ci) => (
         <td
           key={col.name}
@@ -1074,6 +1074,8 @@ export function TableWidget({ widget, data }: Props) {
             const totalRow = kind === "grandtotal";
             const subtotalRow = kind === "subtotal";
             const stripedRow = widget.striped && !kind?.endsWith("total") && i % 2 === 1;
+            // A stripe color is a row class, so the hover color still replaces it.
+            const colorStripe = stripedRow && !!stripeColor;
             // Without mappings no cell is selectable, so skip the per-row work.
             const rowDimensions = pivot || !interactions.length ? undefined : Object.fromEntries(
               allColumns.map((column) => [column.name, column.idx >= 0 ? row[column.idx] : null]),
@@ -1082,7 +1084,8 @@ export function TableWidget({ widget, data }: Props) {
             return (
             <tr
               key={i}
-              className={`group transition-colors duration-75 ${totalRow ? "bg-[var(--dac-surface)]" : subtotalRow ? "bg-[var(--dac-surface)]/60" : "hover:bg-[var(--dac-surface)]"}`}
+              className={`group transition-colors duration-75 ${totalRow ? "bg-[var(--dac-surface)]" : subtotalRow ? "bg-[var(--dac-surface)]/60" : `${colorStripe ? "bg-[var(--dac-stripe)] " : ""}hover:bg-[var(--dac-surface)]`}`}
+              style={colorStripe ? ({ "--dac-stripe": stripeColor } as CSSProperties) : undefined}
             >
               {columns.map((col, ci) => {
                 const numeric = col.number != null;
@@ -1104,9 +1107,8 @@ export function TableWidget({ widget, data }: Props) {
                 }
                 // Sticky position merges under conditional-format style so the cell colour wins.
                 const frozen = frozenStyle(ci, false);
-                // A stripe color fills the row under the cell's own color; the default
-                // shade sits over it, so formatted cells stripe too.
-                const tdStyle = { ...columnWidthStyle(col), ...frozen, ...(stripedRow && stripeColor ? { backgroundColor: stripeColor } : {}), ...style };
+                const tdStyle = { ...columnWidthStyle(col), ...frozen, ...style };
+                // The default shade sits over the cell's own color, so formatted cells stripe too.
                 if (stripedRow && !stripeColor) tdStyle.boxShadow = "inset 0 0 0 9999px color-mix(in srgb, var(--dac-text-muted) 10%, transparent)";
                 const displayValue = formatCell(raw, col.number, numberFormatters.get(col.name));
                 // Stay focusable while a refetch is pending so keyboard focus is kept.
@@ -1118,7 +1120,7 @@ export function TableWidget({ widget, data }: Props) {
                     key={col.name}
                     className={`relative whitespace-nowrap align-middle rounded-none ${alignCls.text} ${
                       numeric ? "tabular-nums text-[12px]" : ""
-                    } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""} ${frozenBgClass(ci)} ${borderClasses[ci]}`}
+                    } ${totalRow || colIsTotal(col.idx) ? "font-bold" : ""} ${frozenBgClass(ci, colorStripe)} ${borderClasses[ci]}`}
                     style={tdStyle}
                   >
                     <div
@@ -1191,7 +1193,7 @@ export function TableWidget({ widget, data }: Props) {
             );
           })}
         </tbody>
-        {grandTotalRow && !grandTotalTop && <tfoot aria-label={grandTotalLabel}>{grandTotalRow}</tfoot>}
+        {grandTotalRow && !grandTotalTop && <tfoot>{grandTotalRow}</tfoot>}
       </table>
       {/* Reserve scrollable space for controls beyond the final column. */}
       {trailingGroups.length > 0 && (
