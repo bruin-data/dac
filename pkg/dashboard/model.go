@@ -265,6 +265,7 @@ type Widget struct {
 	// Table fields
 	Columns    []TableColumn `yaml:"columns,omitempty" json:"columns,omitempty"`
 	GrandTotal any           `yaml:"grandTotal,omitempty" json:"grandTotal,omitempty"` // semantic tables: bool or {label}
+	Striped    bool          `yaml:"striped,omitempty" json:"striped,omitempty"`       // tables: shade every other row
 	// Pivot turns a table's flat result set into a spreadsheet-style pivot,
 	// computed and rendered client-side. Table widgets only — see PivotConfig.
 	Pivot *PivotConfig `yaml:"pivot,omitempty" json:"pivot,omitempty"`

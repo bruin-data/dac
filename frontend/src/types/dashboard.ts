@@ -144,6 +144,7 @@ export interface Widget {
 
   // Table
   grandTotal?: boolean | { label?: string };
+  striped?: boolean;   // shade every other row
   columns?: TableColumn[];
   pivot?: import("../components/widgets/pivot").PivotConfig;
 

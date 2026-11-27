@@ -1038,6 +1038,7 @@ export function TableWidget({ widget, data }: Props) {
             const kind = rowKind(i);
             const totalRow = kind === "grandtotal";
             const subtotalRow = kind === "subtotal";
+            const stripedRow = widget.striped && !kind?.endsWith("total") && i % 2 === 1;
             // Without mappings no cell is selectable, so skip the per-row work.
             const rowDimensions = pivot || !interactions.length ? undefined : Object.fromEntries(
               allColumns.map((column) => [column.name, column.idx >= 0 ? row[column.idx] : null]),
@@ -1069,6 +1070,8 @@ export function TableWidget({ widget, data }: Props) {
                 // Sticky position merges under conditional-format style so the cell colour wins.
                 const frozen = frozenStyle(ci, false);
                 const tdStyle = { ...columnWidthStyle(col), ...frozen, ...style };
+                // An inset shade sits over the cell's own color, so formatted cells stripe too.
+                if (stripedRow) tdStyle.boxShadow = "inset 0 0 0 9999px color-mix(in srgb, var(--dac-text-muted) 10%, transparent)";
                 const displayValue = formatCell(raw, col.number, numberFormatters.get(col.name));
                 // Stay focusable while a refetch is pending so keyboard focus is kept.
                 const dimensions = pivot ? pivotCellDimensions(pivot, i, col.idx) : rowDimensions ?? NO_DIMENSIONS;
