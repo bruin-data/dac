@@ -18,7 +18,6 @@
   "types": "./dist-lib/types/lib.d.ts",
   "files": [
     "dist-lib",
-    "dist-mcp/dashboard.html",
     "src/styles"
   ],
   "scripts": {
