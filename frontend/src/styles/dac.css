@@ -19,6 +19,11 @@
   grid-column: 1 / -1;
 }
 
+/* Table rows scroll inside the widget, up to 400px unless a height is set. */
+[data-dac-table-scroll] {
+  max-height: 400px;
+}
+
 @media (width >= 40rem) {
   .dac-row {
     height: var(--dac-row-height, auto);
@@ -42,6 +47,11 @@
 
   .dac-widget-container[data-height] {
     height: var(--dac-widget-height);
+  }
+
+  /* A table in a fixed-height row fills the row (any CSS height, such as 50vh). */
+  .dac-row[data-height] > .dac-widget-container:not([data-height]) [data-dac-table-scroll] {
+    max-height: none;
   }
 }
 

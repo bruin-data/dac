@@ -408,6 +408,11 @@ Semantic example:
 
 Tables can mix semantic dimensions and metrics with explicit `columns` metadata for display labels and formatting.
 
+### Scrolling
+
+Table rows scroll inside the widget (up to 400px by default) and a footer shows
+the row count. Set `height` on the widget or its row to change the height.
+
 ### Striped rows
 
 Set `striped: true` on a table to shade every other row in the order the table

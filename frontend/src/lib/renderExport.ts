@@ -67,20 +67,50 @@ async function waitForExportContent(element: HTMLElement): Promise<void> {
   });
 }
 
+// Tables scroll inside their widget; lift the cap during capture so exports keep every row.
+// A widget or row with a fixed height still bounds the table, as on screen. Exports can
+// overlap (a widget and the dashboard), so each area is expanded once and restored last.
+const expandedTableAreas = new WeakMap<HTMLElement, { count: number; maxHeight: string; scrollTop: number }>();
+
+function expandTableScrollAreas(element: HTMLElement): () => void {
+  const areas = [...element.querySelectorAll<HTMLElement>("[data-dac-table-scroll]")];
+  areas.forEach((area) => {
+    const expanded = expandedTableAreas.get(area);
+    if (expanded) {
+      expanded.count++;
+      return;
+    }
+    expandedTableAreas.set(area, { count: 1, maxHeight: area.style.maxHeight, scrollTop: area.scrollTop });
+    area.style.maxHeight = "none";
+  });
+  return () => areas.forEach((area) => {
+    const expanded = expandedTableAreas.get(area);
+    if (!expanded || --expanded.count > 0) return;
+    expandedTableAreas.delete(area);
+    area.style.maxHeight = expanded.maxHeight;
+    area.scrollTop = expanded.scrollTop;
+  });
+}
+
 async function elementToPNGDataURL(element: HTMLElement): Promise<string> {
   await Promise.all([waitForFonts(), waitForExportContent(element)]);
 
   const { toPng } = await import("html-to-image");
-  const { width, height } = elementSize(element);
-  return toPng(element, {
-    width,
-    height,
-    backgroundColor: elementBackground(element),
-    cacheBust: true,
-    imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
-    pixelRatio: Math.min(2, Math.max(1, window.devicePixelRatio || 1)),
-    filter: exportFilter,
-  });
+  const restore = expandTableScrollAreas(element);
+  try {
+    const { width, height } = elementSize(element);
+    return await toPng(element, {
+      width,
+      height,
+      backgroundColor: elementBackground(element),
+      cacheBust: true,
+      imagePlaceholder: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+      pixelRatio: Math.min(2, Math.max(1, window.devicePixelRatio || 1)),
+      filter: exportFilter,
+    });
+  } finally {
+    restore();
+  }
 }
 
 function downloadDataURL(filename: string, dataURL: string): void {
