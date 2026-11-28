@@ -29,7 +29,7 @@ The same components are packaged as `@bruin-data/dac-ui` for other React apps (s
 make frontend-lib
 ```
 
-The entry point is `src/lib.ts`, the output goes to `frontend/dist-lib`, and component styles live in `src/styles/dac.css`. Releases attach the package as `dac-ui.tgz`.
+The entry point is `src/lib.ts`, the output goes to `frontend/dist-lib`, and component styles live in `src/styles/dac.css`. Releases attach the package as `dac-ui.tgz`. The package also ships Bruin Cloud's MCP dashboard viewer as `dist-mcp/dashboard.html`.
 
 ## Useful Commands
 
