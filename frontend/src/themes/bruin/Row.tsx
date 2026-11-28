@@ -27,7 +27,7 @@ export function BruinRow({ children, height }: RowProps) {
     ? { "--dac-row-height": cssHeight(height) } as CSSProperties
     : undefined;
   return (
-    <div className="dac-row grid grid-cols-1 sm:grid-cols-12 gap-4" style={style}>
+    <div className="dac-row grid grid-cols-1 sm:grid-cols-12 gap-4" data-height={height !== undefined && !/^(auto|(min|max|fit)-content)$/.test(String(height)) ? "" : undefined} style={style}>
       <RowHeightContext.Provider value={stacked ? undefined : parseRowHeight(height)}>
         {children}
       </RowHeightContext.Provider>

@@ -123,8 +123,11 @@ export function TableWidget({ widget, data }: Props) {
   };
 
   const grandTotal = widget.type === "table" && !!widget.grandTotal;
-  const grandTotalHeight = typeof widget.height === "string" && /^\d+(?:\.\d+)?$/.test(widget.height)
-    ? Number(widget.height) : widget.height ?? 400;
+  // Rows scroll inside the widget (like Cloud dashboards) instead of stretching the page.
+  // The widget's own height caps them here; dac.css fills a fixed-height row and
+  // otherwise caps them at 400px.
+  const tableHeight = typeof widget.height === "string" && /^\d+(?:\.\d+)?$/.test(widget.height)
+    ? Number(widget.height) : widget.height;
   const grandTotalOptions = typeof widget.grandTotal === "object" ? widget.grandTotal : {};
   const grandTotalLabel = grandTotalOptions.label ?? "Grand total";
   const grandTotalTop = grandTotalOptions.pin === "top";
@@ -810,7 +813,11 @@ export function TableWidget({ widget, data }: Props) {
       />
     ));
   };
+  // Pivot subtotal and grand-total rows are not counted, like a plain table's total row.
+  const rowCount = pivot ? pivot.rowKinds.filter((kind) => kind === "leaf").length : sortedRows.length;
   const trailingGroups = !pivot ? groupOutline.cells[groupOutline.cells.length - 1]?.after ?? [] : [];
+  // 14px toggles with 6px gaps; the control starts 7px inside the table's right edge.
+  const trailingGroupsWidth = trailingGroups.length * 20 - 6;
   // Row-level cross-filter state, computed once per table row and shared by its cells.
   const crossRow = (dimensions: Record<string, unknown>, wholeRow: boolean, current = interactions) => {
     const present = current.filter((binding) => Object.prototype.hasOwnProperty.call(dimensions, binding.field));
@@ -909,7 +916,7 @@ export function TableWidget({ widget, data }: Props) {
   );
 
   return (
-    <div ref={outlineRootRef} className={`w-full min-w-0 max-w-full ${grandTotal ? "flex min-h-0 flex-col flex-1" : ""}`} onContextMenuCapture={cancelPendingSelect}>
+    <div ref={outlineRootRef} className="flex w-full min-w-0 max-w-full min-h-0 flex-col flex-1" onContextMenuCapture={cancelPendingSelect}>
       {!pivot && !columns.length && groupOutline.hidden.length > 0 && (
         <div role="group" aria-label="Column groups" data-dac-export-control className="flex min-h-[26px] items-start gap-1.5 overflow-x-auto px-2 py-1">
           {groupOutline.hidden.map((group) => (
@@ -919,7 +926,7 @@ export function TableWidget({ widget, data }: Props) {
           ))}
         </div>
       )}
-      {columns.length > 0 && <div className={`w-full min-w-0 max-w-full whitespace-nowrap ${grandTotal ? "min-h-0 overflow-auto" : "overflow-x-auto"}`} style={grandTotal ? { maxHeight: grandTotalHeight } : undefined}>
+      {columns.length > 0 && <div data-dac-table-scroll className="w-full min-w-0 max-w-full min-h-0 whitespace-nowrap overflow-auto" style={{ maxHeight: tableHeight, paddingRight: trailingGroups.length ? trailingGroupsWidth - 7 : undefined }}>
       <table
         className="inline-table min-w-max align-top text-[13px] border-separate [border-spacing:1px_1px]"
         style={tableWidthStyle}
@@ -929,8 +936,8 @@ export function TableWidget({ widget, data }: Props) {
             {columns.map((column) => <col key={column.name} style={columnWidthStyle(column)} />)}
           </colgroup>
         )}
-        {/* A top-pinned total sits under the header, and the header sticks with it. */}
-        <thead style={grandTotalRow && grandTotalTop ? { position: "sticky", top: 0, zIndex: 5 } : undefined}>
+        {/* The header sticks while rows scroll; a top-pinned total sits under it and sticks with it. */}
+        <thead style={{ position: "sticky", top: 0, zIndex: 5 }}>
           {!pivot && columnGroups.length > 0 && (
             <tr aria-label="Column groups" data-dac-export-control>
               {groupOutline.cells.map((cell, outlineIndex) => {
@@ -1195,13 +1202,17 @@ export function TableWidget({ widget, data }: Props) {
         </tbody>
         {grandTotalRow && !grandTotalTop && <tfoot>{grandTotalRow}</tfoot>}
       </table>
-      {/* Reserve scrollable space for controls beyond the final column. */}
+      {/* Controls beyond the final column sit in the scroll area's reserved right padding
+          and stick to the top with the header while rows scroll. */}
       {trailingGroups.length > 0 && (
-        <div role="group" aria-label="Column groups" data-dac-export-control className="relative -left-[7px] top-px inline-flex h-[26px] items-start gap-1.5 py-1 align-top" style={{ zIndex: frozenCount + 21 }}>
+        <div role="group" aria-label="Column groups" data-dac-export-control className="sticky -ml-[7px] top-px inline-flex h-[26px] items-start gap-1.5 py-1 align-top" style={{ zIndex: frozenCount + 21, marginRight: -trailingGroupsWidth }}>
           <span aria-hidden="true" className="pointer-events-none absolute bottom-0 left-[7px] top-[18px] border-l border-[var(--dac-border)]" />
           {trailingGroups.map((group) => <div key={group.id} className="shrink-0">{renderGroupToggle(group, true)}</div>)}
         </div>
       )}
+      </div>}
+      {rowCount > 0 && <div className="mt-auto shrink-0 border-t border-[var(--dac-border)] px-4 pt-1.5 -mb-1 text-[11px] tabular-nums text-[var(--dac-text-muted)]">
+        {rowCount.toLocaleString()} {rowCount === 1 ? "row" : "rows"}
       </div>}
     </div>
   );

@@ -408,6 +408,30 @@ Semantic example:
 
 Tables can mix semantic dimensions and metrics with explicit `columns` metadata for display labels and formatting.
 
+### Scrolling and row count
+
+Tables and pivot tables have no pagination. Their rows scroll inside the widget,
+and the header stays visible while they scroll. A footer counts the rows, such
+as `60 rows`; a pivot counts its innermost rows, not its subtotal or total rows.
+
+How tall the widget gets:
+
+- With no height set, the table (header and rows) grows up to 400px.
+- In a row with a `height`, the table fills the row.
+- With a widget `height`, the whole widget (title, header, rows, and footer) is
+  that tall. On narrow screens, where widgets stack, it caps the table instead.
+
+```yaml
+- name: Recent Orders
+  type: table
+  height: 250
+  sql: SELECT * FROM orders ORDER BY created_at DESC
+```
+
+PNG and PDF exports include every row of a table that grows with its content. A
+table in a fixed-height row or widget exports at that height, as it shows on
+screen. CSV exports always include every row.
+
 ### Striped rows
 
 Set `striped: true` on a table to shade every other row in the order the table
@@ -427,7 +451,7 @@ Use the object form to change it:
 |-----|--------------|
 | `label` | The row's label (default `Grand total`). |
 | `color` | Row background, a hex color like `#FEF3C7`. |
-| `pin` | `bottom` (default) or `top`. A top total sits under the header, and the header stays visible with it while the rows scroll. |
+| `pin` | `bottom` (default) or `top`. A top total sits under the header and stays visible with it while the rows scroll. |
 
 ```yaml
 grandTotal: {label: Total, color: "#FEF3C7", pin: top}
